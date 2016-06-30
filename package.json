@@ -32,6 +32,7 @@
     "npmAlgorithm": "flat"
   },
   "dependencies": {
+    "babylonjs": "^2.4.0",
     "can": "^2.3.16",
     "can-connect": "^0.5.0",
     "can-zone": "^0.5.0",

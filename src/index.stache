@@ -5,8 +5,11 @@
   <body>
     <can-import from="egospace/styles.less!" />
     <can-import from="egospace/app" export-as="viewModel" />
+    <can-import from="egospace/components/demo/" />
 
     <h1>{{message}}</h1>
+
+    <egospace-demo />
 
     {{#switch env.NODE_ENV}}
       {{#case "production"}}

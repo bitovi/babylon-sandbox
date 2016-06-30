@@ -1,0 +1,8 @@
+*.suo
+*.sln
+*.csproj
+*.user
+*.config
+.vs/
+bin/
+obj/

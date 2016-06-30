@@ -30,7 +30,7 @@ export default Component.extend({
          // Now create a basic Babylon Scene object
          var scene = new Babylon.Scene(engine);
          // Change the scene background color to green.
-         scene.clearColor = new Babylon.Color3(0, 1, 0);
+         scene.clearColor = new Babylon.Color3(0, 0, 1);
          // This creates and positions a free camera
          var camera = new Babylon.FreeCamera("camera1", new Babylon.Vector3(0, 5, -10), scene);
          // This targets the camera to scene origin

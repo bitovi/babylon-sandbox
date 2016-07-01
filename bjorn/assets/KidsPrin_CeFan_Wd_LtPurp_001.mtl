@@ -12,8 +12,8 @@ newmtl KidsPrin_CeFan_Wd_LtPurp_001_Mat0_1
 	Kd 0.4000 0.4000 0.4000
 	Ks 0.5000 0.5000 0.5000
 	Ke 0.0000 0.0000 0.0000
-	map_Ka C:\Users\tswift\Desktop\Assets_Var_Formats\Resources\KidsPrin_CeFan_Wd_LtPurp_001_Tex0_Diff.tga
-	map_Kd C:\Users\tswift\Desktop\Assets_Var_Formats\Resources\KidsPrin_CeFan_Wd_LtPurp_001_Tex0_Diff.tga
+	map_Ka Resources\KidsPrin_CeFan_Wd_LtPurp_001_Tex0_Diff.tga
+	map_Kd Resources\KidsPrin_CeFan_Wd_LtPurp_001_Tex0_Diff.tga
 
 newmtl KidsPrin_CeFan_Wd_LtPurp_001_Mat0_2
 	Ns 43.2193
@@ -26,6 +26,6 @@ newmtl KidsPrin_CeFan_Wd_LtPurp_001_Mat0_2
 	Kd 0.4000 0.4000 0.4000
 	Ks 0.0000 0.0000 0.0000
 	Ke 0.0000 0.0000 0.0000
-	map_Ka C:\Users\tswift\Desktop\Assets_Var_Formats\Resources\KidsPrin_CeFan_Wd_LtPurp_001_Tex0_Diff.tga
-	map_Kd C:\Users\tswift\Desktop\Assets_Var_Formats\Resources\KidsPrin_CeFan_Wd_LtPurp_001_Tex0_Diff.tga
-	map_d C:\Users\tswift\Desktop\Assets_Var_Formats\Resources\KidsPrin_CeFan_Wd_LtPurp_001_Tex0_Diff.tga
+	map_Ka Resources\KidsPrin_CeFan_Wd_LtPurp_001_Tex0_Diff.tga
+	map_Kd Resources\KidsPrin_CeFan_Wd_LtPurp_001_Tex0_Diff.tga
+	map_d Resources\KidsPrin_CeFan_Wd_LtPurp_001_Tex0_Diff.tga

@@ -1,12 +1,10 @@
-﻿/**
+﻿"use strict";
+/**
  * @typedef {Object} SceneItem
  * @property {string} name
  * @property {BABYLON.Mesh[]|BABYLON.AbstractMesh[]} meshes
  */
-
 (function () {
-
-
     // Get the canvas element from our HTML above
     var canvas = document.getElementById("renderCanvas");
 
@@ -44,40 +42,41 @@
         var physicsPlugin = new BABYLON.CannonJSPlugin();
         var gravityVector = new BABYLON.Vector3(0, -9.81, 0);
 
-        //physicsPlugin.setTimeStep(0.01);
         scene.enablePhysics(gravityVector, physicsPlugin);
 
         scene.collisionsEnabled = true;
         scene.workerCollisions = true;
 
         // This creates and positions a free camera
-        //var camera = new BABYLON.FreeCamera("camera1", new BABYLON.Vector3(0, 5, -10), scene);
-        var cameraAlpha = 3 * Math.PI / 2;
-        var cameraBeta =  Math.PI / 3;
-        var camera = new BABYLON.ArcRotateCamera("Camera", cameraAlpha, cameraBeta, 10, BABYLON.Vector3.Zero(), scene);
-        console.log(camera);
-        camera.lowerRadiusLimit = 3;
-        camera.upperRadiusLimit = 15;
+        var camera = new BABYLON.FreeCamera("camera1", new BABYLON.Vector3(0, 5, -10), scene);
+        camera.speed *= 0.25;
+        // var cameraAlpha = 3 * Math.PI / 2;
+        // var cameraBeta =  Math.PI / 3;
+        // var camera = new BABYLON.ArcRotateCamera("Camera", cameraAlpha, cameraBeta, 10, BABYLON.Vector3.Zero(), scene);
+        // console.log(camera);
+        //camera.lowerRadiusLimit = 3;
+        //camera.upperRadiusLimit = 15;
 
         // This targets the camera to scene origin
-        //camera.setTarget(BABYLON.Vector3.Zer());
-
+        camera.setTarget(BABYLON.Vector3.Zero());
         // This attaches the camera to the canvas
         camera.attachControl(canvas, false);
 
-        // This creates a light, aiming 0,1,0 - to the sky.
+        //This creates a light, aiming 0,1,0 - to the sky.
         var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
+        light.groundColor = new BABYLON.Color3(1, 1, 1);
+        light.intensity = 100;
 
-        // Dim the light a small amount
-        light.intensity = 1.5;
+        // var dirLight = new BABYLON.DirectionalLight("dirlight1", new BABYLON.Vector3(0, -1, 0), scene);
 
         // Let's try our built-in 'ground' shape.  Params: name, width, depth, subdivisions, scene
         ground = BABYLON.Mesh.CreateGround("ground1", 6, 6, 2, scene);
         ground.collisionsEnabled = true;
         ground.physicsImpostor = new BABYLON.PhysicsImpostor(ground, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
-
+        BABYLON.OBJFileLoader.OPTIMIZE_WITH_UV = true;
         scene.debugLayer.show();
-        
+
+        window.scene = scene;
         // Leave this function
         return scene;
     }  // End of createScene function
@@ -267,8 +266,7 @@
         }, loader);
 
         loader.load();
-    };
-
+    }
 
     function loadModel(a_options, a_loader) {
         var task = a_loader.addMeshTask(a_options.taskname, "", "assets/", a_options.filename);
@@ -311,9 +309,10 @@
         
         return task;
     }
+
     function setPhysicsImpostor(a_mesh, a_scene){
         var physicsImpostor = new BABYLON.PhysicsImpostor(a_mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 1, restitution: 0.5 }, a_scene);
-        mesh.physicsImpostor = physicsImpostor
+        a_mesh.physicsImpostor = physicsImpostor;
         setTimeout(function(){
             //mesh.physicsImpostor.dispose();
         }, 500);

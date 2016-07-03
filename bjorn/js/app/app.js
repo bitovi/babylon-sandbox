@@ -67,7 +67,12 @@
         var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
         light.groundColor = new BABYLON.Color3(1, 1, 1);
         light.intensity = 1;
-        // var dirLight = new BABYLON.DirectionalLight("dirlight1", new BABYLON.Vector3(0, -1, 0), scene);
+
+        // var pointlight = new BABYLON.PointLight("plight", new BABYLON.Vector3(0,0,0), scene);
+
+        // Z axis is above/below
+        // var dirLight = new BABYLON.DirectionalLight("dirlight1", new BABYLON.Vector3(1, 0, 0), scene);
+        BABYLON.StandardMaterial.AmbientTextureEnabled = false;
 
         // Let's try our built-in 'ground' shape.  Params: name, width, depth, subdivisions, scene
         ground = BABYLON.Mesh.CreateGround("ground1", 6, 6, 2, scene);
@@ -76,6 +81,8 @@
 
         BABYLON.OBJFileLoader.OPTIMIZE_WITH_UV = true;
         scene.debugLayer.show();
+
+        //scene.ambientColor = new BABYLON.Color3(1,1,1);
 
         window.scene = scene;
         // Leave this function
@@ -205,6 +212,7 @@
         var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
         loadModel({
             filename: "Colo_Rug_Fab_LtBrown_001.obj",
+            //filename: "StoneWall_LOW.obj",
             physics: false,
             position: position,
             rotation:rotation,
@@ -300,9 +308,16 @@
                 mesh.position = a_options.position;
                 mesh.rotationQuaternion = a_options.rotation;
 
-                mesh.onCollide = function(){
-                    console.log("mesh collide");
-                }
+                setTimeout(function(){
+                    if (mesh.material){
+                        console.log(mesh.material);
+                        mesh.material.invertNormalMapX = false;
+                        mesh.material.invertNormalMapY = false;
+                    }
+                    else{
+                        console.log("no material");
+                    }
+                }, 100);
 
                 if (a_options.physics){
                     setPhysicsImpostor(mesh, scene);

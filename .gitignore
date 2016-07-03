@@ -8,3 +8,7 @@ bin/
 obj/
 .idea/
 node_modules/
+bjorn/assets/stoneWall_LOW.obj
+bjorn/assets/StoneWall_01_NRM.png
+bjorn/assets/stoneWall_LOW.mtl
+bjorn/assets/StoneWall_01_CLR.png

@@ -16,19 +16,12 @@
     var scene = createScene();
     // The rendered items in the scene
     var items = [];
+
     createModels();
 
     // Register a render loop to repeatedly render the scene
     engine.runRenderLoop(function () {
         scene.render();
-
-        for (var i = 0; i < items.length; ++i){
-            var item = items[i];
-            var mesh = item.meshes[0];
-            mesh.moveWithCollisions( new BABYLON.Vector3(0, -0.015, 0));
-            //mesh.position.y -= 0.0015;
-        }
-
     });
 
     // Watch for browser/canvas resize events
@@ -47,11 +40,10 @@
         scene.clearColor = new BABYLON.Color3(0, 1, 0);
 
         // Gravity & physics stuff
-        //var physicsPlugin = new BABYLON.CannonJSPlugin();
+        var physicsPlugin = new BABYLON.CannonJSPlugin();
         var gravityVector = new BABYLON.Vector3(0, -9.81, 0);
 
-        //scene.enablePhysics(gravityVector, physicsPlugin);
-        scene.setGravity( gravityVector );
+        scene.enablePhysics(gravityVector, physicsPlugin);
 
         scene.collisionsEnabled = true;
         scene.workerCollisions = true;
@@ -74,15 +66,14 @@
         //This creates a light, aiming 0,1,0 - to the sky.
         var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
         light.groundColor = new BABYLON.Color3(1, 1, 1);
-        light.intensity = 100;
-
+        light.intensity = 1;
         // var dirLight = new BABYLON.DirectionalLight("dirlight1", new BABYLON.Vector3(0, -1, 0), scene);
 
         // Let's try our built-in 'ground' shape.  Params: name, width, depth, subdivisions, scene
-        ground = BABYLON.Mesh.CreateGround("ground1", 6,6, 2, scene);
+        ground = BABYLON.Mesh.CreateGround("ground1", 6, 6, 2, scene);
+        ground.collisionsEnabled = true;
+        ground.physicsImpostor = new BABYLON.PhysicsImpostor(ground, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
 
-        ground.checkCollisions = true;
-        //ground.physicsImpostor = new BABYLON.PhysicsImpostor(ground, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
         BABYLON.OBJFileLoader.OPTIMIZE_WITH_UV = true;
         scene.debugLayer.show();
 
@@ -124,59 +115,62 @@
                 var position = mesh.position;
 
                 var intersects = true;
+                var uniquePosition = false;
 
-                mesh.visibility = 1;
-                //setPhysicsImpostor(mesh, scene);
-                // while (intersects && intersectCount < 100) {
-                //     // Set it to false
-                //     intersects = false;
-                //     for (var i = 0; i < items.length; ++i) {
-                //         var item = items[i];
-                //         // Skip checking for self!
-                //         if (item !== a_item) {
-                //             // Check if the two bounding boxes intersects,  if they do then get a new position for chair.
-                //             if (meshBB.intersects(item.meshes[0].getBoundingInfo())) {
-                //                 intersects = true;
-                //                 break;
-                //             }
-                //         }
-                //     }
-                //
-                //     // If it intersects just recursively call onsuccess again after updating the position...
-                //     // Not the most elegant solution but it's quick solution for now.
-                //     if (intersects) {
-                //         position = getPosition();
-                //
-                //         var minimum = position.subtract(bbSize);
-                //         var maximum = position.add(bbSize);
-                //
-                //         // Points for min & max
-                //         DEBUG3D.drawPoint(scene, minimum, {
-                //             color: new BABYLON.Color3(0,0,0)
-                //         });
-                //         DEBUG3D.drawPoint(scene, maximum, {
-                //             color: new BABYLON.Color3(0,0,0)
-                //         });
-                //         DEBUG3D.drawPoint(scene, mesh.position, {
-                //             color: new BABYLON.Color3(1,0,0)
-                //         });
-                //         DEBUG3D.drawPoint(scene, position, {
-                //             color: new BABYLON.Color3(0,0,1)
-                //         });
-                //
-                //         meshBB = new BABYLON.BoundingInfo(minimum, maximum);
-                //         intersectCount++;
-                //         console.log("BB intersected: " + intersectCount);
-                //     }
-                //     else{
-                //         mesh.visibility = 1;
-                //         // No need to update positions if there were no intersects
-                //         if (intersectCount > 0){
-                //             mesh.position = position;
-                //         }
-                //         setPhysicsImpostor(mesh, scene);
-                //     }
-                // }
+                if (uniquePosition){
+                    while (intersects && intersectCount < 100) {
+                        // Set it to false
+                        intersects = false;
+                        for (var i = 0; i < items.length; ++i) {
+                            var item = items[i];
+                            // Skip checking for self!
+                            if (item !== a_item) {
+                                // Check if the two bounding boxes intersects,  if they do then get a new position for chair.
+                                if (meshBB.intersects(item.meshes[0].getBoundingInfo())) {
+                                    intersects = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        // If it intersects just recursively call onsuccess again after updating the position...
+                        // Not the most elegant solution but it's quick solution for now.
+                        if (intersects) {
+                            position = getPosition();
+
+                            var minimum = position.subtract(bbSize);
+                            var maximum = position.add(bbSize);
+
+                            // Points for min & max
+                            DEBUG3D.drawPoint(scene, minimum, {
+                                color: new BABYLON.Color3(0,0,0)
+                            });
+                            DEBUG3D.drawPoint(scene, maximum, {
+                                color: new BABYLON.Color3(0,0,0)
+                            });
+                            DEBUG3D.drawPoint(scene, mesh.position, {
+                                color: new BABYLON.Color3(1,0,0)
+                            });
+                            DEBUG3D.drawPoint(scene, position, {
+                                color: new BABYLON.Color3(0,0,1)
+                            });
+
+                            meshBB = new BABYLON.BoundingInfo(minimum, maximum);
+                            intersectCount++;
+                            console.log("BB intersected: " + intersectCount);
+                        } else {
+                            mesh.visibility = 1;
+                            // No need to update positions if there were no intersects
+                            if (intersectCount > 0){
+                                mesh.position = position;
+                            }
+                            setPhysicsImpostor(mesh, scene);
+                        }
+                    }
+                } else {
+                    mesh.visibility = 1;
+                    setPhysicsImpostor(mesh, scene);
+                }
             }, 40);
         }
 
@@ -305,12 +299,13 @@
 
                 mesh.position = a_options.position;
                 mesh.rotationQuaternion = a_options.rotation;
-                console.log( mesh.ellipsoid );
-                mesh.checkCollisions = true;
-                // Why 2? If it's 0 they float up...  same for bed fan if it's 2...
-                //mesh.ellipsoidOffset.y = 2;
+
+                mesh.onCollide = function(){
+                    console.log("mesh collide");
+                }
+
                 if (a_options.physics){
-                    //setPhysicsImpostor(mesh, scene);
+                    setPhysicsImpostor(mesh, scene);
                 }
 
                 if (a_options.hide){
@@ -326,12 +321,17 @@
         return task;
     }
 
-    /*function setPhysicsImpostor(a_mesh, a_scene){
-        var physicsImpostor = new BABYLON.PhysicsImpostor(a_mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0 }, a_scene);
+    function setPhysicsImpostor(a_mesh, a_scene){
+        var physicsImpostor = new BABYLON.PhysicsImpostor(a_mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 1, restitution: 0.8 }, a_scene);
         a_mesh.physicsImpostor = physicsImpostor;
-        a_mesh.physicsImpostor.
-        setTimeout(function(){
-            //mesh.physicsImpostor.dispose();
-        }, 500);
-    }*/
+
+        // On collision with the floor
+        physicsImpostor.registerOnPhysicsCollide( ground.physicsImpostor, function() {
+            setTimeout(function(){
+                physicsImpostor.dispose();
+            }, 1);
+        });
+
+        console.log(physicsImpostor);
+    }
 })();

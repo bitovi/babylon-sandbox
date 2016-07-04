@@ -14,6 +14,7 @@
     var ground;
     // Now, call the createScene function that you just finished creating
     var scene = createScene();
+    var selectedMesh = null;
     // The rendered items in the scene
     var items = [];
 
@@ -122,7 +123,7 @@
                 var position = mesh.position;
 
                 var intersects = true;
-                var uniquePosition = false;
+                var uniquePosition = true;
 
                 if (uniquePosition){
                     while (intersects && intersectCount < 100) {
@@ -148,37 +149,40 @@
                             var minimum = position.subtract(bbSize);
                             var maximum = position.add(bbSize);
 
-                            // Points for min & max
-                            DEBUG3D.drawPoint(scene, minimum, {
-                                color: new BABYLON.Color3(0,0,0)
-                            });
-                            DEBUG3D.drawPoint(scene, maximum, {
-                                color: new BABYLON.Color3(0,0,0)
-                            });
-                            DEBUG3D.drawPoint(scene, mesh.position, {
-                                color: new BABYLON.Color3(1,0,0)
-                            });
-                            DEBUG3D.drawPoint(scene, position, {
-                                color: new BABYLON.Color3(0,0,1)
-                            });
-
                             meshBB = new BABYLON.BoundingInfo(minimum, maximum);
                             intersectCount++;
                             console.log("BB intersected: " + intersectCount);
                         } else {
-                            mesh.visibility = 1;
-                            // No need to update positions if there were no intersects
                             if (intersectCount > 0){
                                 mesh.position = position;
                             }
-                            setPhysicsImpostor(mesh, scene);
+                            showMesh(mesh);
                         }
                     }
                 } else {
-                    mesh.visibility = 1;
-                    setPhysicsImpostor(mesh, scene);
+                    showMesh(mesh);
                 }
             }, 40);
+        }
+
+        /**
+         * Show the mesh, add outline and set physics impostor
+         * @param a_mesh
+         */
+        function showMesh(a_mesh){
+            a_mesh.visibility = 1;
+            // Remove the outline of old newly added object
+            if (selectedMesh){
+                selectedMesh.renderOutline = false;
+            }
+
+            selectedMesh = a_mesh;
+            a_mesh.renderOutline = true;
+            // rgb( 86, 170, 206)
+            a_mesh.outlineColor = new BABYLON.Color3(0.3359375, 0.6640625, 0.8046875);
+            a_mesh.outlineWidth = 0.025;
+
+            setPhysicsImpostor(a_mesh, scene);
         }
 
         var groundBB = ground.getBoundingInfo();

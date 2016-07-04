@@ -54,17 +54,15 @@
             mouseX = lastMouseX = e.screenX;
             mouseY = lastMouseY = e.screenY;
             mouseClicked = true;
-            camera.detachControl(canvas);
+            camera.inputs.remove(camera.inputs.attached.mouse);
         }
     });
 
     window.addEventListener("mouseup", function(){
         if (mouseClicked){
             mouseClicked = false;
-            camera.attachControl(canvas, false);
+            camera.inputs.addMouse();
         }
-
-
     });
 
     document.getElementById("createobj").addEventListener("click", addItem);
@@ -95,12 +93,10 @@
         // console.log(camera);
         //camera.lowerRadiusLimit = 3;
         //camera.upperRadiusLimit = 15;
-
         // This targets the camera to scene origin
         camera.setTarget(BABYLON.Vector3.Zero());
         // This attaches the camera to the canvas
         camera.attachControl(canvas, false);
-        console.log(camera);
         //This creates a light, aiming 0,1,0 - to the sky.
         var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
         light.groundColor = new BABYLON.Color3(1, 1, 1);
@@ -371,6 +367,42 @@
     function moveSelectedItem(a_deltaX, a_deltaY){
         selectedMesh.position.x += a_deltaX * 0.015;
         selectedMesh.position.z -= a_deltaY * 0.015;
+
+        var intersects = false;
+
+        var selectedBBInfo = selectedMesh.getBoundingInfo();
+
+        for ( var i = 0; i< items.length; ++i){
+            var item = items[i];
+
+            for (var j = 0; j < item.meshes.length; ++j){
+                var mesh = item.meshes[j];
+                // Need a better way to check a group of meshes but for now just set intersects as false again
+                if (mesh === selectedMesh){
+                    intersects = false;
+                    break;
+                }
+
+                var meshBBInfo = mesh.getBoundingInfo();
+
+                if (selectedBBInfo.intersects( meshBBInfo, false)){
+                    intersects = true;
+                    break;
+                }
+            }
+
+            if (intersects){
+                break;
+            }
+        }
+
+        if (intersects){
+            // rgb( 86, 170, 206)
+            selectedMesh.outlineColor = new BABYLON.Color3(1, 0, 0);
+        } else {
+            // rgb( 86, 170, 206)
+            selectedMesh.outlineColor = new BABYLON.Color3(0.3359375, 0.6640625, 0.8046875);
+        }
     }
     /**
      * Pick an item by at mouse X & Y coordinates (or touch)

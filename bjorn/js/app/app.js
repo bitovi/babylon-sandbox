@@ -30,6 +30,10 @@
         engine.resize();
     });
 
+    window.addEventListener("mousemove", function(){
+       pickingItem();
+    });
+
     document.getElementById("createobj").addEventListener("click", addItem);
 
     // This begins the creation of a function that we will 'call' just after it's built
@@ -172,15 +176,7 @@
         function showMesh(a_mesh){
             a_mesh.visibility = 1;
             // Remove the outline of old newly added object
-            if (selectedMesh){
-                selectedMesh.renderOutline = false;
-            }
-
-            selectedMesh = a_mesh;
-            a_mesh.renderOutline = true;
-            // rgb( 86, 170, 206)
-            a_mesh.outlineColor = new BABYLON.Color3(0.3359375, 0.6640625, 0.8046875);
-            a_mesh.outlineWidth = 0.025;
+            setMeshOutline(a_mesh);
 
             setPhysicsImpostor(a_mesh, scene);
         }
@@ -340,6 +336,39 @@
         return task;
     }
 
+    function pickingItem(){
+        var pickingInfo = scene.pick( scene.pointerX, scene.pointerY, function(a_hitMesh){
+            // Return pickingInfo for first object hit except ground
+            return a_hitMesh !== ground;
+        });
+
+        if (pickingInfo.hit) {
+            var mesh = pickingInfo.pickedMesh;
+            if (selectedMesh !== mesh){
+                setMeshOutline(mesh);
+            }
+        } else {
+            if (selectedMesh){
+                selectedMesh.renderOutline = false;
+                selectedMesh = null;
+            }
+        }
+
+        console.log(pickingInfo);
+    }
+
+    function setMeshOutline(a_mesh){
+        if (selectedMesh){
+            selectedMesh.renderOutline = false;
+        }
+
+        selectedMesh = a_mesh;
+        a_mesh.renderOutline = true;
+        // rgb( 86, 170, 206)
+        a_mesh.outlineColor = new BABYLON.Color3(0.3359375, 0.6640625, 0.8046875);
+        a_mesh.outlineWidth = 0.025;
+    }
+
     function setPhysicsImpostor(a_mesh, a_scene){
         var physicsImpostor = new BABYLON.PhysicsImpostor(a_mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 1, restitution: 0.8 }, a_scene);
         a_mesh.physicsImpostor = physicsImpostor;
@@ -353,4 +382,6 @@
 
         console.log(physicsImpostor);
     }
+
+
 })();

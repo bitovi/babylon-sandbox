@@ -12,11 +12,16 @@
     var engine = new BABYLON.Engine(canvas, true);
 
     var ground;
+    var camera;
     // Now, call the createScene function that you just finished creating
     var scene = createScene();
     var selectedMesh = null;
     // The rendered items in the scene
     var items = [];
+    var mouseClicked = false;
+    // Start pos X, Y for mouse
+    var mouseX, mouseY,
+        lastMouseX, lastMouseY;
 
     createModels();
 
@@ -30,8 +35,36 @@
         engine.resize();
     });
 
-    window.addEventListener("mousemove", function(){
-       pickingItem();
+    window.addEventListener("mousemove", function(e){
+        if (mouseClicked){
+            var deltaX = e.screenX - lastMouseX;
+            var deltaY = e.screenY - lastMouseY;
+
+            lastMouseX = e.screenX;
+            lastMouseY = e.screenY;
+
+            moveSelectedItem(deltaX, deltaY);
+        } else {
+            pickingItem();
+        }
+    });
+
+    window.addEventListener("mousedown", function(e){
+        if (selectedMesh){
+            mouseX = lastMouseX = e.screenX;
+            mouseY = lastMouseY = e.screenY;
+            mouseClicked = true;
+            camera.detachControl(canvas);
+        }
+    });
+
+    window.addEventListener("mouseup", function(){
+        if (mouseClicked){
+            mouseClicked = false;
+            camera.attachControl(canvas, false);
+        }
+
+
     });
 
     document.getElementById("createobj").addEventListener("click", addItem);
@@ -54,11 +87,11 @@
         scene.workerCollisions = true;
 
         // This creates and positions a free camera
-        var camera = new BABYLON.FreeCamera("camera1", new BABYLON.Vector3(0, 5, -10), scene);
+        camera = new BABYLON.FreeCamera("camera1", new BABYLON.Vector3(0, 5, -10), scene);
         camera.speed *= 0.25;
         // var cameraAlpha = 3 * Math.PI / 2;
         // var cameraBeta =  Math.PI / 3;
-        // var camera = new BABYLON.ArcRotateCamera("Camera", cameraAlpha, cameraBeta, 10, BABYLON.Vector3.Zero(), scene);
+        // camera = new BABYLON.ArcRotateCamera("Camera", cameraAlpha, cameraBeta, 10, BABYLON.Vector3.Zero(), scene);
         // console.log(camera);
         //camera.lowerRadiusLimit = 3;
         //camera.upperRadiusLimit = 15;
@@ -67,7 +100,7 @@
         camera.setTarget(BABYLON.Vector3.Zero());
         // This attaches the camera to the canvas
         camera.attachControl(canvas, false);
-
+        console.log(camera);
         //This creates a light, aiming 0,1,0 - to the sky.
         var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
         light.groundColor = new BABYLON.Color3(1, 1, 1);
@@ -308,16 +341,15 @@
                 mesh.position = a_options.position;
                 mesh.rotationQuaternion = a_options.rotation;
 
-                setTimeout(function(){
-                    if (mesh.material){
-                        console.log(mesh.material);
-                        mesh.material.invertNormalMapX = false;
-                        mesh.material.invertNormalMapY = false;
-                    }
-                    else{
-                        console.log("no material");
-                    }
-                }, 100);
+                // setTimeout(function(){
+                //     if (mesh.material){
+                //         mesh.material.invertNormalMapX = false;
+                //         mesh.material.invertNormalMapY = false;
+                //     }
+                //     else{
+                //         console.log("no material");
+                //     }
+                // }, 100);
 
                 if (a_options.physics){
                     setPhysicsImpostor(mesh, scene);
@@ -336,25 +368,32 @@
         return task;
     }
 
+    function moveSelectedItem(a_deltaX, a_deltaY){
+        selectedMesh.position.x += a_deltaX * 0.015;
+        selectedMesh.position.z -= a_deltaY * 0.015;
+    }
+    /**
+     * Pick an item by at mouse X & Y coordinates (or touch)
+     */
     function pickingItem(){
+        // Return pickingInfo for first object hit except ground
         var pickingInfo = scene.pick( scene.pointerX, scene.pointerY, function(a_hitMesh){
-            // Return pickingInfo for first object hit except ground
             return a_hitMesh !== ground;
         });
 
+        // If the info hit a mesh that isn't the ground then outline it
         if (pickingInfo.hit) {
             var mesh = pickingInfo.pickedMesh;
             if (selectedMesh !== mesh){
                 setMeshOutline(mesh);
             }
+        // Else remove outline
         } else {
             if (selectedMesh){
                 selectedMesh.renderOutline = false;
                 selectedMesh = null;
             }
         }
-
-        console.log(pickingInfo);
     }
 
     function setMeshOutline(a_mesh){
@@ -379,8 +418,6 @@
                 physicsImpostor.dispose();
             }, 1);
         });
-
-        console.log(physicsImpostor);
     }
 
 

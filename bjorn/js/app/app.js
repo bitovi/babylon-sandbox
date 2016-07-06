@@ -100,7 +100,30 @@
         //This creates a light, aiming 0,1,0 - to the sky.
         var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
         light.groundColor = new BABYLON.Color3(1, 1, 1);
-        light.intensity = 1;
+        light.intensity = 1.25;
+
+        // Function used to find good light intensity value close to unity app
+        // Result: ~1.25 -> 1.33
+        // setTimeout(function(){
+        //     var step = 1000/ 20;
+        //     var intensity = 1;
+        //     window._intensity = true;
+        //     function intensityUpdate(){
+        //
+        //         if (window._intensity){
+        //             intensity += step;
+        //             if (intensity > 2){
+        //                 intensity = 1;
+        //                 step *= 0.75;
+        //                 console.log("reset intensity");
+        //             }
+        //             light.intensity = intensity;
+        //         }
+        //        setTimeout(intensityUpdate, 20);
+        //    }
+        //     intensityUpdate();
+        //
+        // });
 
         // var pointlight = new BABYLON.PointLight("plight", new BABYLON.Vector3(0,0,0), scene);
 
@@ -443,7 +466,7 @@
     function setPhysicsImpostor(a_mesh, a_scene){
         var physicsImpostor = new BABYLON.PhysicsImpostor(a_mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 1, restitution: 0.8 }, a_scene);
         a_mesh.physicsImpostor = physicsImpostor;
-
+        
         // On collision with the floor
         physicsImpostor.registerOnPhysicsCollide( ground.physicsImpostor, function() {
             setTimeout(function(){

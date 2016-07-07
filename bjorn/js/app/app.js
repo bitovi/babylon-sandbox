@@ -357,6 +357,8 @@
          * @param {BABYLON.MeshAssetTask} t
          */
         task.onSuccess = function (t) {
+
+
             /**
              * Create an item for the scene
              * @type {SceneItem}
@@ -367,6 +369,96 @@
             };
 
             items.push(item);
+
+            if(t.loadedMeshes.length > 1){
+                var checkmaterial = function(){
+
+                    var hasMaterial = 0;
+                    var materialNames = {};
+                    var materialNameCount = 0;
+
+                    for (var i = 0; i < oldMeshes.length; ++i){
+                        var material = oldMeshes[i].material;
+                        if (material){
+                            hasMaterial++;
+                            if (!materialNames[material.name]) {
+                                materialNames[material.name] = material;
+                                materialNameCount++;
+                            }
+                        }
+                    }
+
+                    if (hasMaterial == oldMeshes.length){
+                        if (materialNameCount == 1){
+                            console.log("1 material");
+                        } else if (materialNameCount > 1){
+                            // Need the names of materials I suppose
+                            var multimat = new BABYLON.MultiMaterial("multimat", scene);
+
+                            for(var key in materialNames){
+                                multimat.subMaterials.push( materialNames[key] );
+                            }
+
+                            mesh.material = multimat;
+
+                            mesh.subMeshes = [];
+                            var verticesCount = mesh.getTotalVertices();
+                            var currentMaterialName = oldMeshes[0].material.name;
+                            var currentStart = 0;
+                            // The amount of vertices currently
+                            var currentVerticeCount = 0;
+
+                            for (var i = 0; i < oldMeshes.length; ++i){
+                                var oldMesh = oldMeshes[i];
+                                if (currentMaterialName == oldMesh.material.name ){
+                                    currentVerticeCount += oldMesh.getTotalVertices();
+
+                                    if (i == oldMeshes.length - 1){
+                                        for ( var j = 0; j < multimat.subMaterials.length; ++j){
+                                            if (currentMaterialName == multimat.subMaterials[j].name){
+                                                mesh.subMeshes.push(new BABYLON.SubMesh(0, 0, verticesCount, currentStart, currentVerticeCount));
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                } else {
+                                    for ( var j = 0; j < multimat.subMaterials.length; ++j){
+                                        if (currentMaterialName == multimat.subMaterials[j].name){
+                                            mesh.subMeshes.push(new BABYLON.SubMesh(0, 0, verticesCount, currentStart, currentVerticeCount, mesh));
+                                            break;
+                                        }
+                                    }
+
+                                    currentMaterialName = oldMesh.material.name;
+                                    currentStart = currentStart + currentVerticeCount;
+                                    currentVerticeCount = oldMesh.getTotalVertices();;
+                                }
+                            }
+
+                        // No material
+                        } else{
+
+                        }
+
+                        // Dispose of the meshes
+                        for (var i = 0; i < oldMeshes.length; ++i){
+                            oldMeshes[i].dispose();
+                        }
+                    // Need to check total time spent checking so it's not an eternity polling
+                    } else{
+                        setTimeout(checkmaterial, 50);
+                    }
+                };
+
+                var oldMeshes = t.loadedMeshes;
+
+                var mesh = new BABYLON.Mesh.MergeMeshes(t.loadedMeshes, false);
+                item.meshes = [ mesh ];
+
+                setTimeout(checkmaterial, 1);
+            }
+
             // Set the models position
             for (var i = 0; i < item.meshes.length; ++i) {
 

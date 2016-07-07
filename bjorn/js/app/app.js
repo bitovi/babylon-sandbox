@@ -12,6 +12,7 @@
     var engine = new BABYLON.Engine(canvas, true);
 
     var ground;
+    var pickingPlane;
     // Need to be global currently so it's not selected by picking
     var skybox;
     var camera;
@@ -105,28 +106,6 @@
         light.groundColor = new BABYLON.Color3(1, 1, 1);
         light.intensity = 1.25;
 
-        // Function used to find good light intensity value close to unity app
-        // Result: ~1.25 -> 1.33
-        // setTimeout(function(){
-        //     var step = 1000/ 20;
-        //     var intensity = 1;
-        //     window._intensity = true;
-        //     function intensityUpdate(){
-        //
-        //         if (window._intensity){
-        //             intensity += step;
-        //             if (intensity > 2){
-        //                 intensity = 1;
-        //                 step *= 0.75;
-        //                 console.log("reset intensity");
-        //             }
-        //             light.intensity = intensity;
-        //         }
-        //        setTimeout(intensityUpdate, 20);
-        //    }
-        //     intensityUpdate();
-        //
-        // });
 
         // var pointlight = new BABYLON.PointLight("plight", new BABYLON.Vector3(0,0,0), scene);
 
@@ -383,6 +362,7 @@
                     }
                 }
 
+                mesh.tag = 1;
                 mesh.position = a_options.position;
                 mesh.rotationQuaternion = a_options.rotation;
 
@@ -404,8 +384,27 @@
     }
 
     function moveSelectedItem(a_deltaX, a_deltaY){
-        selectedMesh.position.x += a_deltaX * 0.015;
-        selectedMesh.position.z -= a_deltaY * 0.015;
+
+        if (!pickingPlane){
+            pickingPlane = new BABYLON.Mesh.CreatePlane("pickingplane", 1000, scene);
+            pickingPlane.rotation.x += Math.PI * 0.5;
+            pickingPlane.visibility = 0;
+            //pickingPlane.material = new BABYLON.StandardMaterial("mat");
+            //pickingPlane.material.diffuseColor = new BABYLON.Color3(0,0,1);
+        }
+
+        var pickingInfo = scene.pick( scene.pointerX, scene.pointerY, function(a_hitMesh){
+            return a_hitMesh === pickingPlane;
+        });
+
+        if (pickingInfo.hit){
+            selectedMesh.position.x = pickingInfo.pickedPoint.x;
+            selectedMesh.position.z = pickingInfo.pickedPoint.z;
+
+            DEBUG3D.drawPoint(scene, pickingInfo.pickedPoint);
+        }
+
+
 
         var intersects = false;
 
@@ -442,6 +441,8 @@
             // rgb( 86, 170, 206)
             selectedMesh.outlineColor = new BABYLON.Color3(0.3359375, 0.6640625, 0.8046875);
         }
+
+        //pickingPlane.dispose();
     }
     /**
      * Pick an item by at mouse X & Y coordinates (or touch)
@@ -449,7 +450,7 @@
     function pickingItem(){
         // Return pickingInfo for first object hit except ground
         var pickingInfo = scene.pick( scene.pointerX, scene.pointerY, function(a_hitMesh){
-            return a_hitMesh !== ground && a_hitMesh !== skybox;
+            return a_hitMesh.tag === 1;
         });
 
         // If the info hit a mesh that isn't the ground then outline it

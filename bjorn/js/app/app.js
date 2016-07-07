@@ -12,6 +12,8 @@
     var engine = new BABYLON.Engine(canvas, true);
 
     var ground;
+    // Need to be global currently so it's not selected by picking
+    var skybox;
     var camera;
     // Now, call the createScene function that you just finished creating
     var scene = createScene();
@@ -23,6 +25,7 @@
     var mouseX, mouseY,
         lastMouseX, lastMouseY;
 
+    createSky();
     createModels();
 
     // Register a render loop to repeatedly render the scene
@@ -335,6 +338,18 @@
         loader.load();
     }
 
+    function createSky(){
+        // https://www.eternalcoding.com/?p=263
+        skybox = BABYLON.Mesh.CreateBox("skyBox", 1000, scene);
+        var skyboxMaterial = new BABYLON.StandardMaterial("skyBox", scene);
+        skyboxMaterial.backFaceCulling = false;
+        skyboxMaterial.reflectionTexture = new BABYLON.CubeTexture("assets/skybox/ely_lakes/lakes", scene); //["_px.tga", "_py.tga", "_pz.tga", "_nx.tga", "_ny.tga", "_nz.tga"]);
+        skyboxMaterial.reflectionTexture.coordinatesMode = BABYLON.Texture.SKYBOX_MODE;
+        skyboxMaterial.diffuseColor = new BABYLON.Color3(0, 0, 0);
+        skyboxMaterial.specularColor = new BABYLON.Color3(0, 0, 0);
+        skybox.material = skyboxMaterial;
+    }
+
     function loadModel(a_options, a_loader) {
         var task = a_loader.addMeshTask(a_options.taskname, "", "assets/", a_options.filename);
         /**
@@ -433,7 +448,7 @@
     function pickingItem(){
         // Return pickingInfo for first object hit except ground
         var pickingInfo = scene.pick( scene.pointerX, scene.pointerY, function(a_hitMesh){
-            return a_hitMesh !== ground;
+            return a_hitMesh !== ground && a_hitMesh !== skybox;
         });
 
         // If the info hit a mesh that isn't the ground then outline it

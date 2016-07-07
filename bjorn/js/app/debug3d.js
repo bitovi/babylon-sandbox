@@ -19,8 +19,8 @@
             if (!a_options) a_options = {};
             // Set the default size
             if (a_options.size === undefined) a_options.size = 0.1;
-            // Set default timeout
-            if (a_options.timeout === undefined) a_options.timeout = 5000;
+            // Set default time
+            if (a_options.time === undefined) a_options.time = 5000;
             // And the default red color
             if (!a_options.color) a_options.color = new BABYLON.Color3(1, 0, 0);
 
@@ -38,7 +38,7 @@
 
             setTimeout(function () {
                 sphere.dispose();
-            }, a_options.timeout);
+            }, a_options.time);
         }
     };
 })(BABYLON);

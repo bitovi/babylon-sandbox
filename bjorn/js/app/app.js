@@ -26,12 +26,16 @@
     var mouseX, mouseY,
         lastMouseX, lastMouseY;
 
+    var offsetX, offsetZ;
+
     createSky();
     createModels();
 
     // Register a render loop to repeatedly render the scene
     engine.runRenderLoop(function () {
         scene.render();
+
+        window.updateLights(engine.deltaTime);
     });
 
     // Watch for browser/canvas resize events
@@ -101,13 +105,8 @@
         camera.setTarget(BABYLON.Vector3.Zero());
         // This attaches the camera to the canvas
         camera.attachControl(canvas, false);
-        //This creates a light, aiming 0,1,0 - to the sky.
-        var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
-        light.groundColor = new BABYLON.Color3(1, 1, 1);
-        light.intensity = 1.25;
 
-
-        // var pointlight = new BABYLON.PointLight("plight", new BABYLON.Vector3(0,0,0), scene);
+        window.initLights(scene);        
 
         // Z axis is above/below
         // var dirLight = new BABYLON.DirectionalLight("dirlight1", new BABYLON.Vector3(1, 0, 0), scene);
@@ -116,6 +115,7 @@
         // Let's try our built-in 'ground' shape.  Params: name, width, depth, subdivisions, scene
         ground = BABYLON.Mesh.CreateGround("ground1", 6, 6, 2, scene);
         ground.collisionsEnabled = true;
+        ground.receiveShadows = true;
         ground.physicsImpostor = new BABYLON.PhysicsImpostor(ground, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
 
         BABYLON.OBJFileLoader.OPTIMIZE_WITH_UV = true;
@@ -366,6 +366,8 @@
                 mesh.position = a_options.position;
                 mesh.rotationQuaternion = a_options.rotation;
 
+                window.addToShadowGenerator(mesh);
+
                 if (a_options.physics){
                     setPhysicsImpostor(mesh, scene);
                 }
@@ -383,7 +385,7 @@
         return task;
     }
 
-    function moveSelectedItem(a_deltaX, a_deltaY){
+    function moveSelectedItem(){
 
         if (!pickingPlane){
             pickingPlane = new BABYLON.Mesh.CreatePlane("pickingplane", 1000, scene);
@@ -403,8 +405,6 @@
 
             DEBUG3D.drawPoint(scene, pickingInfo.pickedPoint);
         }
-
-
 
         var intersects = false;
 
@@ -435,14 +435,12 @@
         }
 
         if (intersects){
-            // rgb( 86, 170, 206)
+            // rgb( 1, 0, 0)
             selectedMesh.outlineColor = new BABYLON.Color3(1, 0, 0);
         } else {
             // rgb( 86, 170, 206)
             selectedMesh.outlineColor = new BABYLON.Color3(0.3359375, 0.6640625, 0.8046875);
         }
-
-        //pickingPlane.dispose();
     }
     /**
      * Pick an item by at mouse X & Y coordinates (or touch)
@@ -456,6 +454,7 @@
         // If the info hit a mesh that isn't the ground then outline it
         if (pickingInfo.hit) {
             var mesh = pickingInfo.pickedMesh;
+
             if (selectedMesh !== mesh){
                 setMeshOutline(mesh);
             }

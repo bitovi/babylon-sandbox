@@ -26,8 +26,6 @@
     var mouseX, mouseY,
         lastMouseX, lastMouseY;
 
-    var offsetX, offsetZ;
-
     createSky();
     createModels();
 
@@ -386,6 +384,7 @@
                 }
 
                 mesh.tag = 1;
+                mesh.receiveShadows = true;
                 mesh.position = a_options.position;
                 mesh.rotationQuaternion = a_options.rotation;
 

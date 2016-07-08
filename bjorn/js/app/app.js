@@ -152,6 +152,28 @@
          * @param a_item
          */
         function onsuccess(a_item) {
+
+            var checkmaterial = function(){
+                var material = a_item.meshes[0].material;
+                if (material){
+
+                    var colorVector = new BABYLON.Vector3
+                        (Math.random() / 3,
+                        Math.random() / 3,
+                        Math.random() / 3);
+
+                    colorVector.normalize();
+
+                    material.diffuseColor = new BABYLON.Color3(colorVector.x, colorVector.y, colorVector.z);
+                    console.log(material.diffuseColor);
+                } else {
+                    setTimeout(checkmaterial, 50);
+                }
+            };
+
+            checkmaterial();
+
+
             setTimeout(function(){
                 // For this example its only 1 mesh but proper way is to calculate the BB for all meshes.
                 var mesh = a_item.meshes[0];
@@ -189,10 +211,11 @@
 
                             meshBB = new BABYLON.BoundingInfo(minimum, maximum);
                             intersectCount++;
-                            console.log("BB intersected: " + intersectCount);
+
                         } else {
                             if (intersectCount > 0){
                                 mesh.position = position;
+                                console.log("BB intersected: " + intersectCount);
                             }
                             showMesh(mesh);
                         }
@@ -403,7 +426,7 @@
             selectedMesh.position.x = pickingInfo.pickedPoint.x;
             selectedMesh.position.z = pickingInfo.pickedPoint.z;
 
-            DEBUG3D.drawPoint(scene, pickingInfo.pickedPoint);
+            // DEBUG3D.drawPoint(scene, pickingInfo.pickedPoint);
         }
 
         var intersects = false;

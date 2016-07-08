@@ -68,9 +68,9 @@
             pointLight.position.x = radian * Math.cos(degrees);
             pointLight.position.z = radian * Math.sin(degrees);
 
-            DEBUG3D.drawPoint( scene, pointLight.position, {
-                time: 2000
-            });
+            // DEBUG3D.drawPoint( scene, pointLight.position, {
+            //     time: 2000
+            // });
         }
     }
 

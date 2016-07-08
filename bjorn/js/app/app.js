@@ -104,7 +104,7 @@
         // This attaches the camera to the canvas
         camera.attachControl(canvas, false);
 
-        window.initLights(scene);        
+
 
         // Z axis is above/below
         // var dirLight = new BABYLON.DirectionalLight("dirlight1", new BABYLON.Vector3(1, 0, 0), scene);
@@ -116,8 +116,14 @@
         ground.receiveShadows = true;
         ground.physicsImpostor = new BABYLON.PhysicsImpostor(ground, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
 
+        ground.material = new BABYLON.StandardMaterial("groundmat", scene);
+        ground.material.diffuseTexture = new BABYLON.Texture("assets/Resources/slack-imgs.com.jpg", scene);
+        //ground.material.diffuseColor = new BABYLON.Color3(1,1,0);
+        window.ground = ground;
         BABYLON.OBJFileLoader.OPTIMIZE_WITH_UV = true;
         scene.debugLayer.show();
+
+        window.initLights(scene);
 
         //scene.ambientColor = new BABYLON.Color3(1,1,1);
 
@@ -383,6 +389,11 @@
                     }
                 }
 
+                var positions = mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+                var normals = mesh.getVerticesData(BABYLON.VertexBuffer.NormalKind);
+
+                BABYLON.VertexData.ComputeNormals(positions, mesh.getIndices(), normals);
+
                 mesh.tag = 1;
                 mesh.receiveShadows = true;
                 mesh.position = a_options.position;
@@ -529,6 +540,28 @@
                 physicsImpostor.dispose();
             }, 1);
         });
+    }
+
+    window.flipNormals = function(){
+        for (var i = 0; i < items.length; ++i){
+
+            var item = items[i];
+
+            for (var j = 0; j < item.meshes.length; ++j){
+                var mesh = item.meshes[j];
+                var normals = mesh.getVerticesData(BABYLON.VertexBuffer.NormalKind);
+
+                console.log(normals);
+
+                normals[offset] *= -1;
+
+                normals[offset + 1] *= -1;
+
+                normals[offset + 2] *= -1;
+
+                mesh.setVerticesData(BABYLON.VertexBuffer.NormalKind, normals);
+            }
+        }
     }
 
 

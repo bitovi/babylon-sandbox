@@ -1,0 +1,19 @@
+
+<can-import from="egospace/components/game-controls/" />
+<game-controls />
+
+<can-import from="egospace/components/babylon-canvas/" />
+<babylon-canvas />
+
+<can-import from="egospace/components/mode-menu/" />
+<mode-menu />
+
+<can-import from="egospace/components/location-menu/" />
+<location-menu />
+
+<can-import from="egospace/components/misc-menu/" />
+<misc-menu />
+
+<can-import from="egospace/components/user-wheel/" />
+<user-wheel />
+

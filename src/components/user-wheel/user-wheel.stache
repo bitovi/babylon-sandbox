@@ -1,0 +1,21 @@
+<ul class="wheel-menu">
+  <li class="center-item"></li>
+  <li class="fa-sitemap">
+    <span class="item-bg"></span>
+  </li>
+  <li class="fa-group">
+    <span class="item-bg"></span>
+  </li>
+  <li class="fa-shopping-cart">
+    <span class="item-bg"></span>
+  </li>
+  <li class="fa-gamepad">
+    <span class="item-bg"></span>
+  </li>
+  <li class="fa-photo">
+    <span class="item-bg"></span>
+  </li>
+  <li class="fa-archive">
+    <span class="item-bg"></span>
+  </li>
+</ul>

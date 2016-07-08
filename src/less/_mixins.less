@@ -1,0 +1,99 @@
+
+.wheel-menu-mixin ( @items, @gap: 0, @skipItems: 0, @verticalSplit: false, @iconLocation: 10% ) {
+  width: 250px;
+  height: 250px;
+  border-radius: 50%;
+  position: relative;
+  overflow: hidden;
+  padding: 0px;
+
+  > * {
+    display: block;
+    pointer-events: none;
+    position: absolute;
+    text-decoration: none;
+    top: 0%;
+    left: 0%;
+    height: 100%;
+    width: 100%;
+
+    > * {
+      pointer-events: all;
+      cursor: pointer;
+      background-color: #0000FF;
+      width: 50%;
+      height: 50%;
+      position: absolute;
+      transform-origin: 0% 100%;
+      margin-top: -50%;
+      left: 50%;
+      top: 50%;
+      &:hover {
+        background-color: #FF00FF;
+      }
+    }
+
+    &:before {
+      display: block;
+      z-index: 1;
+      position: absolute;
+      text-align: center;
+      transform: translate( -50%, -50% );
+      color: #000000;
+    }
+  }
+  .center-item {
+    width: 50%;
+    height: 50%;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin: -25% 0 0 -25%;
+    background: #FFFFFF;
+    border-radius: 50%;
+    z-index: 2;
+    pointer-events: all;
+  }
+
+  .wheel-items( @items, @gap, @skipItems, @verticalSplit, @iconLocation );
+}
+
+.wheel-items( @items, @gap: 0, @childOffset: 0, @verticalSplit: false, @iconLocation: 10%, @i: 1 ) when ( @i <= @items ) {
+  @deg: 360deg / @items;
+  @nthChild: @i + @childOffset;
+  @radius: 50%;
+
+  & > *:nth-child(@{nthChild}) {
+    
+    & when ( @verticalSplit = true ) {
+      @rot: (@deg * @i - 90);
+      @skew: ( 90 - @deg ) * -1;
+      & > * {
+        transform: ~"rotate(@{rot}) skew(@{skew}) translate(@{gap}, -@{gap})";
+      }
+      &:before {
+        @x: cos( @rot - @deg / 2 ) * ( @radius - @iconLocation ) + 50%;
+        @y: sin( @rot - @deg / 2 ) * ( @radius - @iconLocation ) + 50%;
+        top: @y;
+        left: @x;
+      }
+    }
+
+    & when not ( @verticalSplit = true ) {
+      @rot: (@deg * @i - (@deg / 2) - 90);
+      @skew: ( 90 - @deg ) * -1;
+      & > * {
+        transform: ~"rotate(@{rot}) skew(@{skew}) translate(@{gap}, -@{gap})";
+      }
+      &:before {
+        @x: cos( @rot - @deg / 2 ) * ( @radius - @iconLocation ) + 50%;
+        @y: sin( @rot - @deg / 2 ) * ( @radius - @iconLocation ) + 50%;
+        top: @y;
+        left: @x;
+      }
+    }
+  }
+
+  .wheel-items( @items, @gap, @childOffset, @verticalSplit, @iconLocation, @i+1 );
+}
+

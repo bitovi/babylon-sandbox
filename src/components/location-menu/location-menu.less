@@ -1,0 +1,58 @@
+@import (reference) "../../less/_globals.less";
+
+location-menu {
+  position: absolute;
+  display: inline-block;
+  top: 0px;
+  left: 50%;
+  transform: translateX( -50% );
+  height: 30px;
+  z-index: 1;
+
+  ul {
+    display: block;
+    list-style: none;
+    height: 100%;
+    overflow: hidden;
+    box-shadow: 0px 2px 2px #444444;
+    font-size: 0px;
+
+    li {
+      vertical-align: top;
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 100%;
+      padding-top: 5px;
+      text-align: center;
+      color: #FFFFFF;
+      cursor: pointer;
+      font-size: 14px;
+      background-color: @brand1;
+      &:hover {
+        background-color: @brand2;
+      }
+
+      &:before {
+        position: absolute;
+        left: 0px;
+        top: 5px;
+        height: 100%;
+        width: 100%;
+        font-size: 20px;
+      }
+
+      &.location {
+        width: 450px;
+        margin-right: 2px;
+        font-size: 15px;
+        cursor: initial;
+        background-color: @brand1;
+      }
+    }
+    &.disabled li {
+      cursor: initial;
+      background-color: @brandDisabled;
+    }
+  }
+}

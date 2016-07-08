@@ -1,33 +1,26 @@
 import Component from 'can/component/';
 import Map from 'can/map/';
 import 'can/map/define/';
-import './demo.less!';
-import template from './demo.stache!';
+import './babylon-canvas.less!';
+import template from './babylon-canvas.stache!';
 import Babylon from 'babylonjs/babylon.max';
 import { isServer } from '../../util/environment';
-import { normalizedEventKey, normalizedWhichMouse } from '../../util/event-helpers';
 
 export const ViewModel = Map.extend({
   define: {
     message: {
-      value: 'This is the egospace-demo component'
+      value: 'This is the babylon-canvas component'
     }
   }
 });
 
 export default Component.extend({
-  tag: 'egospace-demo',
+  tag: 'babylon-canvas',
   viewModel: ViewModel,
   template,
   events: {
-    "{document} keydown": function ( $doc, $ev ) {
-      console.log( "keydown", normalizedEventKey( $ev ) );
-    },
-    "{document} mousedown": function ( $doc, $ev ) {
-      console.log( "mousedown", normalizedWhichMouse( $ev ), $ev );
-    },
     inserted() {
-      if ( isServer ) {
+      if ( 1 || isServer ) {
         return;
       }
 

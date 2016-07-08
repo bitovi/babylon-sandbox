@@ -1,0 +1,6 @@
+<ul class="{{#if modeUIDisabled}}disabled{{/if}}">
+  <li class="flyMode fa-leaf {{#if flyMode}}active{{/if}}"></li>
+  <li class="navMode fa-eye {{#if navMode}}active{{/if}}"></li>
+  <li class="customizeMode fa-gavel {{#if customizeMode}}active{{/if}}"></li>
+  <li class="mapVisibleMode fa-compass {{#if mapVisibleMode}}active{{/if}}"></li>
+</ul>

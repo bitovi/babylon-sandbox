@@ -118,7 +118,7 @@
 
         ground.material = new BABYLON.StandardMaterial("groundmat", scene);
         ground.material.diffuseTexture = new BABYLON.Texture("assets/Resources/slack-imgs.com.jpg", scene);
-        //ground.material.diffuseColor = new BABYLON.Color3(1,1,0);
+        ground.material.diffuseColor = new BABYLON.Color3(73/255,71/255,63/255);
         window.ground = ground;
         BABYLON.OBJFileLoader.OPTIMIZE_WITH_UV = true;
         scene.debugLayer.show();

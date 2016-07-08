@@ -3,7 +3,7 @@
     <title>{{title}}</title>
   </head>
   <body>
-    <can-import from="egospace/icons/fontawesome.css!" />
+    <can-import from="egospace/static/icons/fontawesome.css!" />
     <can-import from="egospace/styles.less!" />
     <can-import from="egospace/app" export-as="viewModel" />
     <can-import from="egospace/components/game-app/" />

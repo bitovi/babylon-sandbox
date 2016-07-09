@@ -5,6 +5,11 @@ import './babylon-canvas.less!';
 import template from './babylon-canvas.stache!';
 import Babylon from 'babylonjs/babylon.max';
 import { isServer } from '../../util/environment';
+import { ObjLoader } from './bjorn-tests/lib/babylon.objFileLoader.js';
+//import './bjorn-tests/lib/cannon.js';
+import { debug3d } from './bjorn-tests/debug3d.js';
+import { lighting } from './bjorn-tests/lighting.js';
+import { main } from './bjorn-tests/app.js';
 
 export const ViewModel = Map.extend({
   define: {
@@ -20,6 +25,13 @@ export default Component.extend({
   template,
   events: {
     inserted() {
+      if ( !isServer ) {
+        ObjLoader();
+        debug3d();
+        lighting();
+        main();
+        return;
+      }
       if ( 1 || isServer ) {
         return;
       }

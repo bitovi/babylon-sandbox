@@ -3,7 +3,12 @@
  */
 "use strict";
 (function(BABYLON){
+
+    var _isDebugMaterial = false;
     window.DEBUG3D = {
+        /**
+         * Draw a bounding box for a size
+         */
         drawBoundingBox:function ()
         {
 
@@ -39,6 +44,54 @@
             setTimeout(function () {
                 sphere.dispose();
             }, a_options.time);
+        },
+
+        /**
+         * Get the debug material directly
+         * @param a_scene
+         * @returns {BABYLON.ShaderMaterial}
+         */
+        getDebugMaterial: function(a_scene){
+            var material = new BABYLON.ShaderMaterial("debugmaterial", a_scene, "/shaders/debug",
+                {
+                    attributes: ["position", "uv", "normal"],
+                    uniforms: ["worldViewProjection", "world"]
+                });
+
+            return material;
+        },
+        /**
+         * Enable the debug shader for various shader debugging things
+         * @param a_scene
+         */
+        toggleDebugMaterial: function(a_scene){
+            var meshes = a_scene.meshes.filter(function(a_mesh){
+                if (a_mesh.material && (a_mesh.material.name === "skyBox" || a_mesh.material.name === "groundmat") ){
+                    return false;
+                }
+                else{
+                    return true;
+                }
+            });
+
+            for (var i = 0; i < meshes.length; ++i){
+                var mesh = meshes[i];
+                if (_isDebugMaterial){
+                    // Check that debugMaterial has been set (incase a mesh was added after setting debug material)
+                    if (mesh.__debugMaterial){
+                        mesh.material = mesh.__originalMaterial;
+                        // Clean up
+                        mesh.__debugMaterial = false;
+                        mesh.__originalMaterial = undefined;
+                    }
+                } else {
+                    mesh.__originalMaterial = mesh.material;
+                    mesh.__debugMaterial = true;
+                    mesh.material = DEBUG3D.getDebugMaterial(a_scene);
+                }
+            }
+
+            _isDebugMaterial = !_isDebugMaterial;
         }
     };
 })(BABYLON);

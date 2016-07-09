@@ -93,12 +93,6 @@
         // This creates and positions a free camera
         camera = new BABYLON.FreeCamera("camera1", new BABYLON.Vector3(0, 5, -10), scene);
         camera.speed *= 0.25;
-        // var cameraAlpha = 3 * Math.PI / 2;
-        // var cameraBeta =  Math.PI / 3;
-        // camera = new BABYLON.ArcRotateCamera("Camera", cameraAlpha, cameraBeta, 10, BABYLON.Vector3.Zero(), scene);
-        // console.log(camera);
-        //camera.lowerRadiusLimit = 3;
-        //camera.upperRadiusLimit = 15;
         // This targets the camera to scene origin
         camera.setTarget(BABYLON.Vector3.Zero());
         // This attaches the camera to the canvas
@@ -118,7 +112,8 @@
 
         ground.material = new BABYLON.StandardMaterial("groundmat", scene);
         ground.material.diffuseTexture = new BABYLON.Texture("assets/Resources/slack-imgs.com.jpg", scene);
-        ground.material.diffuseColor = new BABYLON.Color3(73/255,71/255,63/255);
+        ground.material.diffuseColor = new BABYLON.Color3(73/255, 71/255, 63/255);
+        ground.material.specularColor = new BABYLON.Color3(0, 0, 0);
         window.ground = ground;
         BABYLON.OBJFileLoader.OPTIMIZE_WITH_UV = true;
         scene.debugLayer.show();
@@ -269,6 +264,8 @@
     function createModels() {
         var loader = new BABYLON.AssetsManager(scene);
 
+        var rotateNormals = true;
+
         var position = new BABYLON.Vector3(0, 0, 0);
         var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
         loadModel({
@@ -277,6 +274,7 @@
             physics: false,
             position: position,
             rotation:rotation,
+            rotateNormals:rotateNormals,
             taskname: "rug"
         }, loader);
 
@@ -287,6 +285,7 @@
             physics: true,
             position: position,
             rotation:rotation,
+            rotateNormals:rotateNormals,
             taskname: "chair"
         }, loader);
 
@@ -297,6 +296,7 @@
             physics: true,
             position: position,
             rotation:rotation,
+            rotateNormals:rotateNormals,
             taskname: "chair"
         }, loader);
 
@@ -307,6 +307,7 @@
             physics: true,
             position: position,
             rotation:rotation,
+            rotateNormals:rotateNormals,
             taskname: "chair"
         }, loader);
 
@@ -317,6 +318,7 @@
             physics: true,
             position: position,
             rotation:rotation,
+            rotateNormals:rotateNormals,
             taskname: "chair"
         }, loader);
 
@@ -328,6 +330,7 @@
             physics: false,
             position: position,
             rotation:rotation,
+            rotateNormals:false,
             taskname: "bedfan"
         }, loader);
 
@@ -338,8 +341,10 @@
             physics: true,
             position: position,
             rotation:rotation,
+            rotateNormals:rotateNormals,
             taskname: "bed"
         }, loader);
+
 
         loader.load();
     }
@@ -389,10 +394,9 @@
                     }
                 }
 
-                var positions = mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
-                var normals = mesh.getVerticesData(BABYLON.VertexBuffer.NormalKind);
-
-                BABYLON.VertexData.ComputeNormals(positions, mesh.getIndices(), normals);
+                if (a_options.rotateNormals){
+                    rotateNormals(mesh);
+                }
 
                 mesh.tag = 1;
                 mesh.receiveShadows = true;
@@ -424,8 +428,6 @@
             pickingPlane = new BABYLON.Mesh.CreatePlane("pickingplane", 1000, scene);
             pickingPlane.rotation.x += Math.PI * 0.5;
             pickingPlane.visibility = 0;
-            //pickingPlane.material = new BABYLON.StandardMaterial("mat");
-            //pickingPlane.material.diffuseColor = new BABYLON.Color3(0,0,1);
         }
 
         var pickingInfo = scene.pick( scene.pointerX, scene.pointerY, function(a_hitMesh){
@@ -475,6 +477,33 @@
             selectedMesh.outlineColor = new BABYLON.Color3(0.3359375, 0.6640625, 0.8046875);
         }
     }
+
+    /**
+     * Multiply quat quaternion with vector3
+     * @param {Array} quat
+     * @param {Array} vec3
+     * @param {Array?} vec3Dest
+     * @returns {*}
+     */
+    function multiplyVector3(quat, vec3, vec3Dest) {
+        vec3Dest || (vec3Dest = vec3);
+        var d = vec3[0],
+            e = vec3[1],
+            g = vec3[2],
+            b = quat[0],
+            f = quat[1],
+            h = quat[2],
+            a = quat[3],
+            i = a * d + f * g - h * e,
+            j = a * e + h * d - b * g,
+            k = a * g + b * e - f * d,
+            d = -b * d - f * e - h * g;
+        vec3Dest[0] = i * a + d * -b + j * -h - k * -f;
+        vec3Dest[1] = j * a + d * -f + k * -b - i * -h;
+        vec3Dest[2] = k * a + d * -h + i * -f - j * -b;
+        return vec3Dest;
+    };
+
     /**
      * Pick an item by at mouse X & Y coordinates (or touch)
      */
@@ -503,6 +532,26 @@
                 selectedMesh = null;
             }
         }
+    }
+
+    function rotateNormals( a_mesh ){
+        var normals = a_mesh.getVerticesData(BABYLON.VertexBuffer.NormalKind);
+
+        var rotationQuat = BABYLON.Quaternion.RotationYawPitchRoll(0,  Math.PI * 1.5, 0);
+
+        for (var i = 0; i < normals.length; i+= 3){
+            var normalVector = [ normals[i], normals[i + 1], normals[i + 2] ];
+
+            // From glMatrix 0.95
+            multiplyVector3( [ rotationQuat.x, rotationQuat.y, rotationQuat.z, rotationQuat.w ],
+                normalVector);
+
+            normals[i] = normalVector[0];
+            normals[i+1] = normalVector[1];
+            normals[i + 2] = normalVector[2];
+        }
+
+        a_mesh.setVerticesData( BABYLON.VertexBuffer.NormalKind, normals );
     }
 
     function setMeshOutline(a_mesh, a_skipSinblings){
@@ -540,28 +589,6 @@
                 physicsImpostor.dispose();
             }, 1);
         });
-    }
-
-    window.flipNormals = function(){
-        for (var i = 0; i < items.length; ++i){
-
-            var item = items[i];
-
-            for (var j = 0; j < item.meshes.length; ++j){
-                var mesh = item.meshes[j];
-                var normals = mesh.getVerticesData(BABYLON.VertexBuffer.NormalKind);
-
-                console.log(normals);
-
-                normals[offset] *= -1;
-
-                normals[offset + 1] *= -1;
-
-                normals[offset + 2] *= -1;
-
-                mesh.setVerticesData(BABYLON.VertexBuffer.NormalKind, normals);
-            }
-        }
     }
 
 

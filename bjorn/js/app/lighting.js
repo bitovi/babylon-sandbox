@@ -51,7 +51,7 @@
         hemisphericLight.intensity = 1;
         // hemisphericLight.excludedMeshes.push(ground);
 
-        //scene.removeLight(hemisphericLight);
+        // scene.removeLight(hemisphericLight);
 
         normalDirLight = new BABYLON.DirectionalLight("dirlight1", new BABYLON.Vector3(0, -1, 0), scene);
 

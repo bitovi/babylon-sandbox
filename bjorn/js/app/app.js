@@ -254,6 +254,7 @@
             physics: false,
             position: position,
             rotation:rotation,
+            rotateNormals:true,
             taskname: "chair",
             success: onsuccess
         }, loader);
@@ -261,7 +262,54 @@
         loader.load();
     }
 
+    function createBabylonModels(){
+        // BABYLON.SceneLoader.ImportMesh("", "assets/", "input.babylon", scene, function(newMeshes){
+        //     /**
+        //      * Create an item for the scene
+        //      * @type {SceneItem}
+        //      */
+        //     var item = {
+        //         name: "fbx babylon",
+        //         meshes: newMeshes
+        //     };
+        //
+        //     items.push(item);
+        //
+        //     // Set the models position
+        //     for (var i = 0; i < item.meshes.length; ++i) {
+        //
+        //         var mesh = item.meshes[i];
+        //
+        //         if (item.meshes.length > 1){
+        //             mesh.e_siblings = [];
+        //
+        //             for (var j = 0; j < item.meshes.length; ++j){
+        //                 if (j != i){
+        //                     mesh.e_siblings.push(item.meshes[j]);
+        //                 }
+        //             }
+        //         }
+        //
+        //         if (mesh.parent){
+        //             var position = new BABYLON.Vector3(2, 0, -2);
+        //             var rotation = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI,0,0);
+        //             mesh.position = position;
+        //             mesh.rotationQuaternion = rotation;
+        //         }
+        //
+        //         mesh.tag = 1;
+        //         mesh.receiveShadows = true;
+        //
+        //
+        //         window.addToShadowGenerator(mesh);
+        //     }
+        // });
+    }
+
     function createModels() {
+
+        createBabylonModels();
+
         var loader = new BABYLON.AssetsManager(scene);
 
         var rotateNormals = true;

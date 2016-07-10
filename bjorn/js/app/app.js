@@ -262,53 +262,7 @@
         loader.load();
     }
 
-    function createBabylonModels(){
-        // BABYLON.SceneLoader.ImportMesh("", "assets/", "input.babylon", scene, function(newMeshes){
-        //     /**
-        //      * Create an item for the scene
-        //      * @type {SceneItem}
-        //      */
-        //     var item = {
-        //         name: "fbx babylon",
-        //         meshes: newMeshes
-        //     };
-        //
-        //     items.push(item);
-        //
-        //     // Set the models position
-        //     for (var i = 0; i < item.meshes.length; ++i) {
-        //
-        //         var mesh = item.meshes[i];
-        //
-        //         if (item.meshes.length > 1){
-        //             mesh.e_siblings = [];
-        //
-        //             for (var j = 0; j < item.meshes.length; ++j){
-        //                 if (j != i){
-        //                     mesh.e_siblings.push(item.meshes[j]);
-        //                 }
-        //             }
-        //         }
-        //
-        //         if (mesh.parent){
-        //             var position = new BABYLON.Vector3(2, 0, -2);
-        //             var rotation = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI,0,0);
-        //             mesh.position = position;
-        //             mesh.rotationQuaternion = rotation;
-        //         }
-        //
-        //         mesh.tag = 1;
-        //         mesh.receiveShadows = true;
-        //
-        //
-        //         window.addToShadowGenerator(mesh);
-        //     }
-        // });
-    }
-
     function createModels() {
-
-        createBabylonModels();
 
         var loader = new BABYLON.AssetsManager(scene);
 
@@ -318,7 +272,6 @@
         var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
         loadModel({
             filename: "Colo_Rug_Fab_LtBrown_001.obj",
-            //filename: "StoneWall_LOW.obj",
             physics: false,
             position: position,
             rotation:rotation,
@@ -630,11 +583,14 @@
     function setPhysicsImpostor(a_mesh, a_scene){
         var physicsImpostor = new BABYLON.PhysicsImpostor(a_mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 1, restitution: 0.8 }, a_scene);
         a_mesh.physicsImpostor = physicsImpostor;
-        
+
         // On collision with the floor
-        physicsImpostor.registerOnPhysicsCollide( ground.physicsImpostor, function() {
+        physicsImpostor.registerOnPhysicsCollide( ground.physicsImpostor, function ( physImpos, collidedWithPhysImpos ) {
             setTimeout(function(){
                 physicsImpostor.dispose();
+                if ( collidedWithPhysImpos.object.id === "ground1" ) {
+                    physImpos.object.position.y = 0;
+                }
             }, 1);
         });
     }

@@ -17,7 +17,7 @@
     var skybox;
     var camera;
     // Now, call the createScene function that you just finished creating
-    var scene = createScene();
+    var scene;
     var selectedMesh = null;
     // The rendered items in the scene
     var items = [];
@@ -26,8 +26,9 @@
     var mouseX, mouseY,
         lastMouseX, lastMouseY;
 
+    createScene();
     createSky();
-    createModels();
+    //createModels();
 
     // Register a render loop to repeatedly render the scene
     engine.runRenderLoop(function () {
@@ -77,7 +78,8 @@
     function createScene() {
 
         // Now create a basic Babylon Scene object 
-        var scene = new BABYLON.Scene(engine);
+        scene = new BABYLON.Scene(engine);
+
         // Change the scene background color to green.
         scene.clearColor = new BABYLON.Color3(0, 1, 0);
 
@@ -104,25 +106,15 @@
         // var dirLight = new BABYLON.DirectionalLight("dirlight1", new BABYLON.Vector3(1, 0, 0), scene);
         BABYLON.StandardMaterial.AmbientTextureEnabled = false;
 
-        // Let's try our built-in 'ground' shape.  Params: name, width, depth, subdivisions, scene
-        ground = BABYLON.Mesh.CreateGround("ground1", 6, 6, 2, scene);
-        ground.collisionsEnabled = true;
-        ground.receiveShadows = true;
-        ground.physicsImpostor = new BABYLON.PhysicsImpostor(ground, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
+        createGround();
 
-        ground.material = new BABYLON.StandardMaterial("groundmat", scene);
-        ground.material.diffuseTexture = new BABYLON.Texture("assets/Resources/slack-imgs.com.jpg", scene);
-        ground.material.diffuseColor = new BABYLON.Color3(73/255, 71/255, 63/255);
-        ground.material.specularColor = new BABYLON.Color3(0, 0, 0);
-        window.ground = ground;
         BABYLON.OBJFileLoader.OPTIMIZE_WITH_UV = true;
         scene.debugLayer.show();
 
         window.initLights(scene);
 
-        //scene.ambientColor = new BABYLON.Color3(1,1,1);
-
         window.scene = scene;
+        //scene.ambientColor = new BABYLON.Color3(1,1,1);
         // Leave this function
         return scene;
     }  // End of createScene function
@@ -262,6 +254,128 @@
         loader.load();
     }
 
+    function createGround(){
+
+        var loader = new BABYLON.AssetsManager(scene);
+
+        var position = new BABYLON.Vector3(0, 0, 0);
+        var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
+
+        var meshId = -1;
+
+        window.randomGround = function(){
+            checkmaterial(ground);
+        };
+
+        window.randomGroundColor = function(){
+            window.ground.material.diffuseColor = groundColor();
+        };
+
+        window.randomGroundTexture = function(){
+            window.ground.material.diffuseTexture = new BABYLON.Texture(groundTexture(), scene);
+        }
+
+        function groundColor(){
+            var colorId = parseInt(Math.random() * 5);
+            // So there is sliiiiightly higher chance of getting 3 than 0, 1 , 2!
+            if (colorId === 5) colorId = 4;
+
+            switch ( colorId ){
+                case 0:
+                    return new BABYLON.Color3(73/255, 71/255, 63/255);
+                    break;
+                case 1:
+                    return new BABYLON.Color3(149/255, 228/255, 147/255);
+                case 2:
+                    return new BABYLON.Color3(232/255, 74/255, 74/255);
+                case 3:
+                    return new BABYLON.Color3(104/255, 191/255, 193/255);
+                case 4:
+                    return new BABYLON.Color3(1, 1, 0.3);
+            }
+        };
+        function groundTexture(){
+            // randomization from 0 -> 4
+            var textureId = parseInt(Math.random() * 4);
+            // So there is sliiiiightly higher chance of getting 3 than 0, 1 , 2!
+            if (textureId === 4) textureId = 3;
+
+            var textureUrl = "assets/LS_15/Resources/";
+
+            switch ( textureId){
+                case 0:
+                    textureUrl += "Concrete_005_Tex0_Diff.tga";
+                    break;
+                case 1:
+                    textureUrl += "Grass_002_Tex0_Diff.tga";
+                    break;
+                case 2:
+                    textureUrl += "Marble_001_Tex0_Diff.tga";
+                    break;
+                case 3:
+                    textureUrl += "Wood_006_Tex0_Diff.tga";
+                    break;
+            }
+
+            return textureUrl;
+        }
+
+        var checkmaterial = function(a_mesh){
+            var material = a_mesh.material;
+            if (material){
+                window.randomGroundTexture();
+                window.randomGroundColor();
+            } else {
+                setTimeout(function(){checkmaterial(a_mesh);}, 50);
+            }
+        };
+
+        loadModel({
+            filename: "Patio_001_LOD0.obj",
+            physics: false,
+            position: position,
+            root: "assets/LS_15/",
+            rotation:rotation,
+            rotateNormals: true,
+            taskname: "ground",
+            skipTag:true,
+            success: function(a_item){
+
+                for (var i = 0; i < a_item.meshes.length; ++i){
+                    var mesh = a_item.meshes[i];
+                    mesh.collisionsEnabled = true;
+                    mesh.receiveShadows = true;
+
+                    if (mesh.id === "Floor_001"){
+                        meshId = i;
+                        mesh.physicsImpostor = new BABYLON.PhysicsImpostor(mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
+                        ground = mesh;
+                        window.ground = ground;
+
+                        checkmaterial(mesh);
+                    }
+                }
+
+                createModels();
+            }
+        }, loader);
+
+        loader.load();
+        /*
+        // Let's try our built-in 'ground' shape.  Params: name, width, depth, subdivisions, scene
+        ground = BABYLON.Mesh.CreateGround("ground1", 6, 6, 2, scene);
+        ground.collisionsEnabled = true;
+        ground.receiveShadows = true;
+        ground.physicsImpostor = new BABYLON.PhysicsImpostor(ground, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
+
+        ground.material = new BABYLON.StandardMaterial("groundmat", scene);
+        ground.material.diffuseTexture = new BABYLON.Texture("assets/Resources/slack-imgs.com.jpg", scene);
+        ground.material.diffuseColor = new BABYLON.Color3(73/255, 71/255, 63/255);
+        ground.material.specularColor = new BABYLON.Color3(0, 0, 0);
+        */
+        //window.ground = ground;
+    }
+
     function createModels() {
 
         var loader = new BABYLON.AssetsManager(scene);
@@ -363,7 +477,10 @@
     }
 
     function loadModel(a_options, a_loader) {
-        var task = a_loader.addMeshTask(a_options.taskname, "", "assets/", a_options.filename);
+
+        a_options.root = a_options.root || "assets/";
+
+        var task = a_loader.addMeshTask(a_options.taskname, "", a_options.root, a_options.filename);
         /**
          *
          * @param {BABYLON.MeshAssetTask} t
@@ -399,7 +516,10 @@
                     rotateNormals(mesh);
                 }
 
-                mesh.tag = 1;
+                if (!a_options.skipTag){
+                    mesh.tag = 1;
+                }
+
                 mesh.receiveShadows = true;
                 mesh.position = a_options.position;
                 mesh.rotationQuaternion = a_options.rotation;
@@ -451,6 +571,12 @@
 
             for (var j = 0; j < item.meshes.length; ++j){
                 var mesh = item.meshes[j];
+
+                // If no tag then go next mesh
+                if (!mesh.tag){
+                    continue;
+                }
+
                 // Need a better way to check a group of meshes but for now just set intersects as false again
                 if (mesh === selectedMesh){
                     intersects = false;

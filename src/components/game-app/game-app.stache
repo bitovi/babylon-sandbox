@@ -1,4 +1,4 @@
-<script type="text/javascript" src="src/components/babylon-canvas/bjorn-tests/lib/cannon.js"></script>
+<script type="text/javascript" src="/src/components/babylon-canvas/bjorn-tests/lib/cannon.js"></script>
 
 
 <can-import from="egospace/components/game-controls/" />

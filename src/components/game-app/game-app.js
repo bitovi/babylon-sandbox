@@ -12,6 +12,11 @@ export const ViewModel = Map.extend({
         return childVM.call( this, "mode-menu" );
       }
     },
+    gameCanvasVM: {
+      get () {
+        return childVM.call( this, "babylon-canvas" );
+      }
+    },
     cameraLookMode: {
       value: false
     }
@@ -26,10 +31,10 @@ export default Component.extend({
     inserted () {
       this.viewModel.attr( "$el", this.element );
     },
-    "{document} mousedown": function () {
-      //var vm = this.viewModel;
-      //var mmVM = vm.attr( "modeVM" );
-      //mmVM.attr( "flyMode", !mmVM.attr( "flyMode" ) );
+    "{viewModel.modeVM} mapVisibleMode": function () {
+      var vm = this.viewModel;
+      var gcVM = vm.attr( "gameCanvasVM" );
+      gcVM.testToggleLights();
     }
   }
 });

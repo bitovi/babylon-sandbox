@@ -146,11 +146,13 @@ export const ViewModel = Map.extend({
       var vm = this;
       var items = this.attr( "items" );
 
+      options.root = options.root || this.attr( "static3DAssetPath" );
+
       //TODO: new can.Deferred();
       var task = loader.addMeshTask(
         options.taskname || options.filename,
         "",
-        this.attr( "static3DAssetPath" ),
+        options.root,
         options.filename
       );
 
@@ -186,7 +188,10 @@ export const ViewModel = Map.extend({
             vm.rotateNormals( mesh );
           }
 
-          mesh.tag = 1;
+          if ( !options.skipTag ) {
+            mesh.tag = 1;
+          }
+
           mesh.receiveShadows = true;
           mesh.position = options.position;
           mesh.rotationQuaternion = options.rotation;
@@ -297,27 +302,125 @@ export const ViewModel = Map.extend({
       loader.load();
     },
 
-    initTestGroundPlane () {
+    changeColor () {
+      var colorId = parseInt(Math.random() * 5);
+      // So there is sliiiiightly higher chance of getting 3 than 0, 1 , 2!
+      if (colorId === 5) colorId = 4;
+      var color;
+  
+      switch ( colorId ){
+        case 0:
+          color = new Babylon.Color3(73/255, 71/255, 63/255);
+          break;
+        case 1:
+          color = new Babylon.Color3(149/255, 228/255, 147/255);
+          break;
+        case 2:
+          color = new Babylon.Color3(232/255, 74/255, 74/255);
+          break;
+        case 3:
+          color = new Babylon.Color3(104/255, 191/255, 193/255);
+          break;
+        case 4:
+          color = new Babylon.Color3(1, 1, 0.3);
+          break;
+      }
+  
+      this.setDefaults();
+  
+      this.attr( "ground" ).material.diffuseColor = color;
+    },
+
+    changeTexture () {
+      // randomization from 0 -> 4
+      var textureId = parseInt(Math.random() * 4);
+      // So there is sliiiiightly higher chance of getting 3 than 0, 1 , 2!
+      if (textureId === 4) textureId = 3;
+
+      var textureUrl = this.attr( "static3DAssetPath" ) + "LS_15/Resources/";
+      var bumpUrl;
+
+      switch ( textureId){
+        case 0:
+          textureUrl += "Concrete_005_Tex0_Diff.tga";
+          break;
+        case 1:
+          textureUrl += "Grass_002_Tex0_Diff.tga";
+          break;
+        case 2:
+          textureUrl += "Marble_001_Tex0_Diff.tga";
+          break;
+        case 3:
+          bumpUrl = textureUrl + "Wood_006_Tex0_Nrml.tga";
+          textureUrl += "Wood_006_Tex0_Diff.tga";
+          break;
+      }
+
+      this.setDefaults();
       var scene = this.attr( "scene" );
-      var ground = Babylon.Mesh.CreateGround( "ground1", 6, 6, 2, scene );
+      this.attr( "ground" ).material.diffuseTexture = new Babylon.Texture(textureUrl, scene);
+      if (bumpUrl){
+          this.attr( "ground" ).material.bumpTexture = new Babylon.Texture(bumpUrl, scene);
+      }
+    },
 
-      ground.collisionsEnabled = true;
-      ground.receiveShadows = true;
-      ground.physicsImpostor = new Babylon.PhysicsImpostor(
-        ground,
-        Babylon.PhysicsImpostor.BoxImpostor,
-        { mass: 0, restitution: 0.5 },
-        scene
-      );
-      
-      ground.material = new Babylon.StandardMaterial( "groundmat", scene );
-      ground.material.diffuseTexture = new Babylon.Texture( this.resourcePath( "slack-imgs.com.jpg" ), scene );
-      ground.material.diffuseColor = new Babylon.Color3( 0x49 / 255, 0x47 / 255, 0x42 / 255 );
-      ground.material.specularColor = new Babylon.Color3( 0, 0, 0 );
+    resetGround () {
+      if ( this.attr( "hasChanged" ) ) {
+        let ground = this.attr( "ground" );
+        ground.material.diffuseColor = this.attr( "defaultColor" );
+        ground.material.diffuseTexture = this.attr( "defaultTexture" );
+        ground.material.bumpTexture = this.attr( "defaultBump" );
+      }
+    },
+    
+    setDefaults () {
+      if ( !this.attr( "hasChanged" ) ) {
+        this.attr( "hasChanged", true );
+        let ground = this.attr( "ground" );
+        this.attr( "defaultColor", ground.material.diffuseColor );
+        this.attr( "defaultTexture", ground.material.diffuseTexture );
+        this.attr( "defaultBump", ground.material.bumpTexture );
+      }
+    },
 
-      this.attr( "ground", ground );
+    initTestGroundPlane () {
+      var vm = this;
+      var scene = this.attr( "scene" );
+      var loader = new Babylon.AssetsManager(scene);
 
-      return ground;
+      var position = new Babylon.Vector3(0, 0, 0);
+      var rotation = Babylon.Quaternion.RotationYawPitchRoll(0,0,0);
+
+      var meshId = -1;
+
+      this.testLoadModel({
+        filename: "Patio_001_LOD0.obj",
+        physics: false,
+        position: position,
+        root: this.attr( "static3DAssetPath" ) + "LS_15/",
+        rotation:rotation,
+        rotateNormals: true,
+        taskname: "ground",
+        skipTag:true,
+        success: function(a_item){
+
+          for (var i = 0; i < a_item.meshes.length; ++i){
+            var mesh = a_item.meshes[i];
+            mesh.collisionsEnabled = true;
+            mesh.receiveShadows = true;
+
+            if (mesh.id === "Floor_001"){
+              meshId = i;
+              mesh.physicsImpostor = new Babylon.PhysicsImpostor(mesh, Babylon.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
+              vm.attr( "ground", mesh );
+
+              vm.checkmaterial(mesh);
+            }
+          }
+        }
+      }, loader);
+
+      loader.load();
     },
 
     testSetPhysicsImpostor ( mesh ) {
@@ -336,7 +439,7 @@ export const ViewModel = Map.extend({
       physicsImpostor.registerOnPhysicsCollide( ground.physicsImpostor, function ( physImpos, collidedWithPhysImpos ) {
         setTimeout(function(){
           physicsImpostor.dispose();
-          if ( collidedWithPhysImpos.object.id === "ground1" ) {
+          if ( collidedWithPhysImpos.object.id === "Floor_001" ) {
             physImpos.object.position.y = 0;
           }
         }, 1);
@@ -454,6 +557,11 @@ export const ViewModel = Map.extend({
 export const controls = {
   "name": "game-canvas",
   "context": null,
+  "keypress": {
+    "8": "changeColor",
+    "9": "changeTexture",
+    "0": "resetGround"
+  },
   "mousemove": {
     "*": function ( $ev, normalizedKey, held ) {
       //console.log( $ev.pageX, $ev.pageY, held );

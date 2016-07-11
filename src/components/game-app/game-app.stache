@@ -7,6 +7,9 @@
 <can-import from="egospace/components/babylon-canvas/" />
 <babylon-canvas {^delta-time}="deltaTime" {^render-count}="renderCount" {fly-mode}="flyMode"></babylon-canvas>
 
+<can-import from="egospace/components/info-tooltip/" />
+<info-tooltip />
+
 <can-import from="egospace/components/mode-menu/" />
 <mode-menu {^fly-mode}="flyMode"></mode-menu>
 

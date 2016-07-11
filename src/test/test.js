@@ -18,3 +18,5 @@ import 'egospace/components/misc-menu/misc-menu_test';
 import 'egospace/components/location-menu/location-menu_test';
 
 import 'egospace/components/game-camera/game-camera_test';
+
+import 'egospace/components/info-tooltip/info-tooltip_test';

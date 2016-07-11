@@ -8,7 +8,7 @@ import { isServer } from '../../util/environment';
 import { ObjLoader } from './bjorn-tests/lib/babylon.objFileLoader.js';
 //import './bjorn-tests/lib/cannon.js';
 //import { debug3d } from './bjorn-tests/debug3d.js';
-import { getControls } from '../../util/util.js';
+import { getControls, getTooltip } from '../../util/util.js';
 
 export const ViewModel = Map.extend({
   define: {
@@ -64,7 +64,9 @@ export const ViewModel = Map.extend({
     var scene = this.attr( "scene" );
     var controlsVM = getControls();
     var mouseMoveCurPos = controlsVM.attr( "mouseMoveCurPos" );
-    var pickingInfo = scene.pick( mouseMoveCurPos.attr( "x" ), mouseMoveCurPos.attr( "y" ), function(a_hitMesh){
+    var pageX = mouseMoveCurPos.attr( "x" );
+    var pageY = mouseMoveCurPos.attr( "y" );
+    var pickingInfo = scene.pick( pageX, pageY, function(a_hitMesh){
       return a_hitMesh.tag === 1;
     });
     var selectedMesh = this.attr( "selectedMesh" );
@@ -75,6 +77,7 @@ export const ViewModel = Map.extend({
       if (selectedMesh !== mesh){
         this.setMeshOutline( mesh );
       }
+      getTooltip().set( "meshHover", mesh.name, "fa-archive", "Click to Manage", pageX, pageY );
     // Else remove outline
     } else {
       if (selectedMesh){
@@ -84,6 +87,7 @@ export const ViewModel = Map.extend({
             selectedMesh.e_siblings[i].renderOutline = false;
           }
         }
+        getTooltip().clear( "meshHover" );
         this.attr( "selectedMesh", null );
       }
     }
@@ -567,7 +571,7 @@ export const ViewModel = Map.extend({
     var normalDirLight = new Babylon.PointLight("dirlight1", new Babylon.Vector3(0, 20, 0), scene);
     
     var hemisShadowGen = new Babylon.ShadowGenerator( 1024, normalDirLight );
-    hemisShadowGen.setDarkness( 0.5 );
+    hemisShadowGen.setDarkness( 0.75 );
     hemisShadowGen.usePoissonSampling = true;
     hemisShadowGen.bias *= 0.5;
 

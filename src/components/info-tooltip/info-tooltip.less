@@ -1,0 +1,50 @@
+@import (reference) "../../static/less/_globals.less";
+
+info-tooltip {
+	display: inline-block;
+  border: 2px solid #FFFFFF;
+  background-color: @brandTooltipBg;
+  position: absolute;
+  padding-top: 5px;
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-bottom: 10px;
+  z-index: 10;
+  pointer-events: none;
+
+  .title {
+    display: block;
+    color: @brand1;
+    min-width: 75px;
+    max-width: 190px;
+    word-wrap: break-word;
+
+    &.description-visible {
+      padding-bottom: 5px;
+      border-bottom: 2px solid @brand2;
+      margin-bottom: 5px;
+    }
+  }
+  .description {
+    display: inline-block;
+    color: #FFFFFF;
+    width: ~"calc( 100% - 10px )";
+    vertical-align: top;
+    min-width: 125px;
+    &.icon-visible {
+      padding-top: 5px;
+      min-width: 160px;
+    }
+
+    .tootltip-icon {
+      display: inline-block;
+      color: @brand2;
+      font-size: 30px;
+      width: 35px;
+      height: 35px;
+      margin-top: -5px;
+      margin-right: 3px;
+      float: left;
+    }
+  }
+}

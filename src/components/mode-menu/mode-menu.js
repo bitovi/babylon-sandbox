@@ -4,7 +4,7 @@ import 'can/map/define/';
 import './mode-menu.less!';
 import template from './mode-menu.stache!';
 import { isServer } from '../../util/environment';
-import { getControls } from '../../util/util.js';
+import { getControls, getTooltip } from '../../util/util.js';
 import $ from 'jquery';
 
 export const ViewModel = Map.extend({
@@ -78,11 +78,44 @@ export const controls = {
   }
 };
 
+var tooltips = {
+  "flyMode": {
+    title: "Fly Mode. Use , and . keys to fly up/down"
+  },
+  "navMode": {
+    title: "Navigation Mode"
+  },
+  "customizeMode": {
+    title: "Customization Mode"
+  },
+  "mapVisibleMode": {
+    title: "Map"
+  }
+};
+
 export default Component.extend({
   tag: 'mode-menu',
   viewModel: ViewModel,
   template,
   events: {
+    ".flyMode,.navMode,.customizeMode,.mapVisibleMode mouseenter": function ( $el, $ev ) {
+      var mode = $ev.target.className.replace( /^.*?([^ ]+Mode)\b.*$/, "$1" );
+      var ttinfo = tooltips[ mode ];
+      if ( !mode || !ttinfo ) {
+        return;
+      }
+      var tt = getTooltip();
+      var $target = $( $ev.target );
+      var offset = $target.offset();
+      var x = offset.left + $ev.target.offsetWidth - 20;
+      var y = offset.top + $ev.target.offsetHeight + 3;
+      tt.set( mode, ttinfo.title );
+      tt.position( x, y );
+    },
+    ".flyMode,.navMode,.customizeMode,.mapVisibleMode mouseleave": function ( $el, $ev ) {
+      var mode = $ev.target.className.replace( /^.*?([^ ]+Mode)\b.*$/, "$1" );
+      getTooltip().clear( mode );
+    },
     "inserted": function () {
       if ( isServer ) {
         return;

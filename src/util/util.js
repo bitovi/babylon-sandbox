@@ -15,3 +15,10 @@ export var getControls = function () {
   return gcVM || null;
 };
 
+export var getTooltip = function () {
+  var $el = $( "info-tooltip" );
+  var ttVM = $el && $el.viewModel && $el.viewModel();
+  
+  return ttVM || null;
+};
+

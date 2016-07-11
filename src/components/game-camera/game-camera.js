@@ -55,7 +55,8 @@ export const ViewModel = Map.extend({
     //return promise that resolves when camera gets to newCoords
   },
 
-  cameraSpeed: 0.01,
+  movementSpeed: 0.01,
+  rotationSpeed: 0.002,
   defaultHight: 1.5,
 
   moveUp ( $ev, normalizedKey, held, deltaTime ) {
@@ -63,7 +64,7 @@ export const ViewModel = Map.extend({
       return false;
     }
 
-    var dist = this.attr( "cameraSpeed" ) * deltaTime;
+    var dist = this.attr( "movementSpeed" ) * deltaTime;
 
     this.attr( "camera" ).position.y += dist;
   },
@@ -72,7 +73,7 @@ export const ViewModel = Map.extend({
       return false;
     }
 
-    var dist = this.attr( "cameraSpeed" ) * deltaTime;
+    var dist = this.attr( "movementSpeed" ) * deltaTime;
 
     var newPos = this.attr( "camera" ).position.y - dist;
     if ( newPos < 0.25 ) {
@@ -86,7 +87,7 @@ export const ViewModel = Map.extend({
       return false;
     }
 
-    var dist = this.attr( "cameraSpeed" ) * deltaTime;
+    var dist = this.attr( "movementSpeed" ) * deltaTime;
 
     var camera = this.attr( "camera" );
     var rad = camera.rotation.y;
@@ -101,8 +102,7 @@ export const ViewModel = Map.extend({
     var camera = this.attr( "camera" );
     var pi = Math.PI;
 
-    var rotSpeed = 0.001;
-    var rotdist = rotSpeed * deltaTime;
+    var rotdist = this.attr( "rotationSpeed" ) * deltaTime;
     var camy = camera.rotation.y;
     camy -= rotdist;
 
@@ -119,7 +119,7 @@ export const ViewModel = Map.extend({
       return false;
     }
 
-    var dist = this.attr( "cameraSpeed" ) * deltaTime;
+    var dist = this.attr( "movementSpeed" ) * deltaTime;
 
     var camera = this.attr( "camera" );
     var rad = camera.rotation.y - Math.PI / 2;
@@ -132,7 +132,7 @@ export const ViewModel = Map.extend({
       return false;
     }
 
-    var dist = this.attr( "cameraSpeed" ) * deltaTime;
+    var dist = this.attr( "movementSpeed" ) * deltaTime;
 
     var camera = this.attr( "camera" );
     var rad = camera.rotation.y;
@@ -147,8 +147,7 @@ export const ViewModel = Map.extend({
     var camera = this.attr( "camera" );
     var pi = Math.PI;
 
-    var rotSpeed = 0.001;
-    var rotdist = rotSpeed * deltaTime;
+    var rotdist = this.attr( "rotationSpeed" ) * deltaTime;
     var camy = camera.rotation.y;
     camy += rotdist;
 
@@ -165,7 +164,7 @@ export const ViewModel = Map.extend({
       return false;
     }
 
-    var dist = this.attr( "cameraSpeed" ) * deltaTime;
+    var dist = this.attr( "movementSpeed" ) * deltaTime;
 
     var camera = this.attr( "camera" );
     var rad = camera.rotation.y + Math.PI / 2;

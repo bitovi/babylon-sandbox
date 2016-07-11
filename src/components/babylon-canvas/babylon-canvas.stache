@@ -2,5 +2,5 @@
 
 <can-import from="egospace/components/game-camera/" />
 {{#if camera}}
-  <game-camera {(camera)}="camera"></game-camera>
+  <game-camera {(camera)}="camera" {fly-mode}="flyMode"></game-camera>
 {{/if}}

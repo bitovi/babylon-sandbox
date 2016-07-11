@@ -74,9 +74,6 @@ export const controls = {
         // Left mousedown won't check any further on the control stack
         $ev.controlPropagationStopped = true;
       }
-    },
-    "Right": function () {
-      console.log( "Right mousedown event", this, arguments );
     }
   }
 };

@@ -193,7 +193,7 @@ export const ViewModel = Map.extend({
       for ( let x = 0; x < numHeld; x++ ) {
         let normalizedProp = heldKeys[ x ];
         let fn = controls[ normalizedProp ];
-        
+
         if ( typeof fn === "string" ) {
           fn = controls._context[ fn ];
         }
@@ -208,7 +208,7 @@ export const ViewModel = Map.extend({
           fn = controls._context[ fn ];
         }
         if ( fn ) {
-          fn.call( controls._context, $ev, normalizedProp, held, deltaTime );
+          fn.call( controls._context, $ev, null, held, deltaTime );
         }
         if ( $ev.controlPropagationStopped ) {
           // don't handle other helds in this stack
@@ -285,11 +285,13 @@ export default Component.extend({
       var lastX = last.attr( "x" );
       var lastY = last.attr( "y" );
 
-      vm.attr({
-        "mouseMoveLastPos.x": lastX,
-        "mouseMoveLastPos.y": lastY,
-        "mouseMoveCurPos.x": pageX,
-        "mouseMoveCurPos.y": pageY
+      vm.attr( "mouseMoveLastPos" ).attr({
+        "x": lastX,
+        "y": lastY
+      });
+      vm.attr( "mouseMoveCurPos" ).attr({
+        "x": pageX,
+        "y": pageY
       });
 
       vm.handleMousemoveEvent( $ev );

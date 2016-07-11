@@ -34,7 +34,7 @@ export const ViewModel = Map.extend({
   initCamera () {
     var scene = this.attr( "scene" );
     //var camera = new Babylon.FreeCamera( "camera1", new Babylon.Vector3(0, 5, -10), scene );
-    var camera = new Babylon.TargetCamera( "camera1", new Babylon.Vector3( -3, 1.75, -4 ), scene );
+    var camera = new Babylon.TargetCamera( "camera1", new Babylon.Vector3( -3, 1.5, -4 ), scene );
     //var camera = new Babylon.Camera( "camera1", new Babylon.Vector3(0, 5, -10), scene );
     this.attr( "camera", camera );
 
@@ -49,12 +49,70 @@ export const ViewModel = Map.extend({
 
     // This targets the camera to scene origin
     //camera.setTarget( Babylon.Vector3.Zero() );
-    camera.setTarget( new Babylon.Vector3( 0, 1.5, 0 ) );
+    camera.setTarget( new Babylon.Vector3( 0, 1.25, 0 ) );
 
     // This attaches the camera to the canvas
     camera.attachControl( this.attr( "canvas" ), false );
 
     return camera;
+  },
+
+
+  selectedMesh: null,
+  pickingItem ( $ev, normalizedKey, held, deltaTime ) {
+    // Return pickingInfo for first object hit except ground
+    var scene = this.attr( "scene" );
+    var controlsVM = getControls();
+    var mouseMoveCurPos = controlsVM.attr( "mouseMoveCurPos" );
+    var pickingInfo = scene.pick( mouseMoveCurPos.attr( "x" ), mouseMoveCurPos.attr( "y" ), function(a_hitMesh){
+      return a_hitMesh.tag === 1;
+    });
+    var selectedMesh = this.attr( "selectedMesh" );
+    // If the info hit a mesh that isn't the ground then outline it
+    if (pickingInfo.hit) {
+      var mesh = pickingInfo.pickedMesh;
+
+      if (selectedMesh !== mesh){
+        this.setMeshOutline( mesh );
+      }
+    // Else remove outline
+    } else {
+      if (selectedMesh){
+        selectedMesh.renderOutline = false;
+        if (selectedMesh.e_siblings){
+          for ( var i = 0; i < selectedMesh.e_siblings.length; ++i){
+            selectedMesh.e_siblings[i].renderOutline = false;
+          }
+        }
+        this.attr( "selectedMesh", null );
+      }
+    }
+  },
+
+  setMeshOutline ( a_mesh, a_skipSinblings ) {
+    if ( !a_skipSinblings) {
+      let selectedMesh = this.attr( "selectedMesh" );
+      if ( selectedMesh ){
+        selectedMesh.renderOutline = false;
+        if (selectedMesh.e_siblings){
+          for ( var i = 0; i < selectedMesh.e_siblings.length; ++i){
+            selectedMesh.e_siblings[i].renderOutline = false;
+          }
+        }
+      }
+
+      if (a_mesh.e_siblings){
+        for ( var i = 0; i < a_mesh.e_siblings.length; ++i){
+          this.setMeshOutline(a_mesh.e_siblings[i], true);
+        }
+      }
+      this.attr( "selectedMesh", a_mesh );
+    }
+
+    a_mesh.renderOutline = true;
+    // rgb( 86, 170, 206)
+    a_mesh.outlineColor = new Babylon.Color3(0.3359375, 0.6640625, 0.8046875);
+    a_mesh.outlineWidth = 0.025;
   },
 
   static3DAssetPath: "/src/static/3d/",
@@ -563,9 +621,7 @@ export const controls = {
     "0": "resetGround"
   },
   "mousemove": {
-    "*": function ( $ev, normalizedKey, held ) {
-      //console.log( $ev.pageX, $ev.pageY, held );
-    },
+    "*": "pickingItem",
     "Right": function ( $ev ) {
       //
     }

@@ -55,13 +55,38 @@ export const ViewModel = Map.extend({
     //return promise that resolves when camera gets to newCoords
   },
 
+  cameraSpeed: 0.01,
+  defaultHight: 1.5,
+
+  moveUp ( $ev, normalizedKey, held, deltaTime ) {
+    if ( this.attr( "movementDisabled" ) || !this.attr( "flyMode" ) ) {
+      return false;
+    }
+
+    var dist = this.attr( "cameraSpeed" ) * deltaTime;
+
+    this.attr( "camera" ).position.y += dist;
+  },
+  moveDown ( $ev, normalizedKey, held, deltaTime ) {
+    if ( this.attr( "movementDisabled" ) || !this.attr( "flyMode" ) ) {
+      return false;
+    }
+
+    var dist = this.attr( "cameraSpeed" ) * deltaTime;
+
+    var newPos = this.attr( "camera" ).position.y - dist;
+    if ( newPos < 0.25 ) {
+      newPos = 0.25;
+    }
+
+    this.attr( "camera" ).position.y = newPos;
+  },
   moveForward ( $ev, normalizedKey, held, deltaTime ) {
     if ( this.attr( "movementDisabled" ) ) {
       return false;
     }
 
-    var speed = 0.005;
-    var dist = speed * deltaTime;
+    var dist = this.attr( "cameraSpeed" ) * deltaTime;
 
     var camera = this.attr( "camera" );
     var rad = camera.rotation.y;
@@ -94,8 +119,7 @@ export const ViewModel = Map.extend({
       return false;
     }
 
-    var speed = 0.005;
-    var dist = speed * deltaTime;
+    var dist = this.attr( "cameraSpeed" ) * deltaTime;
 
     var camera = this.attr( "camera" );
     var rad = camera.rotation.y - Math.PI / 2;
@@ -108,8 +132,7 @@ export const ViewModel = Map.extend({
       return false;
     }
 
-    var speed = 0.005;
-    var dist = speed * deltaTime;
+    var dist = this.attr( "cameraSpeed" ) * deltaTime;
 
     var camera = this.attr( "camera" );
     var rad = camera.rotation.y;
@@ -142,14 +165,55 @@ export const ViewModel = Map.extend({
       return false;
     }
 
-    var speed = 0.005;
-    var dist = speed * deltaTime;
+    var dist = this.attr( "cameraSpeed" ) * deltaTime;
 
     var camera = this.attr( "camera" );
     var rad = camera.rotation.y + Math.PI / 2;
 
     camera.position.x += Math.sin( rad ) * dist;
     camera.position.z += Math.cos( rad ) * dist;
+  },
+  rotateMouseDelta ( $ev, normalizedKey, held, deltaTime ) {
+    if ( this.attr( "movementDisabled" ) ) {
+      return false;
+    }
+    //var initialPos = held[ normalizedKey ].initialMousePos;
+    var controlsVM = getControls(); //TODO: maybe pass this in to events too
+    var lastPos = controlsVM.attr( "mouseMoveLastPos" );
+    var curPos = controlsVM.attr( "mouseMoveCurPos" );
+
+    //TODO: get the game-app elment more safely
+    var gameApp = $( "game-app" )[ 0 ];
+    var difHor = ( curPos.x - lastPos.x ) / gameApp.offsetWidth;
+    var difVert = ( curPos.y - lastPos.y ) / gameApp.offsetHeight;
+
+    var camera = this.attr( "camera" );
+    var pi = Math.PI;
+
+    var fov = pi;
+
+    var horRotDist = fov * difHor;
+    var camy = camera.rotation.y;
+    camy += horRotDist;
+
+    var vertRotDist = fov * difVert;
+    var camx = camera.rotation.x;
+    camx += vertRotDist;
+
+    if ( camy > pi ) {
+      camy = camy - 2 * pi;
+    } else if ( camy <= -pi ) {
+      camy = camy + 2 * pi;
+    }
+
+    if ( camx > pi ) {
+      camx = camx - 2 * pi;
+    } else if ( camx <= -pi ) {
+      camx = camx + 2 * pi;
+    }
+
+    camera.rotation.y = camy;
+    camera.rotation.x = camx;
   }
 });
 
@@ -164,13 +228,12 @@ export const controls = {
     "ArrowUp": "moveForward",
     "ArrowLeft": "rotateLeft",
     "ArrowDown": "moveBackward",
-    "ArrowRight": "rotateRight"
+    "ArrowRight": "rotateRight",
+    ",": "moveUp",
+    ".": "moveDown"
   },
-  "mousedown": {
-    "Right": function ( $ev, normalizedKey, held ) {
-      //console.log( "Right mousedown event", this, arguments );
-      //$ev.controlPropagationStopped = true;
-    }
+  "mousemove": {
+    "Right": "rotateMouseDelta"
   }
 };
 
@@ -191,6 +254,14 @@ export default Component.extend({
         return;
       }
       getControls().removeControls( controls.name );
+    },
+    "{viewModel} flyMode": function ( zz1, zz2, newVal ) {
+      var vm = this.viewModel;
+      if ( newVal ) {
+        vm.attr( "camera" ).position.y = vm.attr( "defaultHight" ) + 0.5;
+      } else {
+        vm.attr( "camera" ).position.y = vm.attr( "defaultHight" );
+      }
     }
   }
 });

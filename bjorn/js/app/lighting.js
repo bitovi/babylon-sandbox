@@ -49,16 +49,16 @@
         hemisphericLight = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
         hemisphericLight.groundColor = new BABYLON.Color3(1, 1, 1);
         hemisphericLight.intensity = 1;
-        // hemisphericLight.excludedMeshes.push(ground);
 
         // scene.removeLight(hemisphericLight);
 
-        normalDirLight = new BABYLON.DirectionalLight("dirlight1", new BABYLON.Vector3(0, -1, 0), scene);
+        normalDirLight = new BABYLON.PointLight("dirlight1", new BABYLON.Vector3(0, 20, 0), scene);
 
         hemisShadowGen = new BABYLON.ShadowGenerator(1024, normalDirLight);
         hemisShadowGen.setDarkness(0.5);
         hemisShadowGen.usePoissonSampling = true;
-        hemisShadowGen.bias *= 0.2;
+        hemisShadowGen.bias *= 0.05;
+
 
         pointLight = new BABYLON.PointLight("pointlight", new BABYLON.Vector3(0, 3, 0), scene);
 
@@ -72,6 +72,11 @@
 
         scene.removeLight(pointLight);
         scene.removeLight(hemisphericPointLight);
+    }
+
+    window.excludeMeshForLight = function(a_mesh){
+        hemisphericLight.excludedMeshes.push(a_mesh);
+        //normalDirLight.excludedMeshes.push(a_mesh);
     }
 
     window.updateLights = function(a_deltaTime){

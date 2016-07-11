@@ -381,6 +381,7 @@
             for (var i = 0; i < item.meshes.length; ++i) {
 
                 var mesh = item.meshes[i];
+                mesh.e_item = item;
 
                 if (item.meshes.length > 1){
                     mesh.e_siblings = [];
@@ -449,6 +450,10 @@
         for ( var i = 0; i< items.length; ++i){
             var item = items[i];
 
+            if (selectedMesh.e_item === item){
+                continue;
+            }
+
             for (var j = 0; j < item.meshes.length; ++j){
                 var mesh = item.meshes[j];
 
@@ -479,9 +484,19 @@
         if (intersects){
             // rgb( 1, 0, 0)
             selectedMesh.outlineColor = new BABYLON.Color3(1, 0, 0);
+            if (selectedMesh.e_siblings){
+                for ( var i = 0; i < selectedMesh.e_siblings.length; ++i){
+                    selectedMesh.e_siblings[i].outlineColor = new BABYLON.Color3(1, 0, 0);
+                }
+            }
         } else {
             // rgb( 86, 170, 206)
             selectedMesh.outlineColor = new BABYLON.Color3(0.3359375, 0.6640625, 0.8046875);
+            if (selectedMesh.e_siblings){
+                for ( var i = 0; i < selectedMesh.e_siblings.length; ++i){
+                    selectedMesh.e_siblings[i].outlineColor = new BABYLON.Color3(0.3359375, 0.6640625, 0.8046875);
+                }
+            }
         }
     }
 

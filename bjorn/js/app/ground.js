@@ -48,7 +48,11 @@
                         mesh.physicsImpostor = new BABYLON.PhysicsImpostor(mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
                         ground = mesh;
                         window.ground = ground;
+
+                        excludeMeshForLight(mesh);
                     }
+
+
                 }
 
                 createModels();

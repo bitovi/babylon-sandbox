@@ -49,12 +49,6 @@ var heldKeys = [];
 
 export const ViewModel = Map.extend({
   define: {
-    controlSetStack: {
-      value: []
-    },
-    controlSets: {
-      value: {}
-    }
   },
 
   eventStacks: [ "keydown", "keypress", "keyup", "mousedown", "click", "mouseup", "mousemove", "held" ],

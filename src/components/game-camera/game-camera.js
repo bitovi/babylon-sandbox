@@ -76,8 +76,8 @@ export const ViewModel = Map.extend({
     var dist = this.attr( "movementSpeed" ) * deltaTime;
 
     var newPos = this.attr( "camera" ).position.y - dist;
-    if ( newPos < 0.25 ) {
-      newPos = 0.25;
+    if ( newPos < 0.6 ) {
+      newPos = 0.6;
     }
 
     this.attr( "camera" ).position.y = newPos;

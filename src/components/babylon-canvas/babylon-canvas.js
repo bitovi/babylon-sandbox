@@ -418,7 +418,7 @@ export const ViewModel = Map.extend({
       var scene = this.attr( "scene" );
       this.attr( "ground" ).material.diffuseTexture = new Babylon.Texture(textureUrl, scene);
       if (bumpUrl){
-          this.attr( "ground" ).material.bumpTexture = new Babylon.Texture(bumpUrl, scene);
+        this.attr( "ground" ).material.bumpTexture = new Babylon.Texture(bumpUrl, scene);
       }
     },
 

@@ -71,7 +71,7 @@ export const ViewModel = Map.extend({
     });
     var selectedMesh = this.attr( "selectedMesh" );
     // If the info hit a mesh that isn't the ground then outline it
-    if (pickingInfo.hit) {
+    if ( pickingInfo.hit && !this.attr( "customizeMode" ) ) {
       var mesh = pickingInfo.pickedMesh;
 
       if (selectedMesh !== mesh){
@@ -366,6 +366,9 @@ export const ViewModel = Map.extend({
     },
 
     changeColor () {
+      if ( !this.attr( "customizeMode" ) ) {
+        return;
+      }
       var colorId = parseInt(Math.random() * 5);
       // So there is sliiiiightly higher chance of getting 3 than 0, 1 , 2!
       if (colorId === 5) colorId = 4;
@@ -395,6 +398,9 @@ export const ViewModel = Map.extend({
     },
 
     changeTexture () {
+      if ( !this.attr( "customizeMode" ) ) {
+        return;
+      }
       // randomization from 0 -> 4
       var textureId = parseInt(Math.random() * 4);
       // So there is sliiiiightly higher chance of getting 3 than 0, 1 , 2!
@@ -428,6 +434,9 @@ export const ViewModel = Map.extend({
     },
 
     resetGround () {
+      if ( !this.attr( "customizeMode" ) ) {
+        return;
+      }
       if ( this.attr( "hasChanged" ) ) {
         let ground = this.attr( "ground" );
         ground.material.diffuseColor = this.attr( "defaultColor" );

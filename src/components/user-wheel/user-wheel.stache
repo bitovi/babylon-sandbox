@@ -1,5 +1,7 @@
 <ul class="wheel-menu">
-  <li class="center-item"></li>
+  <li class="center-item">
+    <span class="profile-male"></span>
+  </li>
   <li class="fa-sitemap">
     <span class="item-bg"></span>
   </li>

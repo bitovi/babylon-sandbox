@@ -52,7 +52,7 @@ export const controls = {
     "c": "toggleCustomizeMode"
   },
   "mousedown": {
-    "Left": function ( $ev, normalizedKey ) {
+    "Left": function ( $ev, normalizedKey, held, deltaTime ) {
       var $target = $( $ev.target );
       var actionHappened = false;
 

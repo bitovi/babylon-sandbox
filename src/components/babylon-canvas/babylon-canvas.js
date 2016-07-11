@@ -8,6 +8,7 @@ import { isServer } from '../../util/environment';
 import { ObjLoader } from './bjorn-tests/lib/babylon.objFileLoader.js';
 //import './bjorn-tests/lib/cannon.js';
 //import { debug3d } from './bjorn-tests/debug3d.js';
+import { getControls } from '../../util/util.js';
 
 export const ViewModel = Map.extend({
   define: {
@@ -15,6 +16,12 @@ export const ViewModel = Map.extend({
       get ( last ) {
         return last || [];
       }
+    },
+    deltaTime: {
+      value: 0
+    },
+    renderCount: {
+      value: 0
     }
   },
 
@@ -359,7 +366,7 @@ export const ViewModel = Map.extend({
       this.attr( "hasPointlight", !hasPointlight );
     },
 
-    testUpdatePointLights ( deltaTime ) {
+    testUpdatePointLights () {
       var hasPointlight = this.attr( "hasPointlight" );
       var pointLight = this.attr( "pointLight" );
       
@@ -444,6 +451,19 @@ export const ViewModel = Map.extend({
   }
 });
 
+export const controls = {
+  "name": "game-canvas",
+  "context": null,
+  "mousemove": {
+    "*": function ( $ev, normalizedKey, held ) {
+      //console.log( $ev.pageX, $ev.pageY, held );
+    },
+    "Right": function ( $ev ) {
+      //
+    }
+  }
+};
+
 export default Component.extend({
   tag: 'babylon-canvas',
   viewModel: ViewModel,
@@ -454,7 +474,7 @@ export default Component.extend({
       vm.attr( "$el", this.element );
     },
     inserted () {
-      if ( 0 || isServer ) {
+      if ( isServer ) {
         return;
       }
 
@@ -481,14 +501,29 @@ export default Component.extend({
 
       vm.initTestSceneModels();
 
-      // Register a render loop to repeatedly render the scene
+      var renderCount = 0;
       engine.runRenderLoop(function () {
-        scene.render();
+        vm.attr({
+          "deltaTime": engine.deltaTime,
+          "renderCount": renderCount
+        });
 
-        vm.testUpdatePointLights( engine.deltaTime );
+        scene.render();
+        renderCount = ( renderCount + 1 ) % 100;
+
+        vm.testUpdatePointLights();
       });
 
+      controls[ "context" ] = this.viewModel;
+      getControls().registerControls( controls.name, controls );
+
       return;
+    },
+    removed () {
+      if ( isServer ) {
+        return;
+      }
+      getControls().removeControls( controls.name );
     }
   }
 });

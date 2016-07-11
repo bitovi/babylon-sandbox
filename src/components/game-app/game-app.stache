@@ -2,10 +2,10 @@
 
 
 <can-import from="egospace/components/game-controls/" />
-<game-controls />
+<game-controls {delta-time}="deltaTime" {render-count}="renderCount"></game-controls>
 
 <can-import from="egospace/components/babylon-canvas/" />
-<babylon-canvas />
+<babylon-canvas {^delta-time}="deltaTime" {^render-count}="renderCount"></babylon-canvas>
 
 <can-import from="egospace/components/mode-menu/" />
 <mode-menu />

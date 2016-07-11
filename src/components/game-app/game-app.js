@@ -4,6 +4,7 @@ import 'can/map/define/';
 import './game-app.less!';
 import template from './game-app.stache!';
 import { childVM } from '../../util/util.js';
+import $ from 'jquery';
 
 export const ViewModel = Map.extend({
   define: {
@@ -30,6 +31,14 @@ export default Component.extend({
   events: {
     inserted () {
       this.viewModel.attr( "$el", this.element );
+    },
+    "{document} contextmenu": function ( $doc, $ev ) {
+      var $target = $( $ev.target );
+      if ( $target.is( "game-app" ) || $target.closest( "game-app" ).length ) {
+        $ev.preventDefault();
+        $ev.stopPropagation();
+        return false;
+      }
     },
     "{viewModel.modeVM} mapVisibleMode": function () {
       var vm = this.viewModel;

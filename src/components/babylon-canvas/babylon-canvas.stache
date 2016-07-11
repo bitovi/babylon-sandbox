@@ -1,1 +1,6 @@
 <canvas></canvas>
+
+<can-import from="egospace/components/game-camera/" />
+{{#if camera}}
+  <game-camera {(camera)}="camera"></game-camera>
+{{/if}}

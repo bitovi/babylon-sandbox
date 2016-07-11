@@ -226,6 +226,7 @@ export const ViewModel = Map.extend({
         // Set the models position
         for ( var i = 0; i < item.meshes.length; ++i ) {
           var mesh = item.meshes[i];
+          mesh.e_item = item;
 
           if ( item.meshes.length > 1 ) {
             mesh.e_siblings = [];
@@ -441,6 +442,12 @@ export const ViewModel = Map.extend({
       }
     },
 
+
+    excludeMeshForLight ( a_mesh ) {
+      this.attr( "hemisphericLight" ).excludedMeshes.push(a_mesh);
+      //this.attr( "normalDirLight" ).excludedMeshes.push(a_mesh);
+    },
+
     initTestGroundPlane () {
       var vm = this;
       var scene = this.attr( "scene" );
@@ -472,7 +479,7 @@ export const ViewModel = Map.extend({
               mesh.physicsImpostor = new Babylon.PhysicsImpostor(mesh, Babylon.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
               vm.attr( "ground", mesh );
 
-              vm.checkmaterial(mesh);
+              vm.excludeMeshForLight(mesh);
             }
           }
         }
@@ -557,12 +564,12 @@ export const ViewModel = Map.extend({
     hemisphericLight.groundColor = new Babylon.Color3( 1, 1, 1 );
     hemisphericLight.intensity = 1.0;
 
-    var normalDirLight = new Babylon.DirectionalLight("dirlight1", new Babylon.Vector3(0, -1, 0), scene);
+    var normalDirLight = new Babylon.PointLight("dirlight1", new Babylon.Vector3(0, 20, 0), scene);
     
     var hemisShadowGen = new Babylon.ShadowGenerator( 1024, normalDirLight );
     hemisShadowGen.setDarkness( 0.5 );
     hemisShadowGen.usePoissonSampling = true;
-    hemisShadowGen.bias *= 0.2;
+    hemisShadowGen.bias *= 0.5;
 
     var pointLight = new Babylon.PointLight( "pointlight", new Babylon.Vector3( 0, 3, 0 ), scene );
 

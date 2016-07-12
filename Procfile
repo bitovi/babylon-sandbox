@@ -1,1 +1,1 @@
-web: node_modules/.bin/done-serve
+web: NODE_ENV=production node_modules/.bin/done-serve

@@ -29,7 +29,12 @@
       "live-reload",
       "node_modules/can-zone/register"
     ],
-    "npmAlgorithm": "flat"
+    "npmAlgorithm": "flat",
+    "meta": {
+      "cannon": {
+        "format": "global"
+      }
+    }
   },
   "dependencies": {
     "babylonjs": "^2.4.0",

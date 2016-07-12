@@ -4,7 +4,6 @@ import 'can/map/define/';
 import './game-camera.less!';
 import template from './game-camera.stache!';
 import Babylon from 'babylonjs/babylon.max';
-import { isServer } from '../../util/environment';
 import { getControls } from '../../util/util.js';
 import $ from 'jquery';
 
@@ -242,16 +241,10 @@ export default Component.extend({
   template,
   events: {
     "inserted": function () {
-      if ( isServer ) {
-        return;
-      }
       controls[ "context" ] = this.viewModel;
       getControls().registerControls( controls.name, controls );
     },
     "removed": function () {
-      if ( isServer ) {
-        return;
-      }
       getControls().removeControls( controls.name );
     },
     "{viewModel} flyMode": function ( zz1, zz2, newVal ) {

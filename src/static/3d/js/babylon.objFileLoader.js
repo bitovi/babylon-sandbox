@@ -1,7 +1,6 @@
 import Babylon from 'babylonjs/babylon.max';
 
-var BABYLON = Babylon;
-export var ObjLoader = function () {
+(function (BABYLON) {
     /**
      * Class reading and parsing the MTL file bundled with the obj file.
      */
@@ -741,4 +740,4 @@ export var ObjLoader = function () {
     BABYLON.OBJFileLoader = OBJFileLoader;
     //Add this loader into the register plugin
     BABYLON.SceneLoader.RegisterPlugin(new OBJFileLoader());
-};
+})(Babylon);

@@ -3,11 +3,11 @@ import Map from 'can/map/';
 import 'can/map/define/';
 import './babylon-canvas.less!';
 import template from './babylon-canvas.stache!';
+
+import 'cannon';
 import Babylon from 'babylonjs/babylon.max';
-import { isServer } from '../../util/environment';
-import { ObjLoader } from './bjorn-tests/lib/babylon.objFileLoader.js';
-//import './bjorn-tests/lib/cannon.js';
-//import { debug3d } from './bjorn-tests/debug3d.js';
+import '../../static/3d/js/babylon.objFileLoader.js';
+
 import { getControls, getTooltip } from '../../util/util.js';
 
 export const ViewModel = Map.extend({
@@ -658,13 +658,6 @@ export default Component.extend({
       vm.attr( "$el", this.element );
     },
     inserted () {
-      if ( isServer ) {
-        return;
-      }
-
-      ObjLoader();
-      //debug3d();
-
       var vm = this.viewModel;
       var canvas = this.element.find( "canvas" )[ 0 ];
       var engine = new Babylon.Engine( canvas, true );
@@ -704,9 +697,6 @@ export default Component.extend({
       return;
     },
     removed () {
-      if ( isServer ) {
-        return;
-      }
       getControls().removeControls( controls.name );
     }
   }

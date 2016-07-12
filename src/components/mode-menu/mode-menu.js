@@ -3,7 +3,6 @@ import Map from 'can/map/';
 import 'can/map/define/';
 import './mode-menu.less!';
 import template from './mode-menu.stache!';
-import { isServer } from '../../util/environment';
 import { getControls, getTooltip } from '../../util/util.js';
 import $ from 'jquery';
 
@@ -117,16 +116,10 @@ export default Component.extend({
       getTooltip().clear( mode );
     },
     "inserted": function () {
-      if ( isServer ) {
-        return;
-      }
       controls[ "context" ] = this.viewModel;
       getControls().registerControls( controls.name, controls );
     },
     "removed": function () {
-      if ( isServer ) {
-        return;
-      }
       getControls().removeControls( controls.name );
     }
   }

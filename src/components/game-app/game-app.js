@@ -5,9 +5,13 @@ import './game-app.less!';
 import template from './game-app.stache!';
 import { childVM } from '../../util/util.js';
 import $ from 'jquery';
+import { isServer } from '../../util/environment';
 
 export const ViewModel = Map.extend({
   define: {
+    isServer: {
+      value: isServer
+    },
     modeVM: {
       get () {
         return childVM.call( this, "mode-menu" );

@@ -1,30 +1,28 @@
-<script type="text/javascript" src="/src/components/babylon-canvas/bjorn-tests/lib/cannon.js"></script>
+{{^if isServer}}
+  <can-import from="egospace/components/game-controls/" />
+  <game-controls {delta-time}="deltaTime" {render-count}="renderCount"></game-controls>
 
+  <can-import from="egospace/components/babylon-canvas/" />
+  <babylon-canvas
+    {^delta-time}="deltaTime"
+    {^render-count}="renderCount"
+    {fly-mode}="flyMode"
+    {customize-mode}="customizeMode"
+  >
+  </babylon-canvas>
 
-<can-import from="egospace/components/game-controls/" />
-<game-controls {delta-time}="deltaTime" {render-count}="renderCount"></game-controls>
+  <can-import from="egospace/components/info-tooltip/" />
+  <info-tooltip />
 
-<can-import from="egospace/components/babylon-canvas/" />
-<babylon-canvas
-  {^delta-time}="deltaTime"
-  {^render-count}="renderCount"
-  {fly-mode}="flyMode"
-  {customize-mode}="customizeMode"
->
-</babylon-canvas>
+  <can-import from="egospace/components/mode-menu/" />
+  <mode-menu {^fly-mode}="flyMode" {^customize-mode}="customizeMode"></mode-menu>
 
-<can-import from="egospace/components/info-tooltip/" />
-<info-tooltip />
+  <can-import from="egospace/components/location-menu/" />
+  <location-menu />
 
-<can-import from="egospace/components/mode-menu/" />
-<mode-menu {^fly-mode}="flyMode" {^customize-mode}="customizeMode"></mode-menu>
+  <can-import from="egospace/components/misc-menu/" />
+  <misc-menu />
 
-<can-import from="egospace/components/location-menu/" />
-<location-menu />
-
-<can-import from="egospace/components/misc-menu/" />
-<misc-menu />
-
-<can-import from="egospace/components/user-wheel/" />
-<user-wheel />
-
+  <can-import from="egospace/components/user-wheel/" />
+  <user-wheel />
+{{/if}}

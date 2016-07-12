@@ -9,6 +9,10 @@ user-wheel {
   left: 1vw;
   height: 170px;
   z-index: 1;
+  pointer-events: none;
+  > * {
+    pointer-events: all;
+  }
 
   @items: 6; /* must be > 2 */
   @gap: 2px;

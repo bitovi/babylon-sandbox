@@ -70,8 +70,11 @@ export const ViewModel = Map.extend({
       return a_hitMesh.tag === 1;
     });
     var selectedMesh = this.attr( "selectedMesh" );
+
+    var allowPick = pickingInfo.hit && !this.attr( "customizeMode" ) && $ev.target.nodeName.toLowerCase() === "canvas";
+
     // If the info hit a mesh that isn't the ground then outline it
-    if ( pickingInfo.hit && !this.attr( "customizeMode" ) ) {
+    if ( allowPick ) {
       var mesh = pickingInfo.pickedMesh;
 
       if (selectedMesh !== mesh){
@@ -641,10 +644,7 @@ export const controls = {
     "0": "resetGround"
   },
   "mousemove": {
-    "*": "pickingItem",
-    "Right": function ( $ev ) {
-      //
-    }
+    "*": "pickingItem"
   }
 };
 

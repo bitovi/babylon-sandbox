@@ -5,7 +5,7 @@ import './babylon-canvas.less!';
 import template from './babylon-canvas.stache!';
 
 import 'cannon';
-import Babylon from 'babylonjs/babylon.max';
+import BABYLON from 'babylonjs/babylon.max';
 import '../../static/3d/js/babylon.objFileLoader.js';
 
 import { getControls, getTooltip } from '../../util/util.js';
@@ -27,29 +27,29 @@ export const ViewModel = Map.extend({
 
   getAssetsManager () {
     var scene = this.attr( "scene" );
-    return new Babylon.AssetsManager( scene );
+    return new BABYLON.AssetsManager( scene );
   },
 
   // This creates and positions a free camera
   initCamera () {
     var scene = this.attr( "scene" );
-    //var camera = new Babylon.FreeCamera( "camera1", new Babylon.Vector3(0, 5, -10), scene );
-    var camera = new Babylon.TargetCamera( "camera1", new Babylon.Vector3( -3, 1.5, -4 ), scene );
-    //var camera = new Babylon.Camera( "camera1", new Babylon.Vector3(0, 5, -10), scene );
+    //var camera = new BABYLON.FreeCamera( "camera1", new BABYLON.Vector3(0, 5, -10), scene );
+    var camera = new BABYLON.TargetCamera( "camera1", new BABYLON.Vector3( -3, 1.5, -4 ), scene );
+    //var camera = new BABYLON.Camera( "camera1", new BABYLON.Vector3(0, 5, -10), scene );
     this.attr( "camera", camera );
 
     //setTimeout( ()=> {
     //  camera.position.z = -7;
     //}, 4000);
     //setTimeout( ()=> {
-    //  camera.setTarget( Babylon.Vector3.Zero() );
+    //  camera.setTarget( BABYLON.Vector3.Zero() );
     //}, 7000);
 
     camera.speed *= 0.25;
 
     // This targets the camera to scene origin
-    //camera.setTarget( Babylon.Vector3.Zero() );
-    camera.setTarget( new Babylon.Vector3( 0, 1.25, 0 ) );
+    //camera.setTarget( BABYLON.Vector3.Zero() );
+    camera.setTarget( new BABYLON.Vector3( 0, 1.25, 0 ) );
 
     // This attaches the camera to the canvas
     camera.attachControl( this.attr( "canvas" ), false );
@@ -114,7 +114,7 @@ export const ViewModel = Map.extend({
 
     a_mesh.renderOutline = true;
     // rgb( 86, 170, 206)
-    a_mesh.outlineColor = new Babylon.Color3(0.3359375, 0.6640625, 0.8046875);
+    a_mesh.outlineColor = new BABYLON.Color3(0.3359375, 0.6640625, 0.8046875);
     a_mesh.outlineWidth = 0.025;
   },
 
@@ -131,14 +131,14 @@ export const ViewModel = Map.extend({
     var scene = this.attr( "scene" );
     var skybox = this.attr( "skybox" );
     var skyboxImgs = this.skyboxPath( skyboxName, fileNamePrefix );
-    var skyboxMaterial = new Babylon.StandardMaterial( "skyBox", scene );
+    var skyboxMaterial = new BABYLON.StandardMaterial( "skyBox", scene );
 
     skyboxMaterial.backFaceCulling = false;
-    skyboxMaterial.reflectionTexture = new Babylon.CubeTexture( skyboxImgs, scene );
-    skyboxMaterial.reflectionTexture.coordinatesMode = Babylon.Texture.SKYBOX_MODE;
+    skyboxMaterial.reflectionTexture = new BABYLON.CubeTexture( skyboxImgs, scene );
+    skyboxMaterial.reflectionTexture.coordinatesMode = BABYLON.Texture.SKYBOX_MODE;
 
-    skyboxMaterial.diffuseColor = new Babylon.Color3( 0, 0, 0 );
-    skyboxMaterial.specularColor = new Babylon.Color3( 0, 0, 0 );
+    skyboxMaterial.diffuseColor = new BABYLON.Color3( 0, 0, 0 );
+    skyboxMaterial.specularColor = new BABYLON.Color3( 0, 0, 0 );
 
     skybox.material = skyboxMaterial;
 
@@ -147,7 +147,7 @@ export const ViewModel = Map.extend({
 
   initSkybox () {
     var scene = this.attr( "scene" );
-    var skybox = Babylon.Mesh.CreateBox( "skyBox", 1000, scene );
+    var skybox = BABYLON.Mesh.CreateBox( "skyBox", 1000, scene );
     this.attr( "skybox", skybox );
 
     return skybox;
@@ -183,8 +183,8 @@ export const ViewModel = Map.extend({
     },
 
     rotateNormals ( mesh ) {
-      var normals = mesh.getVerticesData( Babylon.VertexBuffer.NormalKind );
-      var rotationQuat = Babylon.Quaternion.RotationYawPitchRoll( 0,  Math.PI * 1.5, 0 );
+      var normals = mesh.getVerticesData( BABYLON.VertexBuffer.NormalKind );
+      var rotationQuat = BABYLON.Quaternion.RotationYawPitchRoll( 0,  Math.PI * 1.5, 0 );
 
       for (var i = 0; i < normals.length; i+= 3){
         var normalVector = [ normals[i], normals[i + 1], normals[i + 2] ];
@@ -200,7 +200,7 @@ export const ViewModel = Map.extend({
         normals[i + 2] = normalVector[2];
       }
 
-      mesh.setVerticesData( Babylon.VertexBuffer.NormalKind, normals );
+      mesh.setVerticesData( BABYLON.VertexBuffer.NormalKind, normals );
     },
 
     testLoadModel ( options, loader ) {
@@ -241,10 +241,10 @@ export const ViewModel = Map.extend({
             }
           }
 
-          //var positions = mesh.getVerticesData( Babylon.VertexBuffer.PositionKind );
-          //var normals = mesh.getVerticesData( Babylon.VertexBuffer.NormalKind );
+          //var positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
+          //var normals = mesh.getVerticesData( BABYLON.VertexBuffer.NormalKind );
           //
-          //Babylon.VertexData.ComputeNormals( positions, mesh.getIndices(), normals );
+          //BABYLON.VertexData.ComputeNormals( positions, mesh.getIndices(), normals );
 
           if ( options.rotateNormals ) {
             vm.rotateNormals( mesh );
@@ -282,8 +282,8 @@ export const ViewModel = Map.extend({
 
       var rotateNormals = true;
 
-      var position = new Babylon.Vector3(0, 0, 0);
-      var rotation = Babylon.Quaternion.RotationYawPitchRoll(0,0,0);
+      var position = new BABYLON.Vector3(0, 0, 0);
+      var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
       this.testLoadModel({
         filename: "Colo_Rug_Fab_LtBrown_001.obj",
         //filename: "StoneWall_LOW.obj",
@@ -294,8 +294,8 @@ export const ViewModel = Map.extend({
         taskname: "rug"
       }, loader);
 
-      position = new Babylon.Vector3(2, 1, 0);
-      rotation = Babylon.Quaternion.RotationYawPitchRoll(Math.PI * -0.5, 0, 0);
+      position = new BABYLON.Vector3(2, 1, 0);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI * -0.5, 0, 0);
       this.testLoadModel({
         filename: "West_Chair_Leath_Brown_001.obj",
         physics: true,
@@ -305,8 +305,8 @@ export const ViewModel = Map.extend({
         taskname: "chair"
       }, loader);
 
-      position = new Babylon.Vector3(-2, 1, 0);
-      rotation = Babylon.Quaternion.RotationYawPitchRoll(Math.PI * 0.5, 0, 0);
+      position = new BABYLON.Vector3(-2, 1, 0);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI * 0.5, 0, 0);
       this.testLoadModel({
         filename: "West_Chair_Leath_Brown_001.obj",
         physics: true,
@@ -316,8 +316,8 @@ export const ViewModel = Map.extend({
         taskname: "chair"
       }, loader);
 
-      position = new Babylon.Vector3(0, 1, 2);
-      rotation = Babylon.Quaternion.RotationYawPitchRoll(Math.PI, 0, 0);
+      position = new BABYLON.Vector3(0, 1, 2);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI, 0, 0);
       this.testLoadModel({
         filename: "West_Chair_Leath_Brown_001.obj",
         physics: true,
@@ -327,8 +327,8 @@ export const ViewModel = Map.extend({
         taskname: "chair"
       }, loader);
 
-      position = new Babylon.Vector3(0, 1, -2);
-      rotation = Babylon.Quaternion.RotationYawPitchRoll(0, 0, 0);
+      position = new BABYLON.Vector3(0, 1, -2);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
       this.testLoadModel({
         filename: "West_Chair_Leath_Brown_001.obj",
         physics: true,
@@ -339,8 +339,8 @@ export const ViewModel = Map.extend({
       }, loader);
 
 
-      position = new Babylon.Vector3(0, 3, 0);
-      rotation = Babylon.Quaternion.RotationYawPitchRoll(0, 0, 0);
+      position = new BABYLON.Vector3(0, 3, 0);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
       this.testLoadModel({
         filename: "KidsPrin_CeFan_Wd_LtPurp_001.obj",
         physics: false,
@@ -350,8 +350,8 @@ export const ViewModel = Map.extend({
         taskname: "bedfan"
       }, loader);
 
-      position = new Babylon.Vector3(0, 1, 0);
-      rotation = Babylon.Quaternion.RotationYawPitchRoll(0, 0, 0);
+      position = new BABYLON.Vector3(0, 1, 0);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
       this.testLoadModel({
         filename: "KidsJng_Bed_Wd_LtBrown_002.obj",
         physics: true,
@@ -375,19 +375,19 @@ export const ViewModel = Map.extend({
   
       switch ( colorId ){
         case 0:
-          color = new Babylon.Color3(73/255, 71/255, 63/255);
+          color = new BABYLON.Color3(73/255, 71/255, 63/255);
           break;
         case 1:
-          color = new Babylon.Color3(149/255, 228/255, 147/255);
+          color = new BABYLON.Color3(149/255, 228/255, 147/255);
           break;
         case 2:
-          color = new Babylon.Color3(232/255, 74/255, 74/255);
+          color = new BABYLON.Color3(232/255, 74/255, 74/255);
           break;
         case 3:
-          color = new Babylon.Color3(104/255, 191/255, 193/255);
+          color = new BABYLON.Color3(104/255, 191/255, 193/255);
           break;
         case 4:
-          color = new Babylon.Color3(1, 1, 0.3);
+          color = new BABYLON.Color3(1, 1, 0.3);
           break;
       }
   
@@ -426,9 +426,9 @@ export const ViewModel = Map.extend({
 
       this.setDefaults();
       var scene = this.attr( "scene" );
-      this.attr( "ground" ).material.diffuseTexture = new Babylon.Texture(textureUrl, scene);
+      this.attr( "ground" ).material.diffuseTexture = new BABYLON.Texture(textureUrl, scene);
       if (bumpUrl){
-        this.attr( "ground" ).material.bumpTexture = new Babylon.Texture(bumpUrl, scene);
+        this.attr( "ground" ).material.bumpTexture = new BABYLON.Texture(bumpUrl, scene);
       }
     },
 
@@ -463,10 +463,10 @@ export const ViewModel = Map.extend({
     initTestGroundPlane () {
       var vm = this;
       var scene = this.attr( "scene" );
-      var loader = new Babylon.AssetsManager(scene);
+      var loader = new BABYLON.AssetsManager(scene);
 
-      var position = new Babylon.Vector3(0, 0, 0);
-      var rotation = Babylon.Quaternion.RotationYawPitchRoll(0,0,0);
+      var position = new BABYLON.Vector3(0, 0, 0);
+      var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
 
       var meshId = -1;
 
@@ -488,7 +488,7 @@ export const ViewModel = Map.extend({
 
             if (mesh.id === "Floor_001"){
               meshId = i;
-              mesh.physicsImpostor = new Babylon.PhysicsImpostor(mesh, Babylon.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
+              mesh.physicsImpostor = new BABYLON.PhysicsImpostor(mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
               vm.attr( "ground", mesh );
 
               vm.excludeMeshForLight(mesh);
@@ -504,9 +504,9 @@ export const ViewModel = Map.extend({
       var scene = this.attr( "scene" );
       var ground = this.attr( "ground" );
 
-      var physicsImpostor = new Babylon.PhysicsImpostor(
+      var physicsImpostor = new BABYLON.PhysicsImpostor(
         mesh,
-        Babylon.PhysicsImpostor.BoxImpostor,
+        BABYLON.PhysicsImpostor.BoxImpostor,
         { mass: 1, restitution: 0.8 },
         scene
       );
@@ -572,27 +572,27 @@ export const ViewModel = Map.extend({
     var scene = this.attr( "scene" );
 
     //This creates a light, aiming 0,1,0 - to the sky.
-    var hemisphericLight = new Babylon.HemisphericLight( "light1", new Babylon.Vector3( 0, 1, 0 ), scene );
-    hemisphericLight.groundColor = new Babylon.Color3( 1, 1, 1 );
+    var hemisphericLight = new BABYLON.HemisphericLight( "light1", new BABYLON.Vector3( 0, 1, 0 ), scene );
+    hemisphericLight.groundColor = new BABYLON.Color3( 1, 1, 1 );
     hemisphericLight.intensity = 1.0;
 
-    var normalDirLight = new Babylon.PointLight("dirlight1", new Babylon.Vector3(0, 20, 0), scene);
+    var normalDirLight = new BABYLON.PointLight("dirlight1", new BABYLON.Vector3(0, 20, 0), scene);
     
-    var hemisShadowGen = new Babylon.ShadowGenerator( 1024, normalDirLight );
+    var hemisShadowGen = new BABYLON.ShadowGenerator( 1024, normalDirLight );
     hemisShadowGen.setDarkness( 0.75 );
     hemisShadowGen.usePoissonSampling = true;
     hemisShadowGen.bias *= 0.5;
 
-    var pointLight = new Babylon.PointLight( "pointlight", new Babylon.Vector3( 0, 3, 0 ), scene );
+    var pointLight = new BABYLON.PointLight( "pointlight", new BABYLON.Vector3( 0, 3, 0 ), scene );
 
-    var hemisphericPointLight = new Babylon.HemisphericLight( "hemispoint", new Babylon.Vector3( 0, 1, 0 ), scene );
+    var hemisphericPointLight = new BABYLON.HemisphericLight( "hemispoint", new BABYLON.Vector3( 0, 1, 0 ), scene );
     hemisphericPointLight.intensity = 0.2;
 
     scene.removeLight( pointLight );
     scene.removeLight( hemisphericPointLight );
 
     // Shadows
-    var shadowGenerator = new Babylon.ShadowGenerator( 1024, pointLight );
+    var shadowGenerator = new BABYLON.ShadowGenerator( 1024, pointLight );
     shadowGenerator.usePoissonSampling = true;
     shadowGenerator.setDarkness( 0.5 );
 
@@ -609,11 +609,11 @@ export const ViewModel = Map.extend({
 
   initScene () {
     var scene = this.attr( "scene" );
-    scene.clearColor = new Babylon.Color3( 1, 1, 1 );
+    scene.clearColor = new BABYLON.Color3( 1, 1, 1 );
 
     // Gravity & physics stuff
-    var physicsPlugin = new Babylon.CannonJSPlugin();
-    var gravityVector = new Babylon.Vector3( 0, -9.81, 0 );
+    var physicsPlugin = new BABYLON.CannonJSPlugin();
+    var gravityVector = new BABYLON.Vector3( 0, -9.81, 0 );
 
     scene.enablePhysics( gravityVector, physicsPlugin );
 
@@ -623,10 +623,10 @@ export const ViewModel = Map.extend({
     var camera = this.initCamera();
 
     // Z axis is above/below
-    // var dirLight = new Babylon.DirectionalLight("dirlight1", new Babylon.Vector3(1, 0, 0), scene);
-    Babylon.StandardMaterial.AmbientTextureEnabled = false;
+    // var dirLight = new BABYLON.DirectionalLight("dirlight1", new BABYLON.Vector3(1, 0, 0), scene);
+    BABYLON.StandardMaterial.AmbientTextureEnabled = false;
 
-    Babylon.OBJFileLoader.OPTIMIZE_WITH_UV = true;
+    BABYLON.OBJFileLoader.OPTIMIZE_WITH_UV = true;
     //scene.debugLayer.show();
   }
 });
@@ -656,8 +656,8 @@ export default Component.extend({
     inserted () {
       var vm = this.viewModel;
       var canvas = this.element.find( "canvas" )[ 0 ];
-      var engine = new Babylon.Engine( canvas, true );
-      var scene = new Babylon.Scene( engine );
+      var engine = new BABYLON.Engine( canvas, true );
+      var scene = new BABYLON.Scene( engine );
       vm.attr({
         "canvas": canvas,
         "engine": engine,

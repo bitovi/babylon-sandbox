@@ -1,4 +1,4 @@
-import Babylon from 'babylonjs/babylon.max';
+import BABYLON from 'babylonjs/babylon.max';
 
 (function (BABYLON) {
     /**
@@ -321,13 +321,13 @@ import Babylon from 'babylonjs/babylon.max';
                     //The array of indices is only an array with his length equal to the number of triangles - 1.
                     //We add vertices data in this order
                     indicesForBabylon.push(wrappedPositionForBabylon.length);
-                    //Push the position of vertice for Babylon
+                    //Push the position of vertice for BABYLON
                     //Each element is a BABYLON.Vector3(x,y,z)
                     wrappedPositionForBabylon.push(positionVectorFromOBJ);
-                    //Push the uvs for Babylon
+                    //Push the uvs for BABYLON
                     //Each element is a BABYLON.Vector3(u,v)
                     wrappedUvsForBabylon.push(textureVectorFromOBJ);
-                    //Push the normals for Babylon
+                    //Push the normals for BABYLON
                     //Each element is a BABYLON.Vector3(x,y,z)
                     wrappedNormalsForBabylon.push(normalsVectorFromOBJ);
                     //Add the tuple in the comparison list
@@ -740,4 +740,4 @@ import Babylon from 'babylonjs/babylon.max';
     BABYLON.OBJFileLoader = OBJFileLoader;
     //Add this loader into the register plugin
     BABYLON.SceneLoader.RegisterPlugin(new OBJFileLoader());
-})(Babylon);
+})(BABYLON);

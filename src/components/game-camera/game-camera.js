@@ -3,7 +3,7 @@ import Map from 'can/map/';
 import 'can/map/define/';
 import './game-camera.less!';
 import template from './game-camera.stache!';
-import Babylon from 'babylonjs/babylon.max';
+import BABYLON from 'babylonjs/babylon.max';
 import { getControls } from '../../util/util.js';
 import $ from 'jquery';
 

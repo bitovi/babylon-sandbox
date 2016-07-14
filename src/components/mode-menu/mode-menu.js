@@ -108,12 +108,11 @@ export default Component.extend({
       var offset = $target.offset();
       var x = offset.left + $ev.target.offsetWidth - 20;
       var y = offset.top + $ev.target.offsetHeight + 3;
-      tt.set( mode, ttinfo.title );
+      tt.set( "mode-menu", ttinfo.title );
       tt.position( x, y );
     },
     ".flyMode,.navMode,.customizeMode,.mapVisibleMode mouseleave": function ( $el, $ev ) {
-      var mode = $ev.target.className.replace( /^.*?([^ ]+Mode)\b.*$/, "$1" );
-      getTooltip().clear( mode );
+      getTooltip().clear( "mode-menu" );
     },
     "inserted": function () {
       controls[ "context" ] = this.viewModel;

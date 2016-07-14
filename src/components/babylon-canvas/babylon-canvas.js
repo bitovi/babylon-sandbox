@@ -57,19 +57,16 @@ export const ViewModel = Map.extend({
     return camera;
   },
 
-
-  selectedMesh: null,
-  pickingItem ( $ev, normalizedKey, held, deltaTime ) {
+  hoveredMesh: null,
+  pickingItem ( $ev, normalizedKey, heldInfo, deltaTime ) {
     // Return pickingInfo for first object hit except ground
     var scene = this.attr( "scene" );
     var controlsVM = getControls();
-    var mouseMoveCurPos = controlsVM.attr( "mouseMoveCurPos" );
-    var pageX = mouseMoveCurPos.attr( "x" );
-    var pageY = mouseMoveCurPos.attr( "y" );
-    var pickingInfo = scene.pick( pageX, pageY, function(a_hitMesh){
+    var curMousePos = controlsVM.curMousePos();
+    var pickingInfo = scene.pick( curMousePos.x, curMousePos.y, function(a_hitMesh){
       return a_hitMesh.tag === 1;
     });
-    var selectedMesh = this.attr( "selectedMesh" );
+    var hoveredMesh = this.attr( "hoveredMesh" );
 
     var allowPick = pickingInfo.hit && !this.attr( "customizeMode" ) && $ev.target.nodeName.toLowerCase() === "canvas";
 
@@ -77,35 +74,34 @@ export const ViewModel = Map.extend({
     if ( allowPick ) {
       var mesh = pickingInfo.pickedMesh;
 
-      if (selectedMesh !== mesh){
+      if (hoveredMesh !== mesh){
         this.setMeshOutline( mesh );
       }
-      getTooltip().set( "meshHover", mesh.name, "fa-archive", "Click to Manage", pageX, pageY );
+      getTooltip().set( "meshHover", mesh.name, "fa-archive", "Click to Manage", curMousePos.x, curMousePos.y );
     // Else remove outline
     } else {
-      if (selectedMesh){
-        selectedMesh.renderOutline = false;
-        if (selectedMesh.e_siblings){
-          for ( var i = 0; i < selectedMesh.e_siblings.length; ++i){
-            selectedMesh.e_siblings[i].renderOutline = false;
-          }
-        }
+      if ( hoveredMesh ) {
+        this.clearMeshOutline( hoveredMesh );
         getTooltip().clear( "meshHover" );
-        this.attr( "selectedMesh", null );
+        this.attr( "hoveredMesh", null );
+      }
+    }
+  },
+
+  clearMeshOutline ( mesh ) {
+    mesh.renderOutline = false;
+    if ( mesh.e_siblings ) {
+      for ( let i = 0; i < mesh.e_siblings.length; ++i ) {
+        mesh.e_siblings[ i ].renderOutline = false;
       }
     }
   },
 
   setMeshOutline ( a_mesh, a_skipSinblings ) {
-    if ( !a_skipSinblings) {
-      let selectedMesh = this.attr( "selectedMesh" );
-      if ( selectedMesh ){
-        selectedMesh.renderOutline = false;
-        if (selectedMesh.e_siblings){
-          for ( var i = 0; i < selectedMesh.e_siblings.length; ++i){
-            selectedMesh.e_siblings[i].renderOutline = false;
-          }
-        }
+    if ( !a_skipSinblings ) {
+      let hoveredMesh = this.attr( "hoveredMesh" );
+      if ( hoveredMesh ){
+        this.clearMeshOutline( hoveredMesh );
       }
 
       if (a_mesh.e_siblings){
@@ -113,7 +109,7 @@ export const ViewModel = Map.extend({
           this.setMeshOutline(a_mesh.e_siblings[i], true);
         }
       }
-      this.attr( "selectedMesh", a_mesh );
+      this.attr( "hoveredMesh", a_mesh );
     }
 
     a_mesh.renderOutline = true;

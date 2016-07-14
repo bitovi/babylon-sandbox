@@ -58,7 +58,7 @@ export const ViewModel = Map.extend({
   rotationSpeed: 0.002,
   defaultHight: 1.5,
 
-  moveUp ( $ev, normalizedKey, held, deltaTime ) {
+  moveUp ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     if ( this.attr( "movementDisabled" ) || !this.attr( "flyMode" ) ) {
       return false;
     }
@@ -67,7 +67,7 @@ export const ViewModel = Map.extend({
 
     this.attr( "camera" ).position.y += dist;
   },
-  moveDown ( $ev, normalizedKey, held, deltaTime ) {
+  moveDown ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     if ( this.attr( "movementDisabled" ) || !this.attr( "flyMode" ) ) {
       return false;
     }
@@ -81,8 +81,8 @@ export const ViewModel = Map.extend({
 
     this.attr( "camera" ).position.y = newPos;
   },
-  moveForward ( $ev, normalizedKey, held, deltaTime ) {
-    if ( this.attr( "movementDisabled" ) ) {
+  moveForward ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
+    if ( this.attr( "movementDisabled" ) || controlsVM.heldDuplicateExecution( this.moveForward ) ) {
       return false;
     }
 
@@ -94,7 +94,7 @@ export const ViewModel = Map.extend({
     camera.position.x += Math.sin( rad ) * dist;
     camera.position.z += Math.cos( rad ) * dist;
   },
-  rotateLeft ( $ev, normalizedKey, held, deltaTime ) {
+  rotateLeft ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     if ( this.attr( "movementDisabled" ) ) {
       return false;
     }
@@ -113,8 +113,8 @@ export const ViewModel = Map.extend({
 
     camera.rotation.y = camy;
   },
-  strafeLeft ( $ev, normalizedKey, held, deltaTime ) {
-    if ( this.attr( "movementDisabled" ) ) {
+  strafeLeft ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
+    if ( this.attr( "movementDisabled" ) || controlsVM.heldDuplicateExecution( this.strafeLeft ) ) {
       return false;
     }
 
@@ -126,8 +126,8 @@ export const ViewModel = Map.extend({
     camera.position.x += Math.sin( rad ) * dist;
     camera.position.z += Math.cos( rad ) * dist;
   },
-  moveBackward ( $ev, normalizedKey, held, deltaTime ) {
-    if ( this.attr( "movementDisabled" ) ) {
+  moveBackward ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
+    if ( this.attr( "movementDisabled" ) || controlsVM.heldDuplicateExecution( this.moveBackward ) ) {
       return false;
     }
 
@@ -139,7 +139,7 @@ export const ViewModel = Map.extend({
     camera.position.x -= Math.sin( rad ) * dist;
     camera.position.z -= Math.cos( rad ) * dist;
   },
-  rotateRight ( $ev, normalizedKey, held, deltaTime ) {
+  rotateRight ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     if ( this.attr( "movementDisabled" ) ) {
       return false;
     }
@@ -158,8 +158,8 @@ export const ViewModel = Map.extend({
 
     camera.rotation.y = camy;
   },
-  strafeRight ( $ev, normalizedKey, held, deltaTime ) {
-    if ( this.attr( "movementDisabled" ) ) {
+  strafeRight ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
+    if ( this.attr( "movementDisabled" ) || controlsVM.heldDuplicateExecution( this.strafeRight ) ) {
       return false;
     }
 
@@ -171,16 +171,15 @@ export const ViewModel = Map.extend({
     camera.position.x += Math.sin( rad ) * dist;
     camera.position.z += Math.cos( rad ) * dist;
   },
-  rotateMouseDelta ( $ev, normalizedKey, held, deltaTime ) {
+  rotateMouseDelta ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     if ( this.attr( "movementDisabled" ) ) {
       return false;
     }
-    //var initialPos = held[ normalizedKey ].initialMousePos;
-    var controlsVM = getControls(); //TODO: maybe pass this in to events too
-    var lastPos = controlsVM.attr( "mouseMoveLastPos" );
-    var curPos = controlsVM.attr( "mouseMoveCurPos" );
+    //var initialPos = controlsVM.getInitialMousePos( "Right" );
+    var lastPos = controlsVM.mousemoveLastMousePos();
+    var curPos = controlsVM.curMousePos();
 
-    //TODO: get the game-app elment more safely
+    //TODO: get the game-app elment more safely ( on inserted this.element.closest )
     var gameApp = $( "game-app" )[ 0 ];
     var difHor = ( curPos.x - lastPos.x ) / gameApp.offsetWidth;
     var difVert = ( curPos.y - lastPos.y ) / gameApp.offsetHeight;

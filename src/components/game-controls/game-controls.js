@@ -20,7 +20,7 @@ import { normalizedEventKey, normalizedWhichMouse } from '../../util/event-helpe
  *     "Left": function () {...},
  *     "Middle": "aFunctionNameOnTheContextObj"
  *   },
- *   "mousemove": { //$ev.controlPropagationStopped only works on "*"
+ *   "mousemove": {
  *     "*": function () {...}, //fires once per move even if a held one is fired too
  *     "Control": function () {...}, // mousemove while control is held
  *     "Left": function () {...} // mousemove while Left mouse is held
@@ -28,7 +28,8 @@ import { normalizedEventKey, normalizedWhichMouse } from '../../util/event-helpe
  * }
  * 
  * 
- * Functions will be called with context as the context and have passed in: $ev, normalizedKey/normalizedButton, held, deltaTime
+ * Functions will be called with context as the context and have passed in:
+ *  $ev, normalizedKey/normalizedButton, held, deltaTime, controlsVM
  * 
  * From the functions, doing $ev.controlPropagationStopped = true will stop later matching control events from firing
  * 
@@ -37,7 +38,7 @@ import { normalizedEventKey, normalizedWhichMouse } from '../../util/event-helpe
  * 
  */
 
-var held = {};
+var heldInfo = {};
 var heldKeys = [];
 /* the keys of this obj are the normalizedProp, the value is:
     {
@@ -46,12 +47,13 @@ var heldKeys = [];
     }
 */
 //TODO: if keydown or up === Shift, change held Object.keys where key.length === 1 toLowerCase() -- maybe? Investigate.
+var mousemovePropagationStopped = {};
+var heldPropagationStopped = {};
+var mousemoveDuplicateExecution = [];
+var heldDuplicateExecution = [];
 
-export const ViewModel = Map.extend({
-  define: {
-  },
-
-  eventStacks: [ "keydown", "keypress", "keyup", "mousedown", "click", "mouseup", "mousemove", "held" ],
+var eventStacks = [ "keydown", "keypress", "keyup", "mousedown", "click", "mouseup", "mousemove", "held" ];
+var stacks = {
   keydown: [],
   keypress: [],
   keyup: [],
@@ -59,59 +61,106 @@ export const ViewModel = Map.extend({
   click: [],
   mouseup: [],
   mousemove: [],
-  held: [],
+  held: []
+};
 
-  mouseMoveLastPos: {
-    x: -1,
-    y: -1
-  },
-  mouseMoveCurPos: {
-    x: -1,
-    y: -1
-  },
-  getLastMousePos ( relativeTo ) {
-    //where relativeTo is an elment ( game-app or $game-app.find( 'canvas' ), usually )
-    var pos = this.attr( "mouseMoveLastPos" );
+var posRelativeToEl = null; // set to closest parent 'game-app' element on inserted
+var curMousePos = {
+  x: -1,
+  y: -1
+};
+var mousemoveLastMousePos = {
+  x: -1,
+  y: -1
+};
+var heldLastMousePos = {
+  x: -1,
+  y: -1
+};
+
+export const ViewModel = Map.extend({
+  // Returns the current mouse position releative to the game-app element ( posRelativeToEl )
+  // if pageXYOnly is truthy, the x and y position returned will just be the pageX and pageY from the event
+  curMousePos ( pageXYOnly ) {
+    var pos = curMousePos;
     var returnPos = { x: pos.x, y: pos.y };
-    //TODO: subtract $( relativeTo ).offset() values ^
-    return returnPos;
-  },
-  getCurMousePos ( relativeTo ) {
-    //where relativeTo is an elment ( game-app or $game-app.find( 'canvas' ), usually )
-    var pos = this.attr( "mouseMoveCurPos" );
-    var returnPos = { x: pos.x, y: pos.y };
-    //TODO: subtract $( relativeTo ).offset() values ^
-    return returnPos;
-  },
-  getInitialMousePos ( relativeTo, forNormalizedMouse ) {
-    forNormalizedMouse = forNormalizedMouse || "Left";
-    //where relativeTo is an elment ( game-app or $game-app.find( 'canvas' ), usually )
-    var returnPos = { x: -1, y: -1 };
-    var heldMouseObj = held[ forNormalizedMouse ];
-    if ( heldMouseObj ) {
-      let pos = heldMouseObj.initialMousePos;
-      returnPos = { x: pos.x, y: pos.y };
-      //TODO: subtract $( relativeTo ).offset() values ^
+    if ( !pageXYOnly ) {
+      let offsets = posRelativeToEl.offset();
+      returnPos.x - offsets.left;
+      returnPos.y - offsets.top;
     }
     return returnPos;
   },
+  mousemoveLastMousePos ( pageXYOnly ) {
+    var pos = mousemoveLastMousePos;
+    var returnPos = { x: pos.x, y: pos.y };
+    if ( !pageXYOnly ) {
+      let offsets = posRelativeToEl.offset();
+      returnPos.x - offsets.left;
+      returnPos.y - offsets.top;
+    }
+    return returnPos;
+  },
+  heldLastMousePos ( pageXYOnly ) {
+    var pos = heldLastMousePos;
+    var returnPos = { x: pos.x, y: pos.y };
+    if ( !pageXYOnly ) {
+      let offsets = posRelativeToEl.offset();
+      returnPos.x - offsets.left;
+      returnPos.y - offsets.top;
+    }
+    return returnPos;
+  },
+
+  getInitialMousePos ( forNormalizedMouse = "Left", pageXYOnly ) {
+    var returnPos = { x: -1, y: -1 };
+    var heldMouseObj = heldInfo[ forNormalizedMouse ];
+    if ( heldMouseObj ) {
+      let pos = heldMouseObj.initialMousePos;
+      returnPos = { x: pos.pageX, y: pos.pageY };
+      if ( !pageXYOnly ) {
+        let offsets = posRelativeToEl.offset();
+        returnPos.x - offsets.left;
+        returnPos.y - offsets.top;
+      }
+    }
+    return returnPos;
+  },
+
   registerControls ( controlSetName, controlSet ) {
-    var eventStacks = this.attr( "eventStacks" );
     for ( let i = 0; i < eventStacks.length; i++ ) {
       let eventType = eventStacks[ i ];
       let newControls = controlSet[ eventType ];
       if ( newControls ) {
+        let controlKeyList = Object.keys( newControls );
+        //TODO: loop over controlKeyList and spread out keys like "w,ArrowUp"
+        //TODO: allow that ^ to have a comma too like 'fly up' controls of , and space: ",, "
+        //TODO: allow sequences: "seq:ArrowUp,ArrowUp,ArrowDown,ArrowDown,ArrowLeft,ArrowRight,ArrowLeft,ArrowRight,b,a"
         newControls._name = controlSetName;
         newControls._context = controlSet.context;
-        this.attr( eventType ).unshift( newControls );
+        // convert string function names into functions so we don't have to check during events
+        for ( let x = 0; x < controlKeyList.length; x++ ) {
+          let key = controlKeyList[ x ];
+          let fn = newControls[ key ];
+          if ( typeof fn === "string" ) {
+            fn = newControls._context[ fn ];
+          }
+          if ( typeof fn === "function" ) {
+            newControls[ key ] = fn;
+          } else {
+            delete newControls[ key ];
+            console.log( "Control function not found:", controlSetName, key, fn );
+          }
+        }
+        stacks[ eventType ].unshift( newControls );
       }
     }
   },
+
   removeControls ( controlSetName ) {
     // on a component removed
-    var eventStacks = this.attr( "eventStacks" );
     for ( let i = 0; i < eventStacks.length; i++ ) {
-      let eventStack = this.attr( eventStacks[ i ] );
+      let eventStack = stacks[ eventStacks[ i ] ];
       for ( let x = 0; x < eventStack.length; x++ ) {
         if ( eventStack[ x ]._name === controlSetName ) {
           eventStack.splice( x, 1 );
@@ -120,27 +169,25 @@ export const ViewModel = Map.extend({
       }
     }
   },
+
   handleEvent ( eventType, $ev, normalizedProp ) {
-    var eventStack = this.attr( eventType );
+    var eventStack = stacks[ eventType ];
     var deltaTime = this.attr( "deltaTime" );
 
     for ( let i = 0; i < eventStack.length; i++ ) {
       let controls = eventStack[ i ];
       let fn = controls[ normalizedProp ] || controls[ "*" ];
-      if ( typeof fn === "string" ) {
-        fn = controls._context[ fn ];
-      }
       if ( fn ) {
-        fn.call( controls._context, $ev, normalizedProp, held, deltaTime );
-      }
-      if ( $ev.controlPropagationStopped ) {
-        // don't handle other of the same eventType+normalizedProp in this stack
-        break;
+        fn.call( controls._context, $ev, normalizedProp, heldInfo, deltaTime, this );
+        if ( $ev.controlPropagationStopped ) {
+          // don't handle other of the same eventType+normalizedProp in this stack
+          break;
+        }
       }
     }
   },
   handleMousemoveEvent ( $ev ) {
-    var eventStack = this.attr( "mousemove" );
+    var eventStack = stacks[ "mousemove" ];
     var deltaTime = this.attr( "deltaTime" );
 
     var numHeld = heldKeys.length;
@@ -149,36 +196,39 @@ export const ViewModel = Map.extend({
 
       for ( let x = 0; x < numHeld; x++ ) {
         let normalizedProp = heldKeys[ x ];
-        let fn = controls[ normalizedProp ];
-        if ( typeof fn === "string" ) {
-          fn = controls._context[ fn ];
+        if ( mousemovePropagationStopped[ normalizedProp ] ) {
+          continue;
         }
+        let fn = controls[ normalizedProp ];
         if ( fn ) {
-          fn.call( controls._context, $ev, normalizedProp, held, deltaTime );
-          $ev.controlPropagationStopped = false;
+          fn.call( controls._context, $ev, normalizedProp, heldInfo, deltaTime, this );
+          mousemoveDuplicateExecution.push( fn );
+          if ( $ev.controlPropagationStopped ) {
+            // don't handle other mousemoves for this key/button
+            mousemovePropagationStopped[ normalizedProp ] = true;
+          }
         }
       }
       if ( controls[ "*" ] ) {
         let fn = controls[ "*" ];
-        if ( typeof fn === "string" ) {
-          fn = controls._context[ fn ];
-        }
         if ( fn ) {
-          fn.call( controls._context, $ev, null, held, deltaTime );
-        }
-        if ( $ev.controlPropagationStopped ) {
-          // don't handle other mousemoves in this stack
-          break;
+          fn.call( controls._context, $ev, null, heldInfo, deltaTime, this );
+          if ( $ev.controlPropagationStopped ) {
+            // don't handle other mousemoves
+            break;
+          }
         }
       }
     }
+    mousemovePropagationStopped = {};
+    mousemoveDuplicateExecution = [];
   },
   handleHeldEvent ( $ev ) {
     var numHeld = heldKeys.length;
     if ( !numHeld ) {
       return;
     }
-    var eventStack = this.attr( "held" );
+    var eventStack = stacks[ "held" ];
     var deltaTime = this.attr( "deltaTime" );
 
     for ( let i = 0; i < eventStack.length; i++ ) {
@@ -186,30 +236,42 @@ export const ViewModel = Map.extend({
 
       for ( let x = 0; x < numHeld; x++ ) {
         let normalizedProp = heldKeys[ x ];
-        let fn = controls[ normalizedProp ];
-
-        if ( typeof fn === "string" ) {
-          fn = controls._context[ fn ];
+        if ( heldPropagationStopped[ normalizedProp ] ) {
+          continue;
         }
+        let fn = controls[ normalizedProp ];
         if ( fn ) {
-          fn.call( controls._context, $ev, normalizedProp, held, deltaTime );
-          $ev.controlPropagationStopped = false;
+          fn.call( controls._context, $ev, normalizedProp, heldInfo, deltaTime, this );
+          heldDuplicateExecution.push( fn );
+          if ( $ev.controlPropagationStopped ) {
+            // don't handle other helds for this key/button
+            heldPropagationStopped[ normalizedProp ] = true;
+          }
         }
       }
       if ( controls[ "*" ] ) {
         let fn = controls[ "*" ];
-        if ( typeof fn === "string" ) {
-          fn = controls._context[ fn ];
-        }
         if ( fn ) {
-          fn.call( controls._context, $ev, null, held, deltaTime );
-        }
-        if ( $ev.controlPropagationStopped ) {
-          // don't handle other helds in this stack
-          break;
+          fn.call( controls._context, $ev, null, heldInfo, deltaTime, this );
+          if ( $ev.controlPropagationStopped ) {
+            // don't handle other helds
+            break;
+          }
         }
       }
     }
+    heldPropagationStopped = {};
+    heldDuplicateExecution = [];
+  },
+
+  // returns true if the fn passed in has already executed during this instance of mousemove
+  mousemoveDuplicateExecution ( fn ) {
+    return mousemoveDuplicateExecution.indexOf( fn ) > -1;
+  },
+
+  // returns true if the fn passed in has already executed during this instance of held ( durring this frame render )
+  heldDuplicateExecution ( fn ) {
+    return heldDuplicateExecution.indexOf( fn ) > -1;
   }
 });
 
@@ -218,17 +280,20 @@ export default Component.extend({
   viewModel: ViewModel,
   template,
   events: {
+    "inserted": function () {
+      posRelativeToEl = this.element.closest( "game-app" );
+    },
     "{document} keydown": function ( $doc, $ev ) {
       var norm = normalizedEventKey( $ev );
       var vm = this.viewModel;
-      if ( held[ norm ] ) {
+      if ( heldInfo[ norm ] ) {
         //only fire it on the initial 'down' event
         return;
       }
-      held[ norm ] = {
+      heldInfo[ norm ] = {
         ts: Date.now()
       };
-      heldKeys = Object.keys( held );
+      heldKeys = Object.keys( heldInfo );
       vm.handleEvent( "keydown", $ev, norm );
     },
     "{document} keypress": function ( $doc, $ev ) {
@@ -237,25 +302,25 @@ export default Component.extend({
     "{document} keyup": function ( $doc, $ev ) {
       var norm = normalizedEventKey( $ev );
       var vm = this.viewModel;
-      delete held[ norm ];
-      heldKeys = Object.keys( held );
+      delete heldInfo[ norm ];
+      heldKeys = Object.keys( heldInfo );
       vm.handleEvent( "keyup", $ev, norm );
     },
     "{document} mousedown": function ( $doc, $ev ) {
       var norm = normalizedWhichMouse( $ev );
       var vm = this.viewModel;
-      if ( held[ norm ] ) {
+      if ( heldInfo[ norm ] ) {
         //only fire it on the initial 'down' event
         return;
       }
       var touches = $ev.originalEvent.touches;
       var pageX = $ev.pageX || touches && touches[ 0 ] && touches[ 0 ].pageX || 0;
       var pageY = $ev.pageY || touches && touches[ 0 ] && touches[ 0 ].pageY || 0;
-      held[ norm ] = {
+      heldInfo[ norm ] = {
         ts: Date.now(),
-        initialMousePos: { x: pageX, y: pageY }
+        initialMousePos: { pageX, pageY }
       };
-      heldKeys = Object.keys( held );
+      heldKeys = Object.keys( heldInfo );
       vm.handleEvent( "mousedown", $ev, norm );
     },
     "{document} click": function ( $doc, $ev ) {
@@ -264,8 +329,8 @@ export default Component.extend({
     "{document} mouseup": function ( $doc, $ev ) {
       var norm = normalizedWhichMouse( $ev );
       var vm = this.viewModel;
-      delete held[ norm ];
-      heldKeys = Object.keys( held );
+      delete heldInfo[ norm ];
+      heldKeys = Object.keys( heldInfo );
       vm.handleEvent( "mouseup", $ev, norm );
     },
     "{document} mousemove": function ( $doc, $ev ) {
@@ -275,18 +340,11 @@ export default Component.extend({
       var pageX = $ev.pageX || touches && touches[ 0 ] && touches[ 0 ].pageX || 0;
       var pageY = $ev.pageY || touches && touches[ 0 ] && touches[ 0 ].pageY || 0;
 
-      var last = vm.attr( "mouseMoveCurPos" );
-      var lastX = last.attr( "x" );
-      var lastY = last.attr( "y" );
+      mousemoveLastMousePos.x = curMousePos.x;
+      mousemoveLastMousePos.y = curMousePos.y;
 
-      vm.attr( "mouseMoveLastPos" ).attr({
-        "x": lastX,
-        "y": lastY
-      });
-      vm.attr( "mouseMoveCurPos" ).attr({
-        "x": pageX,
-        "y": pageY
-      });
+      curMousePos.x = pageX;
+      curMousePos.y = pageY;
 
       vm.handleMousemoveEvent( $ev );
     },
@@ -294,6 +352,10 @@ export default Component.extend({
       //Trigger 'held' events
       var vm = this.viewModel;
       vm.handleHeldEvent( $ev );
+
+      // after the held event runs, record what the mouse pos was
+      heldLastMousePos.x = curMousePos.x;
+      heldLastMousePos.y = curMousePos.y;
     }
   }
 });

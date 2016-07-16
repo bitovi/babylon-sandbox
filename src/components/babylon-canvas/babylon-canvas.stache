@@ -4,3 +4,7 @@
 {{#if camera}}
   <game-camera {(camera)}="camera" {fly-mode}="flyMode"></game-camera>
 {{/if}}
+
+{{#if debug}}
+<script src="debug3d.js"></script>
+{{/if}}

@@ -11,6 +11,7 @@ import '../../static/3d/js/babylon.objFileLoader.js';
 import { getControls, getTooltip } from '../../util/util.js';
 
 export const ViewModel = Map.extend({
+  debug: true,
   define: {
     items: {
       get ( last ) {
@@ -77,7 +78,7 @@ export const ViewModel = Map.extend({
       if (hoveredMesh !== mesh){
         this.setMeshOutline( mesh );
       }
-      getTooltip().set( "meshHover", mesh.name, "fa-archive", "Click to Manage", curMousePos.x, curMousePos.y );
+      getTooltip().set( "meshHover", mesh.label, "fa-archive", "Click to Manage", curMousePos.x, curMousePos.y );
     // Else remove outline
     } else {
       if ( hoveredMesh ) {
@@ -217,6 +218,33 @@ export const ViewModel = Map.extend({
         options.filename
       );
 
+      /**
+       * Returns a closure for the for loop to check material for each mesh
+       * @param mesh
+       * @returns {Function}
+       */
+      function checkMaterial(mesh){
+        function checkmaterial(){
+          var material = mesh.material;
+          if (material){
+            var scene = vm.attr( "scene" );
+            if (options.textures.diffuse){
+              material.diffuseTexture = new BABYLON.Texture(options.textures.diffuse, scene);
+            }
+            if (options.textures.normal){
+              material.bumpTexture = new BABYLON.Texture(options.textures.normal, scene);
+            }
+          }
+          else{
+            setTimeout(checkmaterial, 50);
+          }
+        }
+
+        return function(){
+          setTimeout(checkmaterial, 50);
+        }
+      }
+
       task.onSuccess = function (t) {
 
         var item = {
@@ -241,18 +269,30 @@ export const ViewModel = Map.extend({
             }
           }
 
+          var positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
+          var normals = mesh.getVerticesData( BABYLON.VertexBuffer.NormalKind );
+
+          BABYLON.VertexData.ComputeNormals( positions, mesh.getIndices(), normals );
+          mesh.setVerticesData( BABYLON.VertexBuffer.NormalKind, normals );
+
           //var positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
           //var normals = mesh.getVerticesData( BABYLON.VertexBuffer.NormalKind );
           //
           //BABYLON.VertexData.ComputeNormals( positions, mesh.getIndices(), normals );
 
-          if ( options.rotateNormals ) {
-            vm.rotateNormals( mesh );
+          // if ( options.rotateNormals ) {
+          //   vm.rotateNormals( mesh );
+          // }
+
+          if (options.textures){
+            checkMaterial(mesh);
           }
 
           if ( !options.skipTag ) {
             mesh.tag = 1;
           }
+
+          mesh.label = options.label;
 
           mesh.receiveShadows = true;
           mesh.position = options.position;
@@ -273,95 +313,131 @@ export const ViewModel = Map.extend({
           options.success( item );
         }
       };
-      
+
       return task;
     },
 
     initTestSceneModels () {
-      var loader = this.getAssetsManager();
+       var loader = this.getAssetsManager();
 
-      var rotateNormals = true;
+       this.initTestChairModels(loader);
+       this.initTestFanModels(loader);
 
-      var position = new BABYLON.Vector3(0, 0, 0);
-      var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
+       loader.load();
+    },
+
+    initTestChairModels(loader){
+      let rotateNormals = true;
+      let ypos = 0;
+      let zpos = 0;
+      let xpos = -2;
+      let filename = "West_Chair_Leath_Brown_001.obj";
+
+
+      let position = new BABYLON.Vector3(xpos+= 2, ypos, zpos);
+      let rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
       this.testLoadModel({
-        filename: "Colo_Rug_Fab_LtBrown_001.obj",
-        //filename: "StoneWall_LOW.obj",
+        filename: filename,
         physics: false,
-        position: position,
-        rotation:rotation,
-        rotateNormals: rotateNormals,
-        taskname: "rug"
-      }, loader);
-
-      position = new BABYLON.Vector3(2, 1, 0);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI * -0.5, 0, 0);
-      this.testLoadModel({
-        filename: "West_Chair_Leath_Brown_001.obj",
-        physics: true,
+        label: "Original .tga<br> Filesize: 100%",
         position: position,
         rotation:rotation,
         rotateNormals: rotateNormals,
         taskname: "chair"
       }, loader);
 
-      position = new BABYLON.Vector3(-2, 1, 0);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI * 0.5, 0, 0);
+      position = new BABYLON.Vector3(xpos+= 2, ypos, zpos);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
       this.testLoadModel({
-        filename: "West_Chair_Leath_Brown_001.obj",
-        physics: true,
-        position: position,
-        rotation:rotation,
-        rotateNormals: rotateNormals,
-        taskname: "chair"
-      }, loader);
-
-      position = new BABYLON.Vector3(0, 1, 2);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI, 0, 0);
-      this.testLoadModel({
-        filename: "West_Chair_Leath_Brown_001.obj",
-        physics: true,
-        position: position,
-        rotation:rotation,
-        rotateNormals: rotateNormals,
-        taskname: "chair"
-      }, loader);
-
-      position = new BABYLON.Vector3(0, 1, -2);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
-      this.testLoadModel({
-        filename: "West_Chair_Leath_Brown_001.obj",
-        physics: true,
-        position: position,
-        rotation:rotation,
-        rotateNormals: rotateNormals,
-        taskname: "chair"
-      }, loader);
-
-
-      position = new BABYLON.Vector3(0, 3, 0);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
-      this.testLoadModel({
-        filename: "KidsPrin_CeFan_Wd_LtPurp_001.obj",
+        filename: filename,
         physics: false,
-        position: position,
-        rotation:rotation,
-        rotateNormals: !rotateNormals,
-        taskname: "bedfan"
-      }, loader);
-
-      position = new BABYLON.Vector3(0, 1, 0);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
-      this.testLoadModel({
-        filename: "KidsJng_Bed_Wd_LtBrown_002.obj",
-        physics: true,
+        label: "Original .tga<br> Filesize: 100%",
         position: position,
         rotation:rotation,
         rotateNormals: rotateNormals,
-        taskname: "bed"
+        taskname: "chair"
       }, loader);
 
-      loader.load();
+      position = new BABYLON.Vector3(xpos+= 2, ypos, zpos);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
+      this.testLoadModel({
+        filename: filename,
+        physics: false,
+        label: "Original .tga<br> Filesize: 100%",
+        position: position,
+        rotation:rotation,
+        rotateNormals: rotateNormals,
+        taskname: "chair"
+      }, loader);
+
+      position = new BABYLON.Vector3(xpos+= 2, ypos, zpos);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
+      this.testLoadModel({
+        filename: filename,
+        physics: false,
+        label: "Original .tga<br> Filesize: 100%",
+        position: position,
+        rotation:rotation,
+        rotateNormals: rotateNormals,
+        taskname: "chair"
+      }, loader);
+    },
+
+    initTestFanModels(loader){
+      let rotateNormals = true;
+
+      let ypos = 1.25;
+      let zpos = 2.5;
+      let xpos = -2;
+      let filename = "KidsPrin_CeFan_Wd_LtPurp_001.obj";
+
+      let position = new BABYLON.Vector3(xpos += 2, ypos, zpos);
+      let rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
+      this.testLoadModel({
+        filename: filename,
+        physics: false,
+        label: "Original .tga<br> Filesize: 100%",
+        position: position,
+        rotation: rotation,
+        rotateNormals: rotateNormals,
+        taskname: "fan"
+      }, loader);
+
+      position = new BABYLON.Vector3(xpos += 2, ypos, zpos);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
+      this.testLoadModel({
+        filename: filename,
+        physics: false,
+        label: "Original .tga<br> Filesize: 100%",
+        position: position,
+        rotation: rotation,
+        rotateNormals: rotateNormals,
+        taskname: "fan"
+      }, loader);
+
+      position = new BABYLON.Vector3(xpos += 2, ypos, zpos);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
+      this.testLoadModel({
+        filename: filename,
+        physics: false,
+        label: "Original .tga<br> Filesize: 100%",
+        position: position,
+        rotation: rotation,
+        rotateNormals: rotateNormals,
+        taskname: "fan"
+      }, loader);
+
+      position = new BABYLON.Vector3(xpos += 2, ypos, zpos);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
+      this.testLoadModel({
+        filename: filename,
+        physics: false,
+        label: "Original .tga<br> Filesize: 100%",
+        position: position,
+        rotation: rotation,
+        rotateNormals: rotateNormals,
+        taskname: "fan"
+      }, loader);
     },
 
     changeColor () {
@@ -372,7 +448,7 @@ export const ViewModel = Map.extend({
       // So there is sliiiiightly higher chance of getting 3 than 0, 1 , 2!
       if (colorId === 5) colorId = 4;
       var color;
-  
+
       switch ( colorId ){
         case 0:
           color = new BABYLON.Color3(73/255, 71/255, 63/255);
@@ -390,9 +466,9 @@ export const ViewModel = Map.extend({
           color = new BABYLON.Color3(1, 1, 0.3);
           break;
       }
-  
+
       this.setDefaults();
-  
+
       this.attr( "ground" ).material.diffuseColor = color;
     },
 
@@ -443,7 +519,7 @@ export const ViewModel = Map.extend({
         ground.material.bumpTexture = this.attr( "defaultBump" );
       }
     },
-    
+
     setDefaults () {
       if ( !this.attr( "hasChanged" ) ) {
         this.attr( "hasChanged", true );
@@ -511,7 +587,7 @@ export const ViewModel = Map.extend({
         scene
       );
       mesh.physicsImpostor = physicsImpostor;
-      
+
       // On collision with the floor
       physicsImpostor.registerOnPhysicsCollide( ground.physicsImpostor, function ( physImpos, collidedWithPhysImpos ) {
         setTimeout(function(){
@@ -549,7 +625,7 @@ export const ViewModel = Map.extend({
     testUpdatePointLights () {
       var hasPointlight = this.attr( "hasPointlight" );
       var pointLight = this.attr( "pointLight" );
-      
+
       var spr = 30; //seconds per rotation
       var percentOfRotation = ( ( Date.now() / 1000 ) % spr ) / spr;
       var degrees = percentOfRotation * 360;
@@ -611,6 +687,9 @@ export const ViewModel = Map.extend({
     var scene = this.attr( "scene" );
     scene.clearColor = new BABYLON.Color3( 1, 1, 1 );
 
+    window.scene = scene;
+    window.BABYLON = BABYLON;
+
     // Gravity & physics stuff
     var physicsPlugin = new BABYLON.CannonJSPlugin();
     var gravityVector = new BABYLON.Vector3( 0, -9.81, 0 );
@@ -622,12 +701,12 @@ export const ViewModel = Map.extend({
 
     var camera = this.initCamera();
 
-    // Z axis is above/below
-    // var dirLight = new BABYLON.DirectionalLight("dirlight1", new BABYLON.Vector3(1, 0, 0), scene);
     BABYLON.StandardMaterial.AmbientTextureEnabled = false;
 
     BABYLON.OBJFileLoader.OPTIMIZE_WITH_UV = true;
-    //scene.debugLayer.show();
+    if (this.attr("debug")){
+      scene.debugLayer.show();
+    }
   }
 });
 

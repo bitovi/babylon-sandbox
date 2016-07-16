@@ -224,15 +224,18 @@ export const ViewModel = Map.extend({
        * @returns {Function}
        */
       function checkMaterial(mesh){
+        // Function for set timeout loop
         function checkmaterial(){
           var material = mesh.material;
           if (material){
             var scene = vm.attr( "scene" );
             if (options.textures.diffuse){
-              material.diffuseTexture = new BABYLON.Texture(options.textures.diffuse, scene);
+              let url = vm.attr( "static3DAssetPath" ) + options.textures.diffuse;
+              material.diffuseTexture = new BABYLON.Texture(url, scene);
             }
             if (options.textures.normal){
-              material.bumpTexture = new BABYLON.Texture(options.textures.normal, scene);
+              let url = vm.attr( "static3DAssetPath" ) + options.textures.normal;
+              material.bumpTexture = new BABYLON.Texture(url, scene);
             }
           }
           else{
@@ -240,9 +243,7 @@ export const ViewModel = Map.extend({
           }
         }
 
-        return function(){
-          setTimeout(checkmaterial, 50);
-        }
+        setTimeout(checkmaterial, 50);
       }
 
       task.onSuccess = function (t) {
@@ -330,11 +331,13 @@ export const ViewModel = Map.extend({
       let rotateNormals = true;
       let ypos = 0;
       let zpos = 0;
-      let xpos = -2;
+      let xspace = 0.9;
+      let xpos = -xspace;
+
       let filename = "West_Chair_Leath_Brown_001.obj";
 
 
-      let position = new BABYLON.Vector3(xpos+= 2, ypos, zpos);
+      let position = new BABYLON.Vector3(xpos+= xspace, ypos, zpos);
       let rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
       this.testLoadModel({
         filename: filename,
@@ -346,40 +349,94 @@ export const ViewModel = Map.extend({
         taskname: "chair"
       }, loader);
 
-      position = new BABYLON.Vector3(xpos+= 2, ypos, zpos);
+      position = new BABYLON.Vector3(xpos+= xspace, ypos, zpos);
       rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
       this.testLoadModel({
         filename: filename,
         physics: false,
-        label: "Original .tga<br> Filesize: 100%",
+        label: ".png <br> Filesize: 33%",
         position: position,
         rotation:rotation,
         rotateNormals: rotateNormals,
-        taskname: "chair"
+        taskname: "chair1",
+        textures:{
+          diffuse:"compression/chair/diff.png"
+        }
       }, loader);
 
-      position = new BABYLON.Vector3(xpos+= 2, ypos, zpos);
+      position = new BABYLON.Vector3(xpos+= xspace, ypos, zpos);
       rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
       this.testLoadModel({
         filename: filename,
         physics: false,
-        label: "Original .tga<br> Filesize: 100%",
+        label: ".png advcomp <br> Filesize: 32%",
         position: position,
         rotation:rotation,
         rotateNormals: rotateNormals,
-        taskname: "chair"
+        taskname: "chair1",
+        textures:{
+          diffuse:"compression/chair/diffa.png"
+        }
       }, loader);
 
-      position = new BABYLON.Vector3(xpos+= 2, ypos, zpos);
+      position = new BABYLON.Vector3(xpos+= xspace, ypos, zpos);
       rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
       this.testLoadModel({
         filename: filename,
         physics: false,
-        label: "Original .tga<br> Filesize: 100%",
+        label: ".png advcomp pngquant <br> Filesize: 17%",
         position: position,
         rotation:rotation,
         rotateNormals: rotateNormals,
-        taskname: "chair"
+        taskname: "chair1",
+        textures:{
+          diffuse:"compression/chair/diffaq.png"
+        }
+      }, loader);
+
+      position = new BABYLON.Vector3(xpos+= xspace, ypos, zpos);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
+      this.testLoadModel({
+        filename: filename,
+        physics: false,
+        label: ".png posterize <br> Filesize: 14.81%",
+        position: position,
+        rotation:rotation,
+        rotateNormals: rotateNormals,
+        taskname: "chair2",
+        textures:{
+          diffuse:"compression/chair/diffp.png"
+        }
+      }, loader);
+
+      position = new BABYLON.Vector3(xpos+= xspace, ypos, zpos);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
+      this.testLoadModel({
+        filename: filename,
+        physics: false,
+        label: ".png posterize advcomp<br> Filesize: 10.83%",
+        position: position,
+        rotation:rotation,
+        rotateNormals: rotateNormals,
+        taskname: "chair3",
+        textures:{
+          diffuse:"compression/chair/diffp2.png"
+        }
+      }, loader);
+
+      position = new BABYLON.Vector3(xpos+= xspace, ypos, zpos);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
+      this.testLoadModel({
+        filename: filename,
+        physics: false,
+        label: ".png posterize advcomp pngquant<br> Filesize: 5%",
+        position: position,
+        rotation:rotation,
+        rotateNormals: rotateNormals,
+        taskname: "chair4",
+        textures:{
+          diffuse:"compression/chair/diffq2.png"
+        }
       }, loader);
     },
 
@@ -388,10 +445,11 @@ export const ViewModel = Map.extend({
 
       let ypos = 1.25;
       let zpos = 2.5;
-      let xpos = -2;
+      let xspace = 1.4;
+      let xpos = -xspace;
       let filename = "KidsPrin_CeFan_Wd_LtPurp_001.obj";
 
-      let position = new BABYLON.Vector3(xpos += 2, ypos, zpos);
+      let position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
       let rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
       this.testLoadModel({
         filename: filename,
@@ -403,7 +461,7 @@ export const ViewModel = Map.extend({
         taskname: "fan"
       }, loader);
 
-      position = new BABYLON.Vector3(xpos += 2, ypos, zpos);
+      position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
       rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
       this.testLoadModel({
         filename: filename,
@@ -415,7 +473,7 @@ export const ViewModel = Map.extend({
         taskname: "fan"
       }, loader);
 
-      position = new BABYLON.Vector3(xpos += 2, ypos, zpos);
+      position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
       rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
       this.testLoadModel({
         filename: filename,
@@ -427,7 +485,7 @@ export const ViewModel = Map.extend({
         taskname: "fan"
       }, loader);
 
-      position = new BABYLON.Vector3(xpos += 2, ypos, zpos);
+      position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
       rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
       this.testLoadModel({
         filename: filename,

@@ -454,11 +454,26 @@ export const ViewModel = Map.extend({
       this.testLoadModel({
         filename: filename,
         physics: false,
-        label: "Original .tga<br> Filesize: 100%",
+        label: ".tga Original<br> Filesize: 100%",
         position: position,
         rotation: rotation,
         rotateNormals: rotateNormals,
         taskname: "fan"
+      }, loader)
+
+      position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
+      this.testLoadModel({
+        filename: filename,
+        physics: false,
+        label: ".png<br> Filesize: 32.62%",
+        position: position,
+        rotation: rotation,
+        rotateNormals: rotateNormals,
+        taskname: "fan",
+        textures:{
+          diffuse:"compression/fan/fandiff.png"
+        }
       }, loader);
 
       position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
@@ -466,11 +481,14 @@ export const ViewModel = Map.extend({
       this.testLoadModel({
         filename: filename,
         physics: false,
-        label: "Original .tga<br> Filesize: 100%",
+        label: ".png pngquant<br> Filesize: 9.45%",
         position: position,
         rotation: rotation,
         rotateNormals: rotateNormals,
-        taskname: "fan"
+        taskname: "fan",
+        textures:{
+          diffuse:"compression/fan/fandiffq.png"
+        }
       }, loader);
 
       position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
@@ -478,11 +496,14 @@ export const ViewModel = Map.extend({
       this.testLoadModel({
         filename: filename,
         physics: false,
-        label: "Original .tga<br> Filesize: 100%",
+        label: ".png pngquant advcomp<br> Filesize: 8.76%",
         position: position,
         rotation: rotation,
         rotateNormals: rotateNormals,
-        taskname: "fan"
+        taskname: "fan",
+        textures:{
+          diffuse:"compression/fan/fandiffqa.png"
+        }
       }, loader);
 
       position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
@@ -490,11 +511,59 @@ export const ViewModel = Map.extend({
       this.testLoadModel({
         filename: filename,
         physics: false,
-        label: "Original .tga<br> Filesize: 100%",
+        label: ".png posterize<br> Filesize: 12.3%",
         position: position,
         rotation: rotation,
         rotateNormals: rotateNormals,
-        taskname: "fan"
+        taskname: "fan",
+        textures:{
+          diffuse:"compression/fan/fandiffp.png"
+        }
+      }, loader);
+
+      position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
+      this.testLoadModel({
+        filename: filename,
+        physics: false,
+        label: ".png posterize advcomp<br> Filesize: 10.83%",
+        position: position,
+        rotation: rotation,
+        rotateNormals: rotateNormals,
+        taskname: "fan",
+        textures:{
+          diffuse:"compression/fan/fandiffpa.png"
+        }
+      }, loader);
+
+      position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
+      this.testLoadModel({
+        filename: filename,
+        physics: false,
+        label: ".png posterize pngquant<br> Filesize: 5.92%",
+        position: position,
+        rotation: rotation,
+        rotateNormals: rotateNormals,
+        taskname: "fan",
+        textures:{
+          diffuse:"compression/fan/fandiffpq.png"
+        }
+      }, loader);
+
+      position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
+      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
+      this.testLoadModel({
+        filename: filename,
+        physics: false,
+        label: ".png posterize pngquant advcomp<br> Filesize: 5.44%",
+        position: position,
+        rotation: rotation,
+        rotateNormals: rotateNormals,
+        taskname: "fan",
+        textures:{
+          diffuse:"compression/fan/fandiffpqa.png"
+        }
       }, loader);
     },
 

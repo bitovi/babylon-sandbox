@@ -40,6 +40,7 @@
     "babylonjs": "^2.4.0",
     "can": "^2.3.16",
     "can-connect": "^0.5.0",
+    "can-route": "^3.0.0-pre.9",
     "can-zone": "^0.5.0",
     "cannon": "^0.6.2",
     "done-autorender": "^0.8.0",

@@ -1,14 +1,19 @@
 import Component from 'can/component/';
 import Map from 'can/map/';
+//import route from 'can/route';
 import 'can/map/define/';
+//import route from 'can-route';
 import './babylon-canvas.less!';
 import template from './babylon-canvas.stache!';
 
 import 'cannon';
 import BABYLON from 'babylonjs/babylon.max';
 import '../../static/3d/js/babylon.objFileLoader.js';
+import CompressionTests from '../performance/compression';
 
 import { getControls, getTooltip } from '../../util/util.js';
+
+//route("compression");
 
 export const ViewModel = Map.extend({
   debug: true,
@@ -276,11 +281,6 @@ export const ViewModel = Map.extend({
           BABYLON.VertexData.ComputeNormals( positions, mesh.getIndices(), normals );
           mesh.setVerticesData( BABYLON.VertexBuffer.NormalKind, normals );
 
-          //var positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
-          //var normals = mesh.getVerticesData( BABYLON.VertexBuffer.NormalKind );
-          //
-          //BABYLON.VertexData.ComputeNormals( positions, mesh.getIndices(), normals );
-
           // if ( options.rotateNormals ) {
           //   vm.rotateNormals( mesh );
           // }
@@ -299,8 +299,9 @@ export const ViewModel = Map.extend({
           mesh.position = options.position;
           mesh.rotationQuaternion = options.rotation;
 
-          vm.addToShadowGenerator( mesh );
-
+          if (!options.skipshadow){
+            vm.addToShadowGenerator( mesh );
+          }
           if ( options.physics ) {
             vm.testSetPhysicsImpostor( mesh );
           }
@@ -319,252 +320,11 @@ export const ViewModel = Map.extend({
     },
 
     initTestSceneModels () {
-       var loader = this.getAssetsManager();
-
-       this.initTestChairModels(loader);
-       this.initTestFanModels(loader);
-
-       loader.load();
-    },
-
-    initTestChairModels(loader){
-      let rotateNormals = true;
-      let ypos = 0;
-      let zpos = 0;
-      let xspace = 0.9;
-      let xpos = -xspace;
-
-      let filename = "West_Chair_Leath_Brown_001.obj";
-
-
-      let position = new BABYLON.Vector3(xpos+= xspace, ypos, zpos);
-      let rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
-      this.testLoadModel({
-        filename: filename,
-        physics: false,
-        label: "Original .tga<br> Filesize: 100%",
-        position: position,
-        rotation:rotation,
-        rotateNormals: rotateNormals,
-        taskname: "chair"
-      }, loader);
-
-      position = new BABYLON.Vector3(xpos+= xspace, ypos, zpos);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
-      this.testLoadModel({
-        filename: filename,
-        physics: false,
-        label: ".png <br> Filesize: 33%",
-        position: position,
-        rotation:rotation,
-        rotateNormals: rotateNormals,
-        taskname: "chair1",
-        textures:{
-          diffuse:"compression/chair/diff.png"
-        }
-      }, loader);
-
-      position = new BABYLON.Vector3(xpos+= xspace, ypos, zpos);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
-      this.testLoadModel({
-        filename: filename,
-        physics: false,
-        label: ".png advcomp <br> Filesize: 32%",
-        position: position,
-        rotation:rotation,
-        rotateNormals: rotateNormals,
-        taskname: "chair1",
-        textures:{
-          diffuse:"compression/chair/diffa.png"
-        }
-      }, loader);
-
-      position = new BABYLON.Vector3(xpos+= xspace, ypos, zpos);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
-      this.testLoadModel({
-        filename: filename,
-        physics: false,
-        label: ".png advcomp pngquant <br> Filesize: 17%",
-        position: position,
-        rotation:rotation,
-        rotateNormals: rotateNormals,
-        taskname: "chair1",
-        textures:{
-          diffuse:"compression/chair/diffaq.png"
-        }
-      }, loader);
-
-      position = new BABYLON.Vector3(xpos+= xspace, ypos, zpos);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
-      this.testLoadModel({
-        filename: filename,
-        physics: false,
-        label: ".png posterize <br> Filesize: 14.81%",
-        position: position,
-        rotation:rotation,
-        rotateNormals: rotateNormals,
-        taskname: "chair2",
-        textures:{
-          diffuse:"compression/chair/diffp.png"
-        }
-      }, loader);
-
-      position = new BABYLON.Vector3(xpos+= xspace, ypos, zpos);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
-      this.testLoadModel({
-        filename: filename,
-        physics: false,
-        label: ".png posterize advcomp<br> Filesize: 10.83%",
-        position: position,
-        rotation:rotation,
-        rotateNormals: rotateNormals,
-        taskname: "chair3",
-        textures:{
-          diffuse:"compression/chair/diffp2.png"
-        }
-      }, loader);
-
-      position = new BABYLON.Vector3(xpos+= xspace, ypos, zpos);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
-      this.testLoadModel({
-        filename: filename,
-        physics: false,
-        label: ".png posterize advcomp pngquant<br> Filesize: 5%",
-        position: position,
-        rotation:rotation,
-        rotateNormals: rotateNormals,
-        taskname: "chair4",
-        textures:{
-          diffuse:"compression/chair/diffq2.png"
-        }
-      }, loader);
-    },
-
-    initTestFanModels(loader){
-      let rotateNormals = true;
-
-      let ypos = 1.25;
-      let zpos = 2.5;
-      let xspace = 1.4;
-      let xpos = -xspace;
-      let filename = "KidsPrin_CeFan_Wd_LtPurp_001.obj";
-
-      let position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
-      let rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
-      this.testLoadModel({
-        filename: filename,
-        physics: false,
-        label: ".tga Original<br> Filesize: 100%",
-        position: position,
-        rotation: rotation,
-        rotateNormals: rotateNormals,
-        taskname: "fan"
-      }, loader)
-
-      position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
-      this.testLoadModel({
-        filename: filename,
-        physics: false,
-        label: ".png<br> Filesize: 32.62%",
-        position: position,
-        rotation: rotation,
-        rotateNormals: rotateNormals,
-        taskname: "fan",
-        textures:{
-          diffuse:"compression/fan/fandiff.png"
-        }
-      }, loader);
-
-      position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
-      this.testLoadModel({
-        filename: filename,
-        physics: false,
-        label: ".png pngquant<br> Filesize: 9.45%",
-        position: position,
-        rotation: rotation,
-        rotateNormals: rotateNormals,
-        taskname: "fan",
-        textures:{
-          diffuse:"compression/fan/fandiffq.png"
-        }
-      }, loader);
-
-      position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
-      this.testLoadModel({
-        filename: filename,
-        physics: false,
-        label: ".png pngquant advcomp<br> Filesize: 8.76%",
-        position: position,
-        rotation: rotation,
-        rotateNormals: rotateNormals,
-        taskname: "fan",
-        textures:{
-          diffuse:"compression/fan/fandiffqa.png"
-        }
-      }, loader);
-
-      position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
-      this.testLoadModel({
-        filename: filename,
-        physics: false,
-        label: ".png posterize<br> Filesize: 12.3%",
-        position: position,
-        rotation: rotation,
-        rotateNormals: rotateNormals,
-        taskname: "fan",
-        textures:{
-          diffuse:"compression/fan/fandiffp.png"
-        }
-      }, loader);
-
-      position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
-      this.testLoadModel({
-        filename: filename,
-        physics: false,
-        label: ".png posterize advcomp<br> Filesize: 10.83%",
-        position: position,
-        rotation: rotation,
-        rotateNormals: rotateNormals,
-        taskname: "fan",
-        textures:{
-          diffuse:"compression/fan/fandiffpa.png"
-        }
-      }, loader);
-
-      position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
-      this.testLoadModel({
-        filename: filename,
-        physics: false,
-        label: ".png posterize pngquant<br> Filesize: 5.92%",
-        position: position,
-        rotation: rotation,
-        rotateNormals: rotateNormals,
-        taskname: "fan",
-        textures:{
-          diffuse:"compression/fan/fandiffpq.png"
-        }
-      }, loader);
-
-      position = new BABYLON.Vector3(xpos += xspace, ypos, zpos);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
-      this.testLoadModel({
-        filename: filename,
-        physics: false,
-        label: ".png posterize pngquant advcomp<br> Filesize: 5.44%",
-        position: position,
-        rotation: rotation,
-        rotateNormals: rotateNormals,
-        taskname: "fan",
-        textures:{
-          diffuse:"compression/fan/fandiffpqa.png"
-        }
-      }, loader);
+      switch( location.search){
+        case "?test=compression":
+          CompressionTests(BABYLON, this.attr("scene"), this);
+          break;
+      }
     },
 
     changeColor () {
@@ -682,6 +442,7 @@ export const ViewModel = Map.extend({
         rotateNormals: true,
         taskname: "ground",
         skipTag:true,
+        skipshadow: true,
         success: function(a_item){
 
           for (var i = 0; i < a_item.meshes.length; ++i){
@@ -767,8 +528,8 @@ export const ViewModel = Map.extend({
   /* end Demo/Test Functions */
 
   addToShadowGenerator ( mesh ) {
-    this.attr( "shadowGenerator" ).getShadowMap().renderList.push( mesh );
-    this.attr( "hemisShadowGen" ).getShadowMap().renderList.push( mesh );
+      this.attr( "shadowGenerator" ).getShadowMap().renderList.push( mesh );
+      this.attr( "hemisShadowGen" ).getShadowMap().renderList.push( mesh );
   },
 
   initLights () {
@@ -779,12 +540,12 @@ export const ViewModel = Map.extend({
     hemisphericLight.groundColor = new BABYLON.Color3( 1, 1, 1 );
     hemisphericLight.intensity = 1.0;
 
-    var normalDirLight = new BABYLON.PointLight("dirlight1", new BABYLON.Vector3(0, 20, 0), scene);
+    var normalDirLight = new BABYLON.DirectionalLight("dirlight1", new BABYLON.Vector3(0, -1, 0), scene);
     
     var hemisShadowGen = new BABYLON.ShadowGenerator( 1024, normalDirLight );
     hemisShadowGen.setDarkness( 0.75 );
-    hemisShadowGen.usePoissonSampling = true;
-    hemisShadowGen.bias *= 0.5;
+    //hemisShadowGen.useBlurVarianceShadowMap = true;
+    hemisShadowGen.bias *= 0.05;
 
     var pointLight = new BABYLON.PointLight( "pointlight", new BABYLON.Vector3( 0, 3, 0 ), scene );
 

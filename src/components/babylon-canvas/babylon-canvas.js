@@ -1,19 +1,33 @@
 import Component from 'can/component/';
 import Map from 'can/map/';
-//import route from 'can/route';
 import 'can/map/define/';
-//import route from 'can-route';
 import './babylon-canvas.less!';
 import template from './babylon-canvas.stache!';
 
 import 'cannon';
 import BABYLON from 'babylonjs/babylon.max';
 import '../../static/3d/js/babylon.objFileLoader.js';
-import CompressionTests from '../performance/compression';
 
 import { getControls, getTooltip } from '../../util/util.js';
 
-//route("compression");
+/*
+Tests
+ */
+import CompressionTests from '../performance/compression';
+// Loading tests
+import LoadingBabylonTests from '../performance/loadingbabylon';
+import LoadingTgaTests from '../performance/loadingtga';
+import LoadingZipTests from '../performance/loadingzip';
+// Draw performance tests
+import Draw1000 from '../performance/draw1000';
+import Draw2500 from '../performance/draw2500';
+// Triangle tests
+import Tri100 from '../performance/tri100';
+import Tri250 from '../performance/tri250';
+import Tri500 from '../performance/tri500';
+import Tri1000 from '../performance/tri1000';
+import Tri2000 from '../performance/tri2000';
+import Tri5000 from '../performance/tri5000';
 
 export const ViewModel = Map.extend({
   debug: true,
@@ -223,33 +237,36 @@ export const ViewModel = Map.extend({
         options.filename
       );
 
-      /**
-       * Returns a closure for the for loop to check material for each mesh
-       * @param mesh
-       * @returns {Function}
-       */
-      function checkMaterial(mesh){
-        // Function for set timeout loop
-        function checkmaterial(){
-          var material = mesh.material;
-          if (material){
-            var scene = vm.attr( "scene" );
-            if (options.textures.diffuse){
-              let url = vm.attr( "static3DAssetPath" ) + options.textures.diffuse;
-              material.diffuseTexture = new BABYLON.Texture(url, scene);
+      if (options.textures){
+        /**
+         * Returns a closure for the for loop to check material for each mesh
+         * @param mesh
+         * @returns {Function}
+         */
+        function checkMaterial(mesh){
+          // Function for set timeout loop
+          function checkmaterial(){
+            var material = mesh.material;
+            if (material){
+              var scene = vm.attr( "scene" );
+              if (options.textures.diffuse){
+                let url = vm.attr( "static3DAssetPath" ) + options.textures.diffuse;
+                material.diffuseTexture = new BABYLON.Texture(url, scene);
+              }
+              if (options.textures.normal){
+                let url = vm.attr( "static3DAssetPath" ) + options.textures.normal;
+                material.bumpTexture = new BABYLON.Texture(url, scene);
+              }
             }
-            if (options.textures.normal){
-              let url = vm.attr( "static3DAssetPath" ) + options.textures.normal;
-              material.bumpTexture = new BABYLON.Texture(url, scene);
+            else{
+              setTimeout(checkmaterial, 50);
             }
           }
-          else{
-            setTimeout(checkmaterial, 50);
-          }
-        }
 
-        setTimeout(checkmaterial, 50);
+          setTimeout(checkmaterial, 50);
+        }
       }
+
 
       task.onSuccess = function (t) {
 
@@ -323,6 +340,50 @@ export const ViewModel = Map.extend({
       switch( location.search){
         case "?test=compression":
           CompressionTests(BABYLON, this.attr("scene"), this);
+          break;
+        /*
+          Loading tests
+         */
+        case "?test=loadingbabylon":
+          LoadingBabylonTests(BABYLON, this);
+          break;
+        case "?test=loadingtga":
+          LoadingTgaTests(BABYLON, this);
+          break;
+        case "?test=loadingzip":
+          LoadingZipTests(BABYLON, this);
+          break;
+        /*
+          Draw call tests
+         */
+        case "?test=draw1000":
+          Draw1000(BABYLON, this);
+          break;
+        case "?test=draw2500":
+          Draw2500(BABYLON, this);
+          break;
+        case "?test=draw5000":
+          break;
+        /*
+          Triangle tests
+         */
+        case "?test=tri100":
+          Tri100(BABYLON, this);
+          break;
+        case "?test=tri250":
+          Tri250(BABYLON, this);
+          break;
+        case "?test=tri500":
+          Tri500(BABYLON, this);
+          break;
+        case "?test=tri1000":
+          Tri1000(BABYLON, this);
+          break;
+        case "?test=tri2000":
+          Tri2000(BABYLON, this);
+          break;
+        case "?test=tri5000":
+          Tri5000(BABYLON, this);
           break;
       }
     },
@@ -575,6 +636,7 @@ export const ViewModel = Map.extend({
     var scene = this.attr( "scene" );
     scene.clearColor = new BABYLON.Color3( 1, 1, 1 );
 
+
     window.scene = scene;
     window.BABYLON = BABYLON;
 
@@ -633,7 +695,7 @@ export default Component.extend({
 
       vm.initScene();
 
-      vm.initTestGroundPlane();
+      //vm.initTestGroundPlane();
 
       vm.initLights();
       vm.initSkybox();

@@ -10,6 +10,8 @@ import '../../static/3d/js/babylon.objFileLoader.js';
 
 import { getControls, getTooltip } from '../../util/util.js';
 
+import Constants from '../../models/constants.js';
+
 export const ViewModel = Map.extend({
   define: {
     items: {
@@ -652,6 +654,15 @@ export default Component.extend({
     init () {
       var vm = this.viewModel;
       vm.attr( "$el", this.element );
+
+      var constantsPromise = Constants.get({
+        requestType: "materialList",
+        format: "json"
+      });
+
+      constantsPromise.then( ( materialConstants ) => {
+        console.log( "success:", materialConstants );
+      });
     },
     inserted () {
       var vm = this.viewModel;

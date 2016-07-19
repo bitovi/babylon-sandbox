@@ -7,6 +7,11 @@ import { childVM } from '../../util/util.js';
 import $ from 'jquery';
 import { isServer } from '../../util/environment';
 
+//!steal-remove-start
+// if you want fixtures in production, don't wrap this import in steal-remove- comments
+import '../../models/fixtures/fixtures.js';
+//!steal-remove-end
+
 export const ViewModel = Map.extend({
   define: {
     isServer: {

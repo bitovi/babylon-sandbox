@@ -26,10 +26,8 @@
       "lib": "src"
     },
     "configDependencies": [
-      "live-reload",
       "node_modules/can-zone/register"
     ],
-    "npmAlgorithm": "flat",
     "meta": {
       "cannon": {
         "format": "global"
@@ -40,6 +38,7 @@
     "babylonjs": "^2.4.0",
     "can": "^2.3.16",
     "can-connect": "^0.5.0",
+    "can-set": "^0.5.6",
     "can-zone": "^0.5.0",
     "cannon": "^0.6.2",
     "done-autorender": "^0.8.0",
@@ -51,7 +50,7 @@
     "steal": "^0.16.0"
   },
   "devDependencies": {
-    "can-fixture": "^0.1.2",
+    "can-fixture": "0.4.0-pre.6",
     "documentjs": "^0.4.2",
     "donejs-cli": "^0.9.4",
     "donejs-deploy": "^0.4.0",

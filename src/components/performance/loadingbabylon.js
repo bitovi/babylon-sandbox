@@ -3,7 +3,7 @@
  */
 "use strict";
 function loadModels(BABYLON, vm, loader){
-  BABYLON.SceneLoader.loggingLevel = BABYLON.SceneLoader.DETAILED_LOGGING;
+  //BABYLON.SceneLoader.loggingLevel = BABYLON.SceneLoader.DETAILED_LOGGING;
 
   var position = new BABYLON.Vector3(0, 0, 0);
   var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);

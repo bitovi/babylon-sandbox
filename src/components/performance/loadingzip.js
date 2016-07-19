@@ -1,15 +1,74 @@
-import JSZip from 'jszip';
+import JSZip from 'jszip/dist/jszip';
 
-function loadModels(BABYLON, vm, loader){
-  console.log(JSZip);
+var total = 0, count = 0, start;
+
+function loadModels(BABYLON, vm){
+
+  //total = 7;
+
+  let position = new BABYLON.Vector3(0, 0, 0);
+  let rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
+  loadModel(BABYLON, vm, {
+    filename: "Colo_Rug_Fab_LtBrown_001.zip",
+    position: position,
+    rotation:rotation
+  });
+
+  position = new BABYLON.Vector3(2, 0, 0);
+  rotation = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI * -0.5, 0, 0);
+  loadModel(BABYLON, vm, {
+    filename: "West_Chair_Leath_Brown_001.zip",
+    position: position,
+    rotation:rotation
+  });
+
+  position = new BABYLON.Vector3(-2, 0, 0);
+  rotation = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI * 0.5, 0, 0);
+  loadModel(BABYLON, vm, {
+    filename: "West_Chair_Leath_Brown_001.zip",
+    position: position,
+    rotation:rotation
+  });
+
+  position = new BABYLON.Vector3(0, 0, 2);
+  rotation = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI, 0, 0);
+  loadModel(BABYLON, vm, {
+    filename: "West_Chair_Leath_Brown_001.zip",
+    position: position,
+    rotation:rotation
+  });
+
+  position = new BABYLON.Vector3(0, 0, -2);
+  rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
+  loadModel(BABYLON, vm, {
+    filename: "West_Chair_Leath_Brown_001.zip",
+    position: position,
+    rotation:rotation
+  });
+
+  position = new BABYLON.Vector3(0, 3, 0);
+  rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
+  loadModel(BABYLON, vm, {
+    filename: "KidsPrin_CeFan_Wd_LtPurp_001.zip",
+    position: position,
+    rotation:rotation
+  });
+
+  position = new BABYLON.Vector3(0, 0, 0);
+  rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
+  loadModel(BABYLON, vm, {
+    filename: "KidsJng_Bed_Wd_LtBrown_002.zip",
+    position: position,
+    rotation:rotation
+  });
 }
 
 function loadModel(BABYLON, vm, options){
   let items = vm.attr("items");
+  total++;
+  options.root = vm.static3DAssetPath + "loadingzip/";
 
-  options.root = vm.static3DAssetPath + "loadingzip";
-
-  let url = options.root + options.filename;
+  const url = options.root + options.filename;
 
   let xhr = new XMLHttpRequest();
   xhr.open('GET', url, true);
@@ -17,45 +76,108 @@ function loadModel(BABYLON, vm, options){
 
   xhr.onload = function(e) {
     if (this.status == 200) {
+      // Set the arrayBuffer
+      let arrayBuffer = xhr.response;
+      if (arrayBuffer) {
 
+        let jszip = new JSZip();
+        // Load the zipfile from arraybuffer
+        jszip.loadAsync(arrayBuffer).then(function (zip) {
+
+          let babylonFile;
+          let textures = [];
+          // Iterate over files to find the .babylon file and textures
+          for (var key in zip.files) {
+            if (key.endsWith(".babylon")) {
+              babylonFile = zip.files[key];
+            } else {
+              textures.push(zip.files[key]);
+            }
+          }
+
+          let scene = vm.attr("scene");
+          let engine = scene.getEngine();
+          let texturesLoaded = 0;
+
+          function loadMesh() {
+            babylonFile.async("string").then(function (text) {
+              BABYLON.SceneLoader.ImportMesh("", "", "data:" + text, scene, function (meshes) {
+
+                let item = {
+                  name: babylonFile.name,
+                  meshes: meshes
+                };
+                items.push(item);
+                // Set the models position
+                for (let i = 0; i < item.meshes.length; ++i) {
+                  let mesh = item.meshes[i];
+                  mesh.e_item = item;
+
+                  if (!mesh.parent) {
+                    continue;
+                  }
+
+                  mesh.tag = 1;
+                  mesh.label = options.label;
+
+                  mesh.receiveShadows = true;
+                  mesh.position = options.position;
+                  mesh.rotationQuaternion = options.rotation;
+                }
+
+                if (options.success) {
+                  options.success(item);
+                }
+
+                count++;
+                if (count >= total) {
+                  let finish = (performance.now() - start) * 0.001;
+                  console.log("Took " + finish + "s to finish");
+                  //scene.getEngine().loadingScreen.hideLoadingUI();
+                }
+              });
+              // Babylon async
+            });
+          }
+
+          // Load textures before .babylon file so cache will trigger
+          textures.forEach(function (texture) {
+            texture.async("arraybuffer").then(function (data) {
+              // Create the texture
+              var tex = new BABYLON.Texture("data:" + texture.name, scene, undefined, true, BABYLON.Texture.TRILINEAR_SAMPLINGMODE, null, null, data, true);
+
+              tex.getInternalTexture().url = tex.url.substr(5);
+
+              texturesLoaded++;
+              if (texturesLoaded >= textures.length) {
+                loadMesh();
+              }
+              // Texture async
+            }).catch(function (reason) {
+              console.log(reason);
+            });
+          });
+          // JsZip async
+        }).catch(function (reason) {
+          console.log(reason);
+        });
+      // End if arraybuffer
+      }
+    // Xhr status 200
     }
+  // Xhr onload
   };
 
   xhr.send();
-
-  // task.onSuccess = function (t) {
-  //   var item = {
-  //     name: t.name,
-  //     meshes: t.loadedMeshes
-  //   };
-  //   items.push( item );
-  //   // Set the models position
-  //   for ( var i = 0; i < item.meshes.length; ++i ) {
-  //     var mesh = item.meshes[i];
-  //     mesh.e_item = item;
-  //
-  //     var positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
-  //     var normals = mesh.getVerticesData( BABYLON.VertexBuffer.NormalKind );
-  //
-  //     BABYLON.VertexData.ComputeNormals( positions, mesh.getIndices(), normals );
-  //     mesh.setVerticesData( BABYLON.VertexBuffer.NormalKind, normals );
-  //
-  //     mesh.tag = 1;
-  //     mesh.label = options.label;
-  //
-  //     mesh.receiveShadows = true;
-  //     mesh.position = options.position;
-  //     mesh.rotationQuaternion = options.rotation;
-  //   }
-  //
-  //   if ( options.success ) {
-  //     options.success( item );
-  //   }
-  // };
-  //
-  // return task;
 }
 
-export default function(BABYLON, vm){
-  loadModels(BABYLON, vm, loader);
+export default function(BABYLON, vm) {
+
+  start = performance.now();
+  console.log("started: " + start * 0.001);
+
+  //vm.attr("scene").getEngine().loadingScreen.displayLoadingUI();
+
+  loadModels(BABYLON, vm);
+
 }

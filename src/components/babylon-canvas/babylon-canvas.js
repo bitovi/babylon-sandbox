@@ -260,7 +260,9 @@ export const ViewModel = Map.extend({
           mesh.position = options.position;
           mesh.rotationQuaternion = options.rotation;
 
-          vm.addToShadowGenerator( mesh );
+          if ( !options.skipshadow ) {
+            vm.addToShadowGenerator( mesh );
+          }
 
           if ( options.physics ) {
             vm.testSetPhysicsImpostor( mesh );
@@ -481,6 +483,7 @@ export const ViewModel = Map.extend({
         rotateNormals: true,
         taskname: "ground",
         skipTag:true,
+        skipshadow: true,
         success: function(a_item){
 
           for (var i = 0; i < a_item.meshes.length; ++i){
@@ -578,12 +581,13 @@ export const ViewModel = Map.extend({
     hemisphericLight.groundColor = new BABYLON.Color3( 1, 1, 1 );
     hemisphericLight.intensity = 1.0;
 
-    var normalDirLight = new BABYLON.PointLight("dirlight1", new BABYLON.Vector3(0, 20, 0), scene);
+    var normalDirLight = new BABYLON.DirectionalLight( "dirlight1", new BABYLON.Vector3( 0, -1, 0 ), scene );
     
     var hemisShadowGen = new BABYLON.ShadowGenerator( 1024, normalDirLight );
     hemisShadowGen.setDarkness( 0.75 );
-    hemisShadowGen.usePoissonSampling = true;
-    hemisShadowGen.bias *= 0.5;
+    //hemisShadowGen.usePoissonSampling = true; //PointLight
+    //hemisShadowGen.useBlurVarianceShadowMap = true;
+    hemisShadowGen.bias *= 0.05;
 
     var pointLight = new BABYLON.PointLight( "pointlight", new BABYLON.Vector3( 0, 3, 0 ), scene );
 

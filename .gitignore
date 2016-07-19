@@ -35,3 +35,8 @@ cache/
 
 # Webstorm
 .idea/
+
+# Visual studio
+.*suo
+bin/
+obj/

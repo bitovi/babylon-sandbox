@@ -40,7 +40,6 @@
     "babylonjs": "^2.4.0",
     "can": "^2.3.16",
     "can-connect": "^0.5.0",
-    "can-route": "^3.0.0-pre.9",
     "can-zone": "^0.5.0",
     "cannon": "^0.6.2",
     "done-autorender": "^0.8.0",
@@ -49,6 +48,7 @@
     "done-serve": "^0.2.0",
     "generator-donejs": "^0.9.0",
     "jquery": "~2.2.1",
+    "jszip": "^3.0.0",
     "steal": "^0.16.0"
   },
   "devDependencies": {

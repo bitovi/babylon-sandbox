@@ -1,4 +1,5 @@
 import JSZip from 'jszip/dist/jszip';
+import $ from 'jquery';
 
 var total = 0, count = 0, start;
 
@@ -66,18 +67,132 @@ function loadModels(BABYLON, vm){
 function loadModel(BABYLON, vm, options){
   let items = vm.attr("items");
   total++;
-  options.root = vm.static3DAssetPath + "loadingzip/";
+  options.root = "https://cdn.testing.egowall.com/CDN/temp_test/";//vm.static3DAssetPath + "loadingzip/";
 
   const url = options.root + options.filename;
 
   let xhr = new XMLHttpRequest();
   xhr.open('GET', url);
-  xhr.responseType = 'arraybuffer';
+  //xhr.responseType = 'arraybuffer';
 
   let modelStart = performance.now();
 
   logTime("loadModel called at: ", modelStart, start);
+  $.ajax({
+    url: url,
+    type:"get",
+    dataType : "binary",
+    xhrFields : {
+      responseType : "arraybuffer"
+    },
+    success:function(data){
+      let arrayBuffer = data;
+      if (arrayBuffer) {
 
+        let ajaxFinished = performance.now();
+        logTime("ajax finished", ajaxFinished, modelStart);
+
+
+        let jszip = new JSZip();
+        // Load the zipfile from arraybuffer
+        jszip.loadAsync(arrayBuffer).then(function (zip) {
+
+          let unzipped = performance.now();
+
+          let babylonFile;
+          let textures = [];
+          // Iterate over files to find the .babylon file and textures
+          for (var key in zip.files) {
+            if (key.endsWith(".babylon")) {
+              babylonFile = zip.files[key];
+            } else {
+              textures.push(zip.files[key]);
+            }
+          }
+
+          let scene = vm.attr("scene");
+          let texturesInitialized = 0;
+
+          function loadMesh() {
+
+            let babylonFileStart = performance.now();
+            logTime("model start unzipping", babylonFileStart, modelStart);
+
+            babylonFile.async("string").then(function (text) {
+
+              let babylonUnzipped = performance.now();
+              logTime( "model unzipped", babylonUnzipped, modelStart );
+              BABYLON.SceneLoader.ImportMesh("", "", "data:" + text, scene, function (meshes) {
+                let babylonParsed = performance.now();
+                let item = {
+                  name: babylonFile.name,
+                  meshes: meshes
+                };
+                items.push(item);
+                // Set the models position
+                for (let i = 0; i < item.meshes.length; ++i) {
+                  let mesh = item.meshes[i];
+                  mesh.e_item = item;
+
+                  if (!mesh.parent) {
+                    continue;
+                  }
+
+                  mesh.tag = 1;
+                  mesh.label = options.label;
+
+                  mesh.receiveShadows = true;
+                  mesh.position = options.position;
+                  mesh.rotationQuaternion = options.rotation;
+                }
+
+                logTime("model fully loaded:", babylonParsed, modelStart);
+
+                if (options.success) {
+                  options.success(item);
+                }
+                everythingLoaded(vm);
+              });
+              // Babylon async
+            });
+            // Load mesh
+          }
+
+          // Load textures before .babylon file so cache will trigger
+          textures.forEach(function (texture) {
+            let textureStart = performance.now();
+            logTime("iterating textures", textureStart, modelStart);
+
+            texture.async("arraybuffer").then(function (data) {
+              let textureUnzipped = performance.now();
+
+              logTime("texture unzipped:", textureUnzipped, modelStart);
+              // Create the texture
+              var tex = new BABYLON.Texture("data:" + texture.name, scene, undefined, true, BABYLON.Texture.TRILINEAR_SAMPLINGMODE, null, null, data, true);
+              let textureParsed = performance.now();
+              tex.getInternalTexture().url = tex.url.substr(5);
+
+              logTime("texture unzipped:", textureParsed, modelStart);
+
+
+              texturesInitialized++;
+              if (texturesInitialized >= textures.length) {
+                loadMesh();
+              }
+              // Texture async
+            }).catch(function (reason) {
+              console.log(reason);
+            });
+          });
+          // JsZip async
+        }).catch(function (reason) {
+          console.log(reason);
+        });
+        // End if arraybuffer
+      }
+    }
+  })
+  /*
   xhr.onload = function(e) {
     if (this.status == 200) {
       // Set the arrayBuffer
@@ -190,7 +305,7 @@ function loadModel(BABYLON, vm, options){
   // Xhr onload
   };
 
-  xhr.send();
+  xhr.send();*/
 }
 
 function logTime(msg, finish, start){

@@ -2,6 +2,11 @@
  * Created on 2016-07-18.
  */
 "use strict";
+
+var items = [];
+var materialsReady = false;
+var modelsReady = false;
+
 function loadModels(BABYLON, vm, loader){
   //BABYLON.SceneLoader.loggingLevel = BABYLON.SceneLoader.DETAILED_LOGGING;
 
@@ -63,9 +68,10 @@ function loadModels(BABYLON, vm, loader){
 }
 
 function loadModel(BABYLON, vm, options, loader){
-  var items = vm.attr("items");
+  //var items = vm.attr("items");
 
-  options.root = vm.static3DAssetPath + "loadingbabylon/";
+  options.root = "https://cdn.testing.egowall.com/CDN/temp_test/raw/";
+  //options.root = vm.static3DAssetPath + "loadingbabylon/";
 
   var task = loader.addMeshTask(
     options.filename,
@@ -89,10 +95,6 @@ function loadModel(BABYLON, vm, options, loader){
 
         if (!mesh.parent){
           continue;
-        }
-
-        if (mesh.material){
-
         }
 
         mesh.tag = 1;
@@ -122,8 +124,28 @@ export default function(BABYLON, vm){
   console.log(now);
 
   loader.onFinish = function(){
-    var now = "finished: " + ((performance.now() * 0.001) - start);
-    console.log(now);
+    //var now = "finished: " + ((performance.now() * 0.001) - start);
+    let scene = vm.attr("scene");
+    var materialCount = 0;
+    var materialTotal = scene.materials.length;
+
+    scene.materials.forEach(function(material){
+      let intervalId = setInterval(function check(){
+        if (material.isReady()){
+          clearInterval(intervalId);
+          materialCount++;
+
+          if (materialCount >= materialTotal){
+            var finished = performance.now() * 0.001;
+           console.log("finished loading " + (finished - start));
+          }
+        }
+      }, 50);
+    });
+
+    // for (var i = 0; i < items.length; ++i){
+    //   console.log( items[i] );
+    // }
   };
 
   loadModels(BABYLON, vm, loader);

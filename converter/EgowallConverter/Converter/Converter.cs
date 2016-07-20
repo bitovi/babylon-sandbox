@@ -79,11 +79,11 @@ namespace EgowallConverter.Converter
             {
                 if (ProcessFile(file))
                 {
-                    Console.WriteLine("Succesfully processed" + file, ConsoleColor.Gray);
+                    Console.WriteLine("Succesfully processed " + file, ConsoleColor.Gray);
                 }
                 else
                 {
-                    Console.WriteLine("Failed to process" + file, ConsoleColor.Red);
+                    Console.WriteLine("Failed to process " + file, ConsoleColor.Red);
                 }
             }           
         }

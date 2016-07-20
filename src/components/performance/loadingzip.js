@@ -71,8 +71,12 @@ function loadModel(BABYLON, vm, options){
   const url = options.root + options.filename;
 
   let xhr = new XMLHttpRequest();
-  xhr.open('GET', url, true);
+  xhr.open('GET', url);
   xhr.responseType = 'arraybuffer';
+
+  let modelStart = performance.now();
+
+  logTime("loadModel called at: ", modelStart, start);
 
   xhr.onload = function(e) {
     if (this.status == 200) {
@@ -80,9 +84,15 @@ function loadModel(BABYLON, vm, options){
       let arrayBuffer = xhr.response;
       if (arrayBuffer) {
 
+        let ajaxFinished = performance.now();
+        logTime("ajax finished", ajaxFinished, modelStart);
+
+
         let jszip = new JSZip();
         // Load the zipfile from arraybuffer
         jszip.loadAsync(arrayBuffer).then(function (zip) {
+
+          let unzipped = performance.now();
 
           let babylonFile;
           let textures = [];
@@ -96,13 +106,19 @@ function loadModel(BABYLON, vm, options){
           }
 
           let scene = vm.attr("scene");
-          let engine = scene.getEngine();
-          let texturesLoaded = 0;
+          let texturesInitialized = 0;
 
           function loadMesh() {
-            babylonFile.async("string").then(function (text) {
-              BABYLON.SceneLoader.ImportMesh("", "", "data:" + text, scene, function (meshes) {
 
+            let babylonFileStart = performance.now();
+            logTime("model start unzipping", babylonFileStart, modelStart);
+
+            babylonFile.async("string").then(function (text) {
+
+              let babylonUnzipped = performance.now();
+              logTime( "model unzipped", babylonUnzipped, modelStart );
+              BABYLON.SceneLoader.ImportMesh("", "", "data:" + text, scene, function (meshes) {
+                let babylonParsed = performance.now();
                 let item = {
                   name: babylonFile.name,
                   meshes: meshes
@@ -125,39 +141,45 @@ function loadModel(BABYLON, vm, options){
                   mesh.rotationQuaternion = options.rotation;
                 }
 
+                logTime("model fully loaded:", babylonParsed, modelStart);
+
                 if (options.success) {
                   options.success(item);
                 }
-
-                count++;
-                if (count >= total) {
-                  let finish = (performance.now() - start) * 0.001;
-                  console.log("Took " + finish + "s to finish");
-                  //scene.getEngine().loadingScreen.hideLoadingUI();
-                }
+                everythingLoaded(vm);
               });
-              // Babylon async
+            // Babylon async
             });
+          // Load mesh
           }
 
           // Load textures before .babylon file so cache will trigger
           textures.forEach(function (texture) {
+            let textureStart = performance.now();
+            logTime("iterating textures", textureStart, modelStart);
+
             texture.async("arraybuffer").then(function (data) {
+              let textureUnzipped = performance.now();
+
+              logTime("texture unzipped:", textureUnzipped, modelStart);
               // Create the texture
               var tex = new BABYLON.Texture("data:" + texture.name, scene, undefined, true, BABYLON.Texture.TRILINEAR_SAMPLINGMODE, null, null, data, true);
-
+              let textureParsed = performance.now();
               tex.getInternalTexture().url = tex.url.substr(5);
 
-              texturesLoaded++;
-              if (texturesLoaded >= textures.length) {
+              logTime("texture unzipped:", textureParsed, modelStart);
+
+
+              texturesInitialized++;
+              if (texturesInitialized >= textures.length) {
                 loadMesh();
               }
-              // Texture async
+            // Texture async
             }).catch(function (reason) {
               console.log(reason);
             });
           });
-          // JsZip async
+        // JsZip async
         }).catch(function (reason) {
           console.log(reason);
         });
@@ -171,13 +193,31 @@ function loadModel(BABYLON, vm, options){
   xhr.send();
 }
 
+function logTime(msg, finish, start){
+  var time = (finish - start) * 0.001;
+  console.log(msg, time);
+}
+
+function everythingLoaded(vm){
+  count++;
+  if (count >= total) {
+    let finish = (performance.now() - start) * 0.001;
+    console.log("Took " + finish + "s to finish");
+    let scene = vm.attr("scene");
+    let engine = scene.getEngine();
+    engine.hideLoadingUI();
+    //engine.runRenderLoop();
+  }
+}
+
 export default function(BABYLON, vm) {
 
-  start = performance.now();
-  console.log("started: " + start * 0.001);
+  let engine = vm.attr("scene").getEngine();
+  engine.displayLoadingUI();
+  engine.stopRenderLoop(vm.renderLoop);
 
-  //vm.attr("scene").getEngine().loadingScreen.displayLoadingUI();
+  start = performance.now();
+  console.log("started: " + start * 0.001)
 
   loadModels(BABYLON, vm);
-
 }

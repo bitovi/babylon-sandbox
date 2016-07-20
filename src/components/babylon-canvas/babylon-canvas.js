@@ -690,9 +690,19 @@ export default Component.extend({
       vm.attr({
         "canvas": canvas,
         "engine": engine,
-        "scene": scene
-      });
+        "scene": scene,
+        "renderLoop": function () {
+          vm.attr({
+            "deltaTime": engine.deltaTime,
+            "renderCount": renderCount
+          });
 
+          scene.render();
+          renderCount = ( renderCount + 1 ) % 100;
+
+          vm.testUpdatePointLights();
+        }
+      });
       vm.initScene();
 
       //vm.initTestGroundPlane();
@@ -704,17 +714,8 @@ export default Component.extend({
       vm.initTestSceneModels();
 
       var renderCount = 0;
-      engine.runRenderLoop(function () {
-        vm.attr({
-          "deltaTime": engine.deltaTime,
-          "renderCount": renderCount
-        });
 
-        scene.render();
-        renderCount = ( renderCount + 1 ) % 100;
-
-        vm.testUpdatePointLights();
-      });
+      engine.runRenderLoop(vm.renderLoop);
 
       controls[ "context" ] = this.viewModel;
       getControls().registerControls( controls.name, controls );

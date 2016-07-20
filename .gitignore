@@ -37,7 +37,9 @@ cache/
 .idea/
 
 # Visual studio
-.*suo
+*.suo
+*.sdf
 bin/
 obj/
 packages/
+.vs/

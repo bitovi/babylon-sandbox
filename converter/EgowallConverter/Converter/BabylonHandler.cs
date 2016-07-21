@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using System.Threading;
 using System.Globalization;
+using Newtonsoft.Json.Linq;
 
 namespace EgowallConverter.Converter
 {
@@ -78,6 +79,34 @@ namespace EgowallConverter.Converter
                 materialsIds[id] = name;
 
                 material.id = name;
+
+                // Iterate over all properties to find object types
+                foreach (JProperty prop in material)
+                {
+                              
+                    // There's a layer between prop and its values
+                    // { prop: { value } }                
+                    foreach (JToken child in prop.Children())
+                    {                     
+                        // Check if { value } has 4 children+    
+                        // A texture should have 18
+                        if (child.Count() > 5)
+                        {
+                            // Iterate over the textureProp children
+                            foreach (JProperty textureChild in child.Children())
+                            {
+                                // Find the one we need
+                                if (textureChild.Name == "name")
+                                {                      
+                                    string textureName = textureChild.ToObject<string>();
+                                    textureChild.Value = "data:" + textureName;
+                                    // No need to check the rest
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             foreach (dynamic multimaterial in rootObject.multiMaterials)

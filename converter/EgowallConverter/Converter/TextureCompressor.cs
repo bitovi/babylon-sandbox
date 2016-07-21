@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -14,16 +15,10 @@ namespace EgowallConverter.Converter
         public const string AdvPngPath = "/Dependancies/advpng.exe";
         public const string PngQuantPath = "/Dependancies/pngquant.exe";
 
-        private List<string> m_tgaFiles;
-        private List<string> m_pngFiles;
-
-        private string m_currentPngFile;
-        private string m_currentTgaFile;
+        public static bool Base64Encoding = true;
 
         public TextureCompressor()
-        {
-            m_tgaFiles = new List<string>();
-            m_pngFiles = new List<string>();
+        {           
         }
 
         /// <summary>
@@ -96,6 +91,46 @@ namespace EgowallConverter.Converter
                 Converter.LogMessage("AdvPng failed to run for: " + a_file, ConsoleColor.Red);
                 return false;
             }
+
+//            if (Base64Encoding)
+//            {
+//#if DEBUG
+//                Converter.LogMessage("Running Convert Png to Base64", ConsoleColor.Cyan);
+//#endif
+//                if (!ConvertPngTobase64(output))
+//                {
+//                    Converter.LogMessage("Failed to convert png to base64: " + a_file, ConsoleColor.Red);
+//                    return false;
+
+//                }
+//            }
+
+
+            return true;
+        }
+
+        private bool ConvertPngTobase64(string a_file)
+        {
+            string base64String = "";          
+            using (Image image = Image.FromFile(a_file))
+            {
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    // Convert Image to byte[]
+                    image.Save(ms, image.RawFormat);
+                    byte[] imageBytes = ms.ToArray();
+
+                    // Convert byte[] to Base64 String
+                    base64String = Convert.ToBase64String(imageBytes);
+                                      
+                }
+            }
+
+            using (StreamWriter sw = new StreamWriter(a_file))
+            {
+                sw.WriteLine("data:image/png;base64," + base64String);
+            }
+
 
             return true;
         }

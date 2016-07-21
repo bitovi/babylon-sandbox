@@ -45,8 +45,10 @@ namespace EgowallConverter.Converter
                 return;
             }
 
-            Console.WriteLine("Started processing all files");           
-            
+            Console.WriteLine("Started processing all files");
+            // Start by clearing temp folder
+            CleanTemp();
+
             HandleDirectory(InputDirectory);
 
             LogMessage("Finished processing files", ConsoleColor.Green);                
@@ -111,7 +113,7 @@ namespace EgowallConverter.Converter
                     string outputDirectory = GetOutputDirectory(a_file);
                     m_zipBundler.CreateZipBundle(TempDirectory, babylonFile, outputDirectory);
 
-                    CleanTemp(a_file);
+                    CleanTemp();
 
                     return true;
                 }
@@ -142,9 +144,12 @@ namespace EgowallConverter.Converter
             return OutputDirectory + "/" + result;
         }
        
-        private void CleanTemp(string a_inputFile)
+        private void CleanTemp()
         {
-            Directory.Delete(TempDirectory, true);
+            if (Directory.Exists(TempDirectory))
+            {
+                Directory.Delete(TempDirectory, true);
+            }            
         }
 
         public static void LogMessage(string a_message, ConsoleColor a_color)

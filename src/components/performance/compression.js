@@ -70,6 +70,51 @@ function initTestChairModels(loader, vm, BABYLON){
   vm.testLoadModel({
     filename: filename,
     physics: false,
+    label: ".png pngquant quality 90-95 <br> Filesize: 17%",
+    position: position,
+    rotation:rotation,
+    rotateNormals: rotateNormals,
+    taskname: "chair1",
+    textures:{
+      diffuse:"compression/chair/diffq90-95.png"
+    }
+  }, loader);
+
+  position = new BABYLON.Vector3(xpos+= xspace, ypos, zpos);
+  rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
+  vm.testLoadModel({
+    filename: filename,
+    physics: false,
+    label: ".png pngquant quality 80-90 <br> Filesize: 17%",
+    position: position,
+    rotation:rotation,
+    rotateNormals: rotateNormals,
+    taskname: "chair1",
+    textures:{
+      diffuse:"compression/chair/diffq80-90.png"
+    }
+  }, loader);
+
+  position = new BABYLON.Vector3(xpos+= xspace, ypos, zpos);
+  rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
+  vm.testLoadModel({
+    filename: filename,
+    physics: false,
+    label: ".png pngquant quality 65-80 <br> Filesize: 17%",
+    position: position,
+    rotation:rotation,
+    rotateNormals: rotateNormals,
+    taskname: "chair1",
+    textures:{
+      diffuse:"compression/chair/diffq65-80.png"
+    }
+  }, loader);
+
+  position = new BABYLON.Vector3(xpos+= xspace, ypos, zpos);
+  rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
+  vm.testLoadModel({
+    filename: filename,
+    physics: false,
     label: ".png posterize <br> Filesize: 14.81%",
     position: position,
     rotation:rotation,

@@ -27,6 +27,7 @@ namespace EgowallConverter.Converter
 
         FbxExporter m_fbxExporter;
         BabylonHandler m_babylonHandler;
+        TextureCompressor m_textureCompressor = new TextureCompressor();
         ZipBundler m_zipBundler;
 
         public Converter()
@@ -44,7 +45,7 @@ namespace EgowallConverter.Converter
                 return;
             }
 
-            Console.WriteLine("Started processing fbx files");           
+            Console.WriteLine("Started processing all files");           
             
             HandleDirectory(InputDirectory);
 
@@ -78,12 +79,12 @@ namespace EgowallConverter.Converter
             foreach (string file in a_files)
             {
                 if (ProcessFile(file))
-                {
-                    Console.WriteLine("Succesfully processed " + file, ConsoleColor.Gray);
+                {                    
+                    LogMessage("Succesfully processed " + file, ConsoleColor.Gray);
                 }
                 else
                 {
-                    Console.WriteLine("Failed to process " + file, ConsoleColor.Red);
+                    LogMessage("Failed to process " + file, ConsoleColor.Red);
                 }
             }           
         }
@@ -105,8 +106,9 @@ namespace EgowallConverter.Converter
 
                     m_babylonHandler.ChangeMaterialId(babylonFile);
 
-                    string outputDirectory = GetOutputDirectory(a_file);
+                    m_textureCompressor.CompressImages(TempDirectory);
 
+                    string outputDirectory = GetOutputDirectory(a_file);
                     m_zipBundler.CreateZipBundle(TempDirectory, babylonFile, outputDirectory);
 
                     CleanTemp(a_file);

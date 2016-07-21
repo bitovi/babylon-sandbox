@@ -87,6 +87,10 @@ namespace EgowallConverter.Converter
                 Converter.LogMessage("PngQuant failed to run for: " + a_file, ConsoleColor.Red);
                 return false;
             }
+#if DEBUG
+            Converter.LogMessage("Running AdvPng", ConsoleColor.Cyan);
+#endif
+
             if (!RunAdvPng(output))
             {
                 Converter.LogMessage("AdvPng failed to run for: " + a_file, ConsoleColor.Red);
@@ -100,11 +104,45 @@ namespace EgowallConverter.Converter
         {
             try
             {
+                Dictionary<MagickColor, bool> colors = new Dictionary<MagickColor, bool>();
+                int colorCount = 0;
+                bool needResize = false;
                 // Read from file.
                 using (MagickImage image = new MagickImage(a_file))
                 {
+                    if (image.Width > 512 && image.Height > 512)
+                    {
+                        needResize = true;
+                    }
+
                     image.Write(a_output);
                 }
+
+                if (needResize)
+                {
+#if DEBUG
+                    Converter.LogMessage("Resizing texture", ConsoleColor.Cyan);
+#endif
+                    using (MagickImage image = new MagickImage(a_output))
+                    {
+                        float widthScale = image.Width / 512;
+                        float heightScale = image.Height / 512;
+
+                        if (widthScale > heightScale)
+                        {
+                            widthScale = heightScale;
+                        }
+                        if (widthScale > 2)
+                        {
+                            widthScale = 2;
+                        }
+
+                        image.Resize((int)(image.Width / widthScale), (int)(image.Height / widthScale));
+                        image.Write(a_output);
+
+                    }
+                }
+
             }
             catch
             {

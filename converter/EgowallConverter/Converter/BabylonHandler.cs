@@ -14,14 +14,15 @@ namespace EgowallConverter.Converter
     class BabylonHandler
     {
         private Regex precision;
-        private Regex firstPass;
-        private Regex secondPass;
+
+        private Regex tgaToPng;
+  
 
         public BabylonHandler()
         {
             precision = new Regex(@"(-?\d+\.\d+(e[+\-]\d+)?)", RegexOptions.IgnoreCase);
-            firstPass = new Regex(@"([\d]+\.[\d]+(e-?\d+))");
-            secondPass = new Regex(@"(\.\d+)\b", RegexOptions.IgnoreCase);      
+            tgaToPng = new Regex(@"\.tga", RegexOptions.IgnoreCase);
+              
         }
 
         /// <summary>
@@ -38,6 +39,8 @@ namespace EgowallConverter.Converter
             }
 
             string output = precision.Replace(text, new MatchEvaluator(FixPrecisionAdjuster));
+
+            output = tgaToPng.Replace(output, ".png");
 
             //string output = firstPass.Replace(text, new MatchEvaluator(FirstpassAdjuster));
             //output = secondPass.Replace(output, new MatchEvaluator(SecondPassAdjuster));
@@ -121,63 +124,10 @@ namespace EgowallConverter.Converter
                 return m.Value;
             }
         }
-       
-        private string FirstpassAdjuster(Match m)
+        
+        private string TgaToPngAdjuster(Match m)
         {
-            decimal number;
-            //var val = input.value;
-            //val = val.replace( / ([\d] +\.[\d] + (e -?\d +))/ g, function(x, $1) {
-            //    return parseFloat( $1).toFixed(7);
-            //});
-            //val = val.replace( / (\.\d +)\b / gi, function(x, $1) {
-            //    var y = parseFloat( $1);
-
-            //    return y < 0.0001 ? "" : y.toPrecision(4).substr(1);
-            //});
-            //output.value = val;
-
-            if ( decimal.TryParse(m.Value, System.Globalization.NumberStyles.Float, new CultureInfo("en-GB"),  out number))
-            {
-                number = Math.Round(number, 7);    
-                string output = String.Format("{0:0.0000000}", number);
-                return output;
-            }
-            // If it fails to parse it into a double then return the old value
-            else
-            {
-                Converter.LogMessage("Failed to parse double", ConsoleColor.Yellow);
-                return m.Value;
-            }
-        }
-
-        private string SecondPassAdjuster(Match m)
-        {
-            decimal number;
-
-            if (decimal.TryParse(m.Value, out number))
-            {
-                decimal original = number;
-                number = Math.Round(number, 4);
-
-                if (number < -0.999m && number > -1.0001m)
-                {
-                    
-                }
-
-                string output = String.Format("{0:.0000}", number);               
-                if (output[1] == '.')
-                {
-                    output = output.Substring(1);
-                }
-
-                return output;
-            }
-            // If it fails to parse it into a double then return the old value
-            else
-            {
-                Converter.LogMessage("Failed to parse double", ConsoleColor.Yellow);
-                return m.Value;
-            }
-        }
+            return ".png";
+        }               
     }
 }

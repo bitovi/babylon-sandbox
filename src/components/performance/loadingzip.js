@@ -67,7 +67,8 @@ function loadModels(BABYLON, vm){
 function loadModel(BABYLON, vm, options){
   let items = vm.attr("items");
   total++;
-  options.root = "https://cdn.testing.egowall.com/CDN/temp_test/";//vm.static3DAssetPath + "loadingzip/";
+  //options.root = "https://cdn.testing.egowall.com/CDN/temp_test/";
+  options.root = vm.static3DAssetPath + "loadingzip/";
 
   const url = options.root + options.filename;
 
@@ -169,10 +170,12 @@ function loadModel(BABYLON, vm, options){
               logTime("texture unzipped:", textureUnzipped, modelStart);
               // Create the texture
               var tex = new BABYLON.Texture("data:" + texture.name, scene, undefined, true, BABYLON.Texture.TRILINEAR_SAMPLINGMODE, null, null, data, true);
+              //let tex = new BABYLON.Texture.CreateFromBase64String(base64, texture.name, scene );
+
               let textureParsed = performance.now();
               tex.getInternalTexture().url = tex.url.substr(5);
 
-              logTime("texture unzipped:", textureParsed, modelStart);
+              logTime("texture parsed:", textureParsed, modelStart);
 
 
               texturesInitialized++;

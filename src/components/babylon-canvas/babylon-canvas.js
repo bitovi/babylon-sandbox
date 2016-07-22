@@ -609,7 +609,7 @@ export const ViewModel = Map.extend({
 
       this.setDefaults();
 
-      this.attr( "ground" ).material.subMaterials[0].diffuseColor = color;
+      this.attr( "ground" ).material.diffuseColor = color;
     },
 
     changeTexture () {
@@ -644,12 +644,12 @@ export const ViewModel = Map.extend({
       var scene = this.attr( "scene" );
       let material = this.attr("ground").material;
 
-       for (let i = 0; i < material.subMaterials.length; ++i){
-         material.subMaterials[i].diffuseTexture = new BABYLON.Texture(textureUrl, scene);
-         if (bumpUrl){
-           material.subMaterials[i].bumpTexture = new BABYLON.Texture(bumpUrl, scene);
-         }
-       }
+      material.diffuseTexture = new BABYLON.Texture(textureUrl, scene);
+      if (bumpUrl){
+        material.bumpTexture = new BABYLON.Texture(bumpUrl, scene);
+      }
+
+
     },
 
     resetGround () {
@@ -668,9 +668,9 @@ export const ViewModel = Map.extend({
       if ( !this.attr( "hasChanged" ) ) {
         this.attr( "hasChanged", true );
         let ground = this.attr( "ground" );
-        this.attr( "defaultColor", ground.material.subMaterials[0].diffuseColor );
-        this.attr( "defaultTexture", ground.material.subMaterials[0].diffuseTexture );
-        this.attr( "defaultBump", ground.material.subMaterials[0].bumpTexture );
+        this.attr( "defaultColor", ground.material.diffuseColor );
+        this.attr( "defaultTexture", ground.material.diffuseTexture );
+        this.attr( "defaultBump", ground.material.bumpTexture );
       }
     },
 
@@ -707,9 +707,11 @@ export const ViewModel = Map.extend({
             var mesh = a_item.meshes[i];
             mesh.collisionsEnabled = true;
             mesh.receiveShadows = true;
+            let uvCoords = mesh.getVerticesData(BABYLON.VertexBuffer.UVKind);
 
-            if (mesh.id !== "40_CompoundWall_004"){
-              mesh.visibility = 0;
+            if (uvCoords){
+              mesh.material = new BABYLON.StandardMaterial("super material!" + i, scene);
+              mesh.material.specularColor = new BABYLON.Color3(0,0,0);
             }
 
             if (mesh.id === vm.attr("groundId")){
@@ -717,11 +719,18 @@ export const ViewModel = Map.extend({
               mesh.physicsImpostor = new BABYLON.PhysicsImpostor(mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
               vm.attr( "ground", mesh );
               vm.excludeMeshForLight(mesh);
+
+              vm.attr( "customizeMode", true );
+              vm.changeTexture();
+              vm.changeColor();
+              vm.attr( "customizeMode", false );
+
+            }
+            else if (mesh.material){
+              mesh.material.diffuseColor = new BABYLON.Color3(Math.random(), Math.random(), Math.random() );
             }
           }
-          vm.attr( "customizeMode", true );
-          vm.changeTexture();
-          vm.attr( "customizeMode", false );
+
         }
       });
 

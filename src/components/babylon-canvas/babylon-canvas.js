@@ -10,6 +10,9 @@ import '../../static/3d/js/babylon.objFileLoader.js';
 
 import { getControls, getTooltip } from '../../util/util.js';
 
+import JSZip from 'jszip/dist/jszip';
+import $ from 'jquery';
+
 /*
 Tests
  */
@@ -29,6 +32,11 @@ import Tri1000 from '../performance/tri1000';
 import Tri2000 from '../performance/tri2000';
 import Tri5000 from '../performance/tri5000';
 
+/*
+Shadow tests
+ */
+import Shadows from '../performance/shadows';
+
 export const ViewModel = Map.extend({
   debug: true,
   define: {
@@ -44,6 +52,8 @@ export const ViewModel = Map.extend({
       value: 0
     }
   },
+
+  groundId: "41_Floor_001",
 
   getAssetsManager () {
     var scene = this.attr( "scene" );
@@ -106,6 +116,18 @@ export const ViewModel = Map.extend({
         this.attr( "hoveredMesh", null );
       }
     }
+  },
+
+  checkIfTextureCached(url, engine){
+    var cachedTextures = engine.getLoadedTexturesCache();
+    for (var i = 0; i < cachedTextures.length; i++) {
+      var cacheEntry = cachedTextures[i];
+
+      if (cacheEntry.url === url) {
+        return cacheEntry;
+      }
+    }
+    return null;
   },
 
   clearMeshOutline ( mesh ) {
@@ -336,6 +358,169 @@ export const ViewModel = Map.extend({
       return task;
     },
 
+    testloadModelZip(options){
+      let vm = this;
+      options.root = options.root || "https://cdn.testing.egowall.com/CDN_new/temp_test/";
+      //options.root = vm.static3DAssetPath + "loadingzip/";
+      //options.root = vm.static3DAssetPath + "loadingzipbase/";
+      const url = options.root + options.filename;
+
+      $.ajax({
+        url: url,
+        type:"get",
+        dataType : "binary",
+        xhrFields : {
+          responseType : "arraybuffer"
+        },
+        success:function(zipbuffer){
+
+          if (zipbuffer) {
+            let jszip = new JSZip();
+            // Load the zipfile from arraybuffer
+            jszip.loadAsync(zipbuffer).then(function (zip) {
+
+              let babylonFile;
+              let textures = [];
+              // Iterate over files to find the .babylon file and textures
+              for (var key in zip.files) {
+                if (key.endsWith(".babylon")) {
+                  babylonFile = zip.files[key];
+                } else {
+                  textures.push(zip.files[key]);
+                }
+              }
+              // After finding the babylon file and textures start by loading textures
+              if (textures.length > 0){
+                vm.testLoadTexturs(textures, babylonFile, options);
+              }
+              else{
+                vm.testLoadMesh(babylonFile, options);
+              }
+              // JsZip async
+            }).catch(function (reason) {
+              console.log(reason);
+            });
+            // End if arraybuffer
+          }
+          // end success function
+        }
+        // End $.ajax
+      });
+    },
+
+    /**
+     *
+     * @param {JSZip[]} textures
+     * @param {JSZip} babylonZipFile
+     */
+    testLoadTexturs(textures, babylonZipFile, options){
+      let vm = this;
+      let scene = this.attr("scene");
+      let texturesInitialized = 0;
+
+      /**
+       * When a texture has been initialized update the count.
+       * If all textures are initialized then load the mesh
+       */
+      function textureInitialized(){
+        texturesInitialized++;
+        if (texturesInitialized >= textures.length) {
+          vm.testLoadMesh(babylonZipFile, options);
+        }
+      }
+
+      // Iterate over all textures
+      textures.forEach(function (texture) {
+        let engine = scene.getEngine();
+
+        // Check if the texture is cached or not.
+        // Need to add data: to the filename or it won't check against correct cache.
+        if (!vm.checkIfTextureCached( "data:" + texture.name, engine )){
+          texture.async("base64").then(function (data) {
+            // Create the texture to add it to cache
+            new BABYLON.Texture.CreateFromBase64String("data:image/png;base64," + data, texture.name, scene );
+            textureInitialized();
+
+          }).catch(function (reason) {
+            console.log(reason);
+          });
+        // No need to do anything except update initialized count if the file already is cached.
+        } else {
+          textureInitialized();
+        }
+      });
+    },
+
+  /**
+   * It's important to load the mesh after all textures have been initialized otherwise it will make a http request.
+   * For example it would try and get "data:chair.png"
+   * But since textures have been created before loading mesh it will get the data:chair.png from the texture cache instead.
+   * @param {JSZip} babylonZipFile
+   */
+    testLoadMesh(babylonZipFile, options){
+      let vm = this;
+      let items = this.attr("items");
+      //Retrieve the json text from the zipped .babylon file
+      babylonZipFile.async("string").then(function (text) {
+        // Add data: to the jsontext to skip making http request
+        BABYLON.SceneLoader.ImportMesh("", "", "data:" + text, vm.attr("scene"), function (meshes) {
+          var item = {
+            name: babylonZipFile.name,
+            meshes: meshes
+          };
+
+          items.push( item );
+
+          // Set the models position
+          for ( var i = 0; i < item.meshes.length; ++i ) {
+            var mesh = item.meshes[i];
+            mesh.e_item = item;
+
+            if ( item.meshes.length > 1 ) {
+              mesh.e_siblings = [];
+
+              for (var j = 0; j < item.meshes.length; ++j){
+                if (j != i){
+                  mesh.e_siblings.push(item.meshes[j]);
+                }
+              }
+            }
+
+            if (!mesh.parent) {
+              continue;
+            }
+
+            if ( !options.skipTag ) {
+              mesh.tag = 1;
+            }
+
+            mesh.label = options.label;
+
+            mesh.receiveShadows = true;
+            mesh.position = options.position;
+            mesh.rotationQuaternion = options.rotation;
+
+            if (!options.skipshadow){
+              vm.addToShadowGenerator( mesh );
+            }
+            if ( options.physics ) {
+              vm.testSetPhysicsImpostor( mesh );
+            }
+
+            if ( options.hide ) {
+              mesh.visibility = 0;
+            }
+          }
+
+          if ( options.success ) {
+            options.success( item );
+          }
+        // End ImportMesh
+        });
+        // Babylon async
+      });
+    },
+
     initTestSceneModels () {
       switch( location.search){
         case "?test=compression":
@@ -385,6 +570,10 @@ export const ViewModel = Map.extend({
         case "?test=tri5000":
           Tri5000(BABYLON, this);
           break;
+        /* Shadow tests */
+        case "?test=shadows":
+          Shadows(BABYLON, this);
+          break;
       }
     },
 
@@ -417,7 +606,7 @@ export const ViewModel = Map.extend({
 
       this.setDefaults();
 
-      this.attr( "ground" ).material.diffuseColor = color;
+      this.attr( "ground" ).material.subMaterials[0].diffuseColor = color;
     },
 
     changeTexture () {
@@ -450,10 +639,14 @@ export const ViewModel = Map.extend({
 
       this.setDefaults();
       var scene = this.attr( "scene" );
-      this.attr( "ground" ).material.diffuseTexture = new BABYLON.Texture(textureUrl, scene);
-      if (bumpUrl){
-        this.attr( "ground" ).material.bumpTexture = new BABYLON.Texture(bumpUrl, scene);
-      }
+      let material = this.attr("ground").material;
+
+       for (let i = 0; i < material.subMaterials.length; ++i){
+         material.subMaterials[i].diffuseTexture = new BABYLON.Texture(textureUrl, scene);
+         if (bumpUrl){
+           material.subMaterials[i].bumpTexture = new BABYLON.Texture(bumpUrl, scene);
+         }
+       }
     },
 
     resetGround () {
@@ -472,12 +665,11 @@ export const ViewModel = Map.extend({
       if ( !this.attr( "hasChanged" ) ) {
         this.attr( "hasChanged", true );
         let ground = this.attr( "ground" );
-        this.attr( "defaultColor", ground.material.diffuseColor );
-        this.attr( "defaultTexture", ground.material.diffuseTexture );
-        this.attr( "defaultBump", ground.material.bumpTexture );
+        this.attr( "defaultColor", ground.material.subMaterials[0].diffuseColor );
+        this.attr( "defaultTexture", ground.material.subMaterials[0].diffuseTexture );
+        this.attr( "defaultBump", ground.material.subMaterials[0].bumpTexture );
       }
     },
-
 
     excludeMeshForLight ( a_mesh ) {
       this.attr( "hemisphericLight" ).excludedMeshes.push(a_mesh);
@@ -490,15 +682,17 @@ export const ViewModel = Map.extend({
       var loader = new BABYLON.AssetsManager(scene);
 
       var position = new BABYLON.Vector3(0, 0, 0);
-      var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
+      var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, Math.PI, Math.PI * 0.5 );
 
       var meshId = -1;
 
-      this.testLoadModel({
-        filename: "Patio_001_LOD0.obj",
+      const root = this.attr( "static3DAssetPath" ) + "LS_15/";
+
+      this.testloadModelZip({
+        filename: "Patio_LOD0.zip",
         physics: false,
         position: position,
-        root: this.attr( "static3DAssetPath" ) + "LS_15/",
+        root: root,
         rotation:rotation,
         rotateNormals: true,
         taskname: "ground",
@@ -511,16 +705,18 @@ export const ViewModel = Map.extend({
             mesh.collisionsEnabled = true;
             mesh.receiveShadows = true;
 
-            if (mesh.id === "Floor_001"){
+            if (mesh.id === vm.attr("groundId")){
               meshId = i;
               mesh.physicsImpostor = new BABYLON.PhysicsImpostor(mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
               vm.attr( "ground", mesh );
-
               vm.excludeMeshForLight(mesh);
             }
           }
+          vm.attr( "customizeMode", true );
+          vm.changeTexture();
+          vm.attr( "customizeMode", false );
         }
-      }, loader);
+      });
 
       loader.load();
     },
@@ -541,7 +737,7 @@ export const ViewModel = Map.extend({
       physicsImpostor.registerOnPhysicsCollide( ground.physicsImpostor, function ( physImpos, collidedWithPhysImpos ) {
         setTimeout(function(){
           physicsImpostor.dispose();
-          if ( collidedWithPhysImpos.object.id === "Floor_001" ) {
+          if ( collidedWithPhysImpos.object.id === vm.attr("groundId") ) {
             physImpos.object.position.y = 0;
           }
         }, 1);
@@ -705,7 +901,7 @@ export default Component.extend({
       });
       vm.initScene();
 
-      //vm.initTestGroundPlane();
+      vm.initTestGroundPlane();
 
       vm.initLights();
       vm.initSkybox();

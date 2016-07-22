@@ -79,15 +79,11 @@ function loadModels(BABYLON, vm){
 function loadModel(BABYLON, vm, options){
   let items = vm.attr("items");
   total++;
-  //options.root = "https://cdn.testing.egowall.com/CDN/temp_test/";
-  options.root = vm.static3DAssetPath + "loadingzip/";
+  options.root = "https://cdn.testing.egowall.com/CDN_new/temp_test/";
+  //options.root = vm.static3DAssetPath + "loadingzip/";
   //options.root = vm.static3DAssetPath + "loadingzipbase/";
 
   const url = options.root + options.filename;
-
-  let xhr = new XMLHttpRequest();
-  xhr.open('GET', url);
-  //xhr.responseType = 'arraybuffer';
 
   let modelStart = performance.now();
 
@@ -220,11 +216,12 @@ function loadModel(BABYLON, vm, options){
         }).catch(function (reason) {
           console.log(reason);
         });
-        // End if arraybuffer
+      // End if arraybuffer
       }
+    // end success function
     }
+  // End $.ajax
   })
-
 }
 
 function logTime(msg, finish, start){

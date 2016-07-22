@@ -64,6 +64,11 @@ namespace EgowallConverter.Converter
             }
         }
 
+        /// <summary>
+        /// </summary>
+        /// <param name="a_file"></param>
+        /// <param name="a_outputDirectory"></param>
+        /// <returns></returns>
         private bool CompressImage(string a_file, string a_outputDirectory)
         {
             FileInfo fileInfo = new FileInfo(a_file);

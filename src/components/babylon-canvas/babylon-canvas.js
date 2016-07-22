@@ -36,6 +36,13 @@ import Tri5000 from '../performance/tri5000';
 Shadow tests
  */
 import Shadows from '../performance/shadows';
+import Shadows50 from '../performance/shadows50';
+import Shadows100 from '../performance/shadows100';
+import Shadows200 from '../performance/shadows200';
+
+/* Rotation tests */
+import Rot25 from '../performance/rot25';
+import Rot50 from '../performance/rot50';
 
 export const ViewModel = Map.extend({
   debug: true,
@@ -573,6 +580,22 @@ export const ViewModel = Map.extend({
         /* Shadow tests */
         case "?test=shadows":
           Shadows(BABYLON, this);
+          break;
+        case "?test=shadows50":
+          Shadows50(BABYLON, this);
+          break;
+        case "?test=shadows100":
+          Shadows100(BABYLON, this);
+          break;
+        case "?test=shadows200":
+          Shadows200(BABYLON, this);
+          break;
+        /* shadow & rotations */
+        case "?test=rot25":
+          Rot25(BABYLON, this);
+          break;
+        case "?test=rot50":
+          Rot50(BABYLON, this);
           break;
       }
     },

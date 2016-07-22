@@ -3,11 +3,13 @@
  */
 "use strict";
 function loadModels(BABYLON, vm){
+
   //const filename = "KidsPrin_CeFan_Wd_LtPurp_001.zip";
   const filename = "West_Chair_Leath_Brown_001.zip";
   const space =1.4;
-  for (let x = -5; x < 5; ++x){
-    for (let z = -2; z < 3; ++z){
+
+  for (let x = -10; x < 10; ++x){
+    for (let z = -5; z < 5; ++z){
       let position = new BABYLON.Vector3(space * x, 1, space * z);
       let rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
       vm.testloadModelZip({
@@ -19,6 +21,7 @@ function loadModels(BABYLON, vm){
       });
     }
   }
+
 }
 
 export default function(BABYLON, vm){

@@ -581,6 +581,9 @@ export const ViewModel = Map.extend({
       if ( !this.attr( "customizeMode" ) ) {
         return;
       }
+
+
+
       var colorId = parseInt(Math.random() * 5);
       // So there is sliiiiightly higher chance of getting 3 than 0, 1 , 2!
       if (colorId === 5) colorId = 4;
@@ -704,6 +707,10 @@ export const ViewModel = Map.extend({
             var mesh = a_item.meshes[i];
             mesh.collisionsEnabled = true;
             mesh.receiveShadows = true;
+
+            if (mesh.id !== "40_CompoundWall_004"){
+              mesh.visibility = 0;
+            }
 
             if (mesh.id === vm.attr("groundId")){
               meshId = i;

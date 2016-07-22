@@ -65,6 +65,7 @@ namespace EgowallConverter.Converter
         }
 
         /// <summary>
+        /// Do stuff! 
         /// </summary>
         /// <param name="a_file"></param>
         /// <param name="a_outputDirectory"></param>

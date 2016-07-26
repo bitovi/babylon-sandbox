@@ -9,6 +9,16 @@ namespace EgowallConverter.Converter
 {
     class Converter
     {
+        enum Mode
+        {
+            Backgrounds,
+            Exit,
+            NoMode,
+            Furnitures,
+            Textures
+
+        }
+
         /// <summary>
         ///  The input directory where all the files are to be processed
         /// </summary>
@@ -30,6 +40,8 @@ namespace EgowallConverter.Converter
         TextureCompressor m_textureCompressor = new TextureCompressor();
         ZipBundler m_zipBundler;
 
+        Mode m_converterMode = Mode.NoMode;
+
         public Converter()
         {
             m_fbxExporter = new FbxExporter();
@@ -39,6 +51,13 @@ namespace EgowallConverter.Converter
 
         public void Run()
         {
+            GetInput();
+
+            if (m_converterMode == Mode.Exit)
+            {                
+                return;
+            }
+
             if (!Directory.Exists(InputDirectory))
             {
                 LogMessage("The input directory does not exist.", ConsoleColor.Red);
@@ -51,7 +70,46 @@ namespace EgowallConverter.Converter
 
             HandleDirectory(InputDirectory);
 
-            LogMessage("Finished processing files", ConsoleColor.Green);                
+            LogMessage("Finished processing files", ConsoleColor.Green);
+            Console.ReadLine();
+        }
+        /// <summary>
+        /// Get user input and set the converter mode
+        /// </summary>
+        public void GetInput()
+        {
+            Console.WriteLine("Welcome to Egowall converter. Select you type of conversion:");            
+
+            while (m_converterMode == Mode.NoMode)
+            {
+                Console.WriteLine("b - Background models");
+                Console.WriteLine("f - Furnitures");
+                Console.WriteLine("t - Textures");
+                Console.WriteLine("x - Exit");
+                Console.Write("Your command: ");
+
+                string input = Console.ReadLine();
+
+                switch(input)
+                {
+                    case "b":
+                        m_converterMode = Mode.Backgrounds;
+                        break;
+                    case "f":
+                        m_converterMode = Mode.Furnitures;
+                        break;
+                    case "t":
+                        m_converterMode = Mode.Textures;
+                        break;
+                    case "x":
+                        m_converterMode = Mode.Exit;
+                        break;
+                    default:
+                        Console.WriteLine("No such type exists. Please write a valid command.");
+                        Console.WriteLine();
+                        break;
+                }
+            }
         }
 
         /// <summary>
@@ -108,10 +166,14 @@ namespace EgowallConverter.Converter
 
                     m_babylonHandler.ChangeMaterialId(babylonFile);
 
+                    m_babylonHandler.AddMeshIdTags(babylonFile);
+
                     m_textureCompressor.CompressImages(TempDirectory);
 
                     string outputDirectory = GetOutputDirectory(a_file);
-                    m_zipBundler.CreateZipBundle(TempDirectory, babylonFile, outputDirectory);
+
+                    
+                    m_zipBundler.CreateZipBundle(TempDirectory, babylonFile, outputDirectory);                    
 
                     CleanTemp();
 

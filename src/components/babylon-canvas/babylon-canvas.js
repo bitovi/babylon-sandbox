@@ -61,6 +61,8 @@ export const ViewModel = Map.extend({
   },
 
   groundId: "41_Floor_001",
+  backgroundImpostors: [],
+  studioMaterials : [],
 
   getAssetsManager () {
     var scene = this.attr( "scene" );
@@ -72,6 +74,8 @@ export const ViewModel = Map.extend({
     var scene = this.attr( "scene" );
     //var camera = new BABYLON.FreeCamera( "camera1", new BABYLON.Vector3(0, 5, -10), scene );
     var camera = new BABYLON.TargetCamera( "camera1", new BABYLON.Vector3( -3, 1.5, -4 ), scene );
+    camera.fov = 1;
+
     //var camera = new BABYLON.Camera( "camera1", new BABYLON.Vector3(0, 5, -10), scene );
     this.attr( "camera", camera );
 
@@ -494,6 +498,10 @@ export const ViewModel = Map.extend({
             }
 
             if (!mesh.parent) {
+              if ( options.physics ) {
+                vm.testSetPhysicsImpostor( mesh );
+              }
+
               continue;
             }
 
@@ -509,9 +517,6 @@ export const ViewModel = Map.extend({
 
             if (!options.skipshadow){
               vm.addToShadowGenerator( mesh );
-            }
-            if ( options.physics ) {
-              vm.testSetPhysicsImpostor( mesh );
             }
 
             if ( options.hide ) {
@@ -697,25 +702,95 @@ export const ViewModel = Map.extend({
       }
     },
 
-    excludeMeshForLight ( a_mesh ) {
-      this.attr( "hemisphericLight" ).excludedMeshes.push(a_mesh);
-      //this.attr( "normalDirLight" ).excludedMeshes.push(a_mesh);
+    testSetStudioMaterial( mesh, meshId ){
+
+      let vm = this;
+      function setMaterial( diffuseUrl, color ){
+
+        if (!vm.studioMaterials[ meshId ] ){
+          let url = vm.static3DAssetPath + "LS_15/Resources/" + diffuseUrl;
+          let scene = vm.attr("scene");
+          let material = new BABYLON.StandardMaterial(url, scene);
+          material.diffuseTexture = new BABYLON.Texture( url, scene);
+          material.specularColor = new BABYLON.Color3(0,0,0);
+          vm.studioMaterials[ meshId ] = material;
+        }
+
+        mesh.material = vm.studioMaterials[ meshId ].clone();
+        mesh.material.diffuseTexture.uScale = 0.19995;
+        //mesh.material.diffuseTexture.vScale = 0.228;
+        mesh.material.diffuseTexture.vScale = 0.225;
+
+        if (color){
+          mesh.material.diffuseColor = color;
+        }
+        else{
+          //mesh.material.diffuseColor = new BABYLON.Color3(0.4, 0.4, 0.4);
+        }
+      }
+
+      let suffix = "_Tex0_Diff.tga";
+
+      switch( meshId ){
+        // 43
+        case 1:
+        case 2:
+        case 3:
+        case 15:
+          meshId = 1;
+          setMaterial("Plaster_001" + suffix);
+          break;
+        // 19
+        case 5:
+          setMaterial("Concrete_008" + suffix);
+          break;
+        // 17
+        case 4:
+        case 6:
+        case 7:
+        case 8:
+        case 14:
+        case 16:
+          meshId = 4;
+          setMaterial("Concrete_006" + suffix);
+          break;
+        // 132
+        case 9:
+        case 10:
+        case 12:
+        case 13:
+          meshId = 9;
+          setMaterial("Wood_017" + suffix);
+          break;
+        case 11:
+          setMaterial("Plaster_011" + suffix);
+          break;
+        // Window frame
+        case 666:
+          setMaterial("Tile_Concrete_001" + suffix, new BABYLON.Color3(0.1, 0.1 ,0.1));
+          break;
+        // GlassIn
+        case 999:
+          //mesh.material = new BABYLON.StandardMaterial("window", this.attr("scene"));
+          mesh.visibility = 0;
+          break;
+      }
     },
+
+
 
     initTestGroundPlane () {
       var vm = this;
       var scene = this.attr( "scene" );
-      var loader = new BABYLON.AssetsManager(scene);
-
       var position = new BABYLON.Vector3(0, 0, 0);
-      var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, Math.PI, Math.PI * 0.5 );
-
-      var meshId = -1;
+      // For patio
+      //var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, Math.PI, Math.PI * 0.5 );
+      var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0 );
 
       const root = this.attr( "static3DAssetPath" ) + "LS_15/";
 
       this.testloadModelZip({
-        filename: "Patio_LOD0.zip",
+        filename: "output.zip",
         physics: false,
         position: position,
         root: root,
@@ -726,44 +801,53 @@ export const ViewModel = Map.extend({
         skipshadow: true,
         success: function(a_item){
 
+          let nodes = {};
+          let nodesOrder = [];
+          let count = 1;
           for (var i = 0; i < a_item.meshes.length; ++i){
             var mesh = a_item.meshes[i];
-            mesh.collisionsEnabled = true;
-            mesh.receiveShadows = true;
-            let uvCoords = mesh.getVerticesData(BABYLON.VertexBuffer.UVKind);
 
-            if (uvCoords){
-              mesh.material = new BABYLON.StandardMaterial("super material!" + i, scene);
-              mesh.material.specularColor = new BABYLON.Color3(0,0,0);
+            if (i == 0){
+
             }
 
-            if (mesh.id === vm.attr("groundId")){
-              meshId = i;
+            if (mesh._tags){
+              mesh.tag = 1;
+              mesh.label = mesh.id;
+
+              mesh.collisionsEnabled = true;
+              mesh.receiveShadows = true;
+
+              if (mesh.id === "74_GlassIn_001" || mesh.id === "73_GlassOut_001"){
+                vm.testSetStudioMaterial(mesh, 999);
+              } else if (mesh.id === "72_WindowFrame_001" || mesh.parent.id === "52_DoorFrame_LOD0") {
+                vm.testSetStudioMaterial(mesh, 666);
+
+              } else if (mesh.parent.id === "44_Balcony_001_LOD0") {
+                vm.testSetStudioMaterial(mesh, 4);
+              }
+              else {
+                let meshId = parseInt( Object.keys( mesh._tags )[ 0 ].replace( "meshId_", ""), 10 );
+                vm.testSetStudioMaterial(mesh, meshId);
+              }
+
+              // mesh.isBG = true;
+              // mesh.physicsImpostor = new BABYLON.PhysicsImpostor(mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
+              // vm.backgroundImpostors.push( mesh.physicsImpostor );
+            }
+            else{
               mesh.physicsImpostor = new BABYLON.PhysicsImpostor(mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
-              vm.attr( "ground", mesh );
-              vm.excludeMeshForLight(mesh);
-
-              vm.attr( "customizeMode", true );
-              vm.changeTexture();
-              vm.changeColor();
-              vm.attr( "customizeMode", false );
-
-            }
-            else if (mesh.material){
-              mesh.material.diffuseColor = new BABYLON.Color3(Math.random(), Math.random(), Math.random() );
+              vm.backgroundImpostors.push( mesh.physicsImpostor );
             }
           }
-
         }
       });
-
-      loader.load();
     },
 
     testSetPhysicsImpostor ( mesh ) {
       var scene = this.attr( "scene" );
-      var ground = this.attr( "ground" );
 
+      console.log(mesh);
       var physicsImpostor = new BABYLON.PhysicsImpostor(
         mesh,
         BABYLON.PhysicsImpostor.BoxImpostor,
@@ -773,12 +857,11 @@ export const ViewModel = Map.extend({
       mesh.physicsImpostor = physicsImpostor;
 
       // On collision with the floor
-      physicsImpostor.registerOnPhysicsCollide( ground.physicsImpostor, function ( physImpos, collidedWithPhysImpos ) {
+      physicsImpostor.registerOnPhysicsCollide( this.backgroundImpostors, function ( physImpos, collidedWithPhysImpos ) {
+        console.log("colliding");
         setTimeout(function(){
           physicsImpostor.dispose();
-          if ( collidedWithPhysImpos.object.id === vm.attr("groundId") ) {
             physImpos.object.position.y = 0;
-          }
         }, 1);
       });
     },
@@ -825,7 +908,7 @@ export const ViewModel = Map.extend({
 
   addToShadowGenerator ( mesh ) {
       this.attr( "shadowGenerator" ).getShadowMap().renderList.push( mesh );
-      this.attr( "hemisShadowGen" ).getShadowMap().renderList.push( mesh );
+      this.attr( "dirShadowGenerator" ).getShadowMap().renderList.push( mesh );
   },
 
   initLights () {
@@ -833,20 +916,22 @@ export const ViewModel = Map.extend({
 
     //This creates a light, aiming 0,1,0 - to the sky.
     var hemisphericLight = new BABYLON.HemisphericLight( "light1", new BABYLON.Vector3( 0, 1, 0 ), scene );
-    hemisphericLight.groundColor = new BABYLON.Color3( 1, 1, 1 );
-    hemisphericLight.intensity = 1.0;
+    const groundColor = 1;
+    hemisphericLight.groundColor = new BABYLON.Color3( groundColor, groundColor, groundColor );
+    hemisphericLight.intensity = 0.85;
 
     var normalDirLight = new BABYLON.DirectionalLight("dirlight1", new BABYLON.Vector3(0, -1, 0), scene);
     
-    var hemisShadowGen = new BABYLON.ShadowGenerator( 1024, normalDirLight );
-    hemisShadowGen.setDarkness( 0.75 );
-    //hemisShadowGen.useBlurVarianceShadowMap = true;
-    hemisShadowGen.bias *= 0.05;
+    var dirShadowGenerator = new BABYLON.ShadowGenerator( 1024, normalDirLight );
+    dirShadowGenerator.setDarkness( 0 );
+    // dirShadowGenerator.useBlurVarianceShadowMap = true;
+    dirShadowGenerator.bias *= 0.05;
 
-    var pointLight = new BABYLON.PointLight( "pointlight", new BABYLON.Vector3( 0, 3, 0 ), scene );
+    var pointLight = new BABYLON.PointLight( "pointlight", new BABYLON.Vector3( 0, 300, 0 ), scene );
 
     var hemisphericPointLight = new BABYLON.HemisphericLight( "hemispoint", new BABYLON.Vector3( 0, 1, 0 ), scene );
-    hemisphericPointLight.intensity = 0.2;
+    hemisphericPointLight.intensity = 0.8;
+    //hemisphericPointLight.groundColor = new BABYLON.Color3( groundColor, groundColor, groundColor );
 
     scene.removeLight( pointLight );
     scene.removeLight( hemisphericPointLight );
@@ -854,13 +939,13 @@ export const ViewModel = Map.extend({
     // Shadows
     var shadowGenerator = new BABYLON.ShadowGenerator( 1024, pointLight );
     shadowGenerator.usePoissonSampling = true;
-    shadowGenerator.setDarkness( 0.5 );
+    shadowGenerator.setDarkness( 0 );
 
     this.attr({
       hasPointlight: false,
       hemisphericLight,
       normalDirLight,
-      hemisShadowGen,
+      dirShadowGenerator,
       pointLight,
       hemisphericPointLight,
       shadowGenerator
@@ -871,13 +956,12 @@ export const ViewModel = Map.extend({
     var scene = this.attr( "scene" );
     scene.clearColor = new BABYLON.Color3( 1, 1, 1 );
 
-
     window.scene = scene;
     window.BABYLON = BABYLON;
 
     // Gravity & physics stuff
     var physicsPlugin = new BABYLON.CannonJSPlugin();
-    var gravityVector = new BABYLON.Vector3( 0, -9.81, 0 );
+    var gravityVector = new BABYLON.Vector3( 0, -0.0000000981, 0 );
 
     scene.enablePhysics( gravityVector, physicsPlugin );
 

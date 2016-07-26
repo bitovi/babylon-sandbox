@@ -3,8 +3,11 @@
  */
 "use strict";
 function loadModels(BABYLON, vm){
-  var position = new BABYLON.Vector3(0, 0, 0);
+  var position = new BABYLON.Vector3(0, -0.5, 0);
   var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
+
+  let physics = true;
+
   vm.testloadModelZip({
     filename: "Colo_Rug_Fab_LtBrown_001.zip",
     physics: false,
@@ -17,7 +20,7 @@ function loadModels(BABYLON, vm){
   rotation = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI * -0.5, 0, 0);
   vm.testloadModelZip({
     filename: "West_Chair_Leath_Brown_001.zip",
-    physics: false,
+    physics: physics,
     position: position,
     rotation:rotation,
     taskname: "chair"
@@ -27,7 +30,7 @@ function loadModels(BABYLON, vm){
   rotation = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI * 0.5, 0, 0);
   vm.testloadModelZip({
     filename: "West_Chair_Leath_Brown_001.zip",
-    physics: false,
+    physics: physics,
     position: position,
     rotation:rotation,
     taskname: "chair"
@@ -37,7 +40,7 @@ function loadModels(BABYLON, vm){
   rotation = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI, 0, 0);
   vm.testloadModelZip({
     filename: "West_Chair_Leath_Brown_001.zip",
-    physics: false,
+    physics: physics,
     position: position,
     rotation:rotation,
     taskname: "chair"
@@ -47,7 +50,7 @@ function loadModels(BABYLON, vm){
   rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
   vm.testloadModelZip({
     filename: "West_Chair_Leath_Brown_001.zip",
-    physics: false,
+    physics: physics,
     position: position,
     rotation:rotation,
     taskname: "chair"
@@ -67,7 +70,7 @@ function loadModels(BABYLON, vm){
   rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
   vm.testloadModelZip({
     filename: "KidsJng_Bed_Wd_LtBrown_002.zip",
-    physics: false,
+    physics: physics,
     position: position,
     rotation:rotation,
     taskname: "bed"

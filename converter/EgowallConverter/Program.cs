@@ -14,9 +14,7 @@ namespace EgowallConverter
             //decimal dec = decimal.Parse(number, System.Globalization.NumberStyles.Float);
 
             Converter.Converter converter = new EgowallConverter.Converter.Converter();
-            converter.Run();
-
-            Console.ReadLine();
+            converter.Run();            
         }
     }
 }

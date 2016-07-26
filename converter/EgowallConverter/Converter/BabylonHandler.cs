@@ -17,40 +17,93 @@ namespace EgowallConverter.Converter
         private Regex precision;
 
         private Regex tgaToPng;
+        private Regex idPrefixRemoval;
   
 
         public BabylonHandler()
         {
             precision = new Regex(@"(-?\d+\.\d+(e[+\-]\d+)?)", RegexOptions.IgnoreCase);
             tgaToPng = new Regex(@"\.tga", RegexOptions.IgnoreCase);
-              
+            idPrefixRemoval = new Regex(@"^\d+_");
         }
 
         /// <summary>
-        /// Parse the file content
-        /// Regex replace to 4 decimal precision
+        /// Iterate over meshes, check for groups and add meshId tags
         /// </summary>
-        /// <param name="a_babylonFile"></param>
-        public void FixPrecision(string a_babylonFile)
+        public void AddMeshIdTags(string a_babylonFile)
         {
             string text;
+
             using (StreamReader sr = new StreamReader(a_babylonFile))
             {
                 text = sr.ReadToEnd();
             }
 
-            string output = precision.Replace(text, new MatchEvaluator(FixPrecisionAdjuster));
 
-            output = tgaToPng.Replace(output, ".png");
+            dynamic rootObject = JsonConvert.DeserializeObject(text);
 
-            //string output = firstPass.Replace(text, new MatchEvaluator(FirstpassAdjuster));
-            //output = secondPass.Replace(output, new MatchEvaluator(SecondPassAdjuster));
-            // Overwrite the babylon file with the new file
+            Dictionary<string, List<dynamic>> groups = new Dictionary<string, List<dynamic>>();
+
+            foreach (dynamic mesh in rootObject.meshes)
+            {
+                // First check if parentid (15_RootNode)
+                if (mesh["parentId"] != null)
+                {
+                    // Check if UV's exist
+                    if (mesh["uvs"] != null)
+                    {
+                        // If UV's exist then add yourself to the parent!
+                        string parentId = mesh.parentId;
+
+                        if (!groups.ContainsKey(parentId))
+                        {
+                            groups[parentId] = new List<dynamic>();
+                        }
+                        groups[parentId].Add(mesh);
+                    }
+                }
+                else
+                {
+                    string id = mesh.id;
+                    groups[id] = new List<dynamic>() {};
+                }
+            }
+
+            foreach (var keyValue in groups)
+            {
+                Console.WriteLine("Adding meshId to " + keyValue.Key);
+
+                List<MeshSortData> sorted = new List<MeshSortData>();
+
+                for (int i = 0; i < keyValue.Value.Count; i++)
+                {
+                    dynamic mesh = keyValue.Value[i];
+                    string meshId = mesh.id;
+                    // 45_Balcony => Balcony
+                    string id = idPrefixRemoval.Replace(meshId, "");
+
+                    sorted.Add(new MeshSortData()
+                    {
+                        Id = i,
+                        Name = id
+                    });
+                }
+
+                sorted = sorted.OrderBy(x => x.Name).ToList();
+
+                for (int i = 0; i < sorted.Count; i++)
+                {
+                    keyValue.Value[sorted[i].Id].tags = "meshId_" + (i + 1);
+                }
+            }
+
+            string output = JsonConvert.SerializeObject(rootObject);
+
             using (StreamWriter sw = new StreamWriter(a_babylonFile, false))
             {
                 sw.WriteLine(output);
             }
-        }
+        }        
 
         /// <summary>
         /// Read all text from babylonFile
@@ -134,6 +187,32 @@ namespace EgowallConverter.Converter
             }            
         }
 
+        /// <summary>
+        /// Parse the file content
+        /// Regex replace to 4 decimal precision
+        /// </summary>
+        /// <param name="a_babylonFile"></param>
+        public void FixPrecision(string a_babylonFile)
+        {
+            string text;
+            using (StreamReader sr = new StreamReader(a_babylonFile))
+            {
+                text = sr.ReadToEnd();
+            }
+
+            string output = precision.Replace(text, new MatchEvaluator(FixPrecisionAdjuster));
+
+            output = tgaToPng.Replace(output, ".png");
+
+            //string output = firstPass.Replace(text, new MatchEvaluator(FirstpassAdjuster));
+            //output = secondPass.Replace(output, new MatchEvaluator(SecondPassAdjuster));
+            // Overwrite the babylon file with the new file
+            using (StreamWriter sw = new StreamWriter(a_babylonFile, false))
+            {
+                sw.WriteLine(output);
+            }
+        }
+
         private string FixPrecisionAdjuster(Match m)
         {
             decimal number;
@@ -157,6 +236,12 @@ namespace EgowallConverter.Converter
         private string TgaToPngAdjuster(Match m)
         {
             return ".png";
-        }               
+        }   
+        
+        private class MeshSortData
+        {
+            public string Name { get; set; }
+            public int Id { get; set; }
+        }            
     }
 }

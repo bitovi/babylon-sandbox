@@ -256,6 +256,41 @@ export const ViewModel = Map.extend({
       mesh.setVerticesData( BABYLON.VertexBuffer.NormalKind, normals );
     },
 
+    testLoadZip( options ){
+      let vm = this;
+      let promise = new Promise(function( resolve, reject ){
+        options.root = options.root || "https://cdn.testing.egowall.com/CDN_new/temp_test/";
+        //options.root = vm.static3DAssetPath + "loadingzip/";
+        //options.root = vm.static3DAssetPath + "loadingzipbase/";
+        const url = options.root + options.filename;
+
+        $.ajax({
+          url: url,
+          type:"get",
+          dataType : "binary",
+          xhrFields : {
+            responseType : "arraybuffer"
+          },
+          success:function(zipbuffer){
+
+            if (zipbuffer) {
+              let jszip = new JSZip();
+              // Load the zipfile from arraybuffer
+              jszip.loadAsync(zipbuffer).then(function (zip) {
+                resolve(zip);
+                // JsZip async
+              }).catch(function (reason) {
+                reject(reason);
+              });
+            }
+          }
+        }); // End $.ajax
+      });
+
+
+      return promise;
+    },
+
     testLoadModel ( options, loader ) {
       var vm = this;
       var items = this.attr( "items" );
@@ -376,46 +411,27 @@ export const ViewModel = Map.extend({
       //options.root = vm.static3DAssetPath + "loadingzipbase/";
       const url = options.root + options.filename;
 
-      $.ajax({
-        url: url,
-        type:"get",
-        dataType : "binary",
-        xhrFields : {
-          responseType : "arraybuffer"
-        },
-        success:function(zipbuffer){
+      this.testLoadZip(options).then( function(zip){
+        let babylonFile;
+        let textures = [];
 
-          if (zipbuffer) {
-            let jszip = new JSZip();
-            // Load the zipfile from arraybuffer
-            jszip.loadAsync(zipbuffer).then(function (zip) {
-
-              let babylonFile;
-              let textures = [];
-              // Iterate over files to find the .babylon file and textures
-              for (var key in zip.files) {
-                if (key.endsWith(".babylon")) {
-                  babylonFile = zip.files[key];
-                } else {
-                  textures.push(zip.files[key]);
-                }
-              }
-              // After finding the babylon file and textures start by loading textures
-              if (textures.length > 0){
-                vm.testLoadTexturs(textures, babylonFile, options);
-              }
-              else{
-                vm.testLoadMesh(babylonFile, options);
-              }
-              // JsZip async
-            }).catch(function (reason) {
-              console.log(reason);
-            });
-            // End if arraybuffer
+        // Iterate over files to find the .babylon file and textures
+        for (var key in zip.files) {
+          if (key.endsWith(".babylon")) {
+            babylonFile = zip.files[key];
+          } else {
+            textures.push(zip.files[key]);
           }
-          // end success function
         }
-        // End $.ajax
+        // After finding the babylon file and textures start by loading textures
+        if (textures.length > 0){
+          vm.testLoadTexturs(textures, babylonFile, options);
+        }
+        else{
+          vm.testLoadMesh(babylonFile, options);
+        }
+      }, function(reason){
+        console.log(reason);
       });
     },
 
@@ -497,11 +513,9 @@ export const ViewModel = Map.extend({
               }
             }
 
-            if (!mesh.parent) {
-              if ( options.physics ) {
-                vm.testSetPhysicsImpostor( mesh );
-              }
-
+            let positions = mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+            // Only the renderable meshes has positions
+            if (!positions){
               continue;
             }
 
@@ -510,17 +524,23 @@ export const ViewModel = Map.extend({
             }
 
             mesh.label = options.label;
-
+            // Enable receive shadow & collisions
             mesh.receiveShadows = true;
-            mesh.position = options.position;
-            mesh.rotationQuaternion = options.rotation;
+            // Collision so the camera can't move through object
+            mesh.collisionsEnabled = true;
 
+            if (options.position){
+              mesh.position = options.position;
+            }
+            if (options.rotation){
+              mesh.rotationQuaternion = options.rotation;
+            }
             if (!options.skipshadow){
               vm.addToShadowGenerator( mesh );
             }
 
-            if ( options.hide ) {
-              mesh.visibility = 0;
+            if ( options.physics ) {
+              vm.testSetPhysicsImpostor( mesh );
             }
           }
 
@@ -702,34 +722,124 @@ export const ViewModel = Map.extend({
       }
     },
 
-    testSetStudioMaterial( mesh, meshId ){
-
+    testLoadMaterialTexture( material, zipfile, type ){
+      let scene = this.attr("scene");
+      let engine = scene.getEngine();
       let vm = this;
-      function setMaterial( diffuseUrl, color ){
 
-        if (!vm.studioMaterials[ meshId ] ){
-          let url = vm.static3DAssetPath + "LS_15/Resources/" + diffuseUrl;
-          let scene = vm.attr("scene");
-          let material = new BABYLON.StandardMaterial(url, scene);
-          material.diffuseTexture = new BABYLON.Texture( url, scene);
-          material.specularColor = new BABYLON.Color3(0,0,0);
-          vm.studioMaterials[ meshId ] = material;
-        }
-
-        mesh.material = vm.studioMaterials[ meshId ].clone();
-        mesh.material.diffuseTexture.uScale = 0.19995;
-        //mesh.material.diffuseTexture.vScale = 0.228;
-        mesh.material.diffuseTexture.vScale = 0.225;
-
-        if (color){
-          mesh.material.diffuseColor = color;
-        }
-        else{
-          //mesh.material.diffuseColor = new BABYLON.Color3(0.4, 0.4, 0.4);
+      function setTexture( texture ){
+        if (type === "diffuse"){
+          material.diffuseTexture = texture;
+        }else{
+          material.bumpTexture = texture;
         }
       }
 
-      let suffix = "_Tex0_Diff.tga";
+      return new Promise(function(resolve, reject){
+        // Check if the texture is cached or not.
+        // Need to add data: to the filename or it won't check against correct cache.
+        if (!vm.checkIfTextureCached( "data:" + zipfile.name, engine )){
+          zipfile.async("base64").then(function (data) {
+            // Create the texture to add it to cache
+            let texture = new BABYLON.Texture.CreateFromBase64String("data:image/png;base64," + data, zipfile.name, scene );
+            setTexture(texture);
+            resolve();
+          }).catch(function (reason) {
+            reject(reason);
+          });
+          // No need to do anything except update initialized count if the file already is cached.
+        } else {
+          let texture = new BABYLON.Texture("data:" + zipfile.name, scene );
+          setTexture(texture);
+          resolve();
+        }
+      });
+
+    },
+
+    testSetStudioMaterial( mesh, meshId ){
+
+      let vm = this;
+      function setMaterial( zipUrl, color ){
+
+        if (!vm.studioMaterials[ meshId ] ){
+          //let url = vm.static3DAssetPath + "LS_15/Resources/" + diffuseUrl;
+          const root = vm.static3DAssetPath + "LS_15/Resources/";
+          let scene = vm.attr("scene");
+          let material = new BABYLON.StandardMaterial(zipUrl, scene);
+          //material.diffuseTexture = new BABYLON.Texture( url, scene);
+
+          let promise = new Promise( function(resolve, reject){
+
+
+            vm.testLoadZip({
+              filename: zipUrl,
+              root: root
+            }).then(function(zip){
+
+              let finished = 0;
+              let onFinish = function(){
+                finished++;
+                if (finished >= textures.length){
+
+
+
+                  resolve(material);
+                }
+              }
+
+              let textures = [];
+
+              for (var key in zip.files) {
+                if (key.endsWith(".png")){
+                  textures.push(zip.files[key]);
+                }
+              }
+
+              for (var i = 0; i < textures.length; ++i){
+                let texture = textures[i];
+                if (texture.name.endsWith("Diff.png")){
+
+                  vm.testLoadMaterialTexture( material, texture, "diffuse").then(onFinish);
+                } else if (texture.name.endsWith("Nrml.png")){
+                  vm.testLoadMaterialTexture( material, texture, "normal").then(onFinish);
+                }
+
+              }
+
+            }, function(error){
+              console.log(error);
+            });
+          });
+
+
+
+          material.specularColor = new BABYLON.Color3(0,0,0);
+          vm.studioMaterials[ meshId ] = promise;
+        }
+
+        vm.studioMaterials[ meshId ].then(function( material ){
+          mesh.material = material.clone();
+
+          const uScale = 0.19995;
+          const vScale = 0.225;
+
+          mesh.material.diffuseTexture.uScale = uScale;
+          //mesh.material.diffuseTexture.vScale = 0.228;
+          mesh.material.diffuseTexture.vScale = vScale;
+          if (mesh.material.bumpTexture){
+            mesh.material.bumpTexture.uScale = uScale;
+            mesh.material.bumpTexture.vScale = vScale;
+          }
+
+          if (color){
+            mesh.material.diffuseColor = color;
+          }
+
+        });
+      }
+
+      let suffix = "_Tex0.zip";
 
       switch( meshId ){
         // 43
@@ -807,16 +917,9 @@ export const ViewModel = Map.extend({
           for (var i = 0; i < a_item.meshes.length; ++i){
             var mesh = a_item.meshes[i];
 
-            if (i == 0){
-
-            }
-
             if (mesh._tags){
               mesh.tag = 1;
               mesh.label = mesh.id;
-
-              mesh.collisionsEnabled = true;
-              mesh.receiveShadows = true;
 
               if (mesh.id === "74_GlassIn_001" || mesh.id === "73_GlassOut_001"){
                 vm.testSetStudioMaterial(mesh, 999);
@@ -830,16 +933,8 @@ export const ViewModel = Map.extend({
                 let meshId = parseInt( Object.keys( mesh._tags )[ 0 ].replace( "meshId_", ""), 10 );
                 vm.testSetStudioMaterial(mesh, meshId);
               }
-
-              // mesh.isBG = true;
-              // mesh.physicsImpostor = new BABYLON.PhysicsImpostor(mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
-              // vm.backgroundImpostors.push( mesh.physicsImpostor );
             }
-            else{
-              mesh.physicsImpostor = new BABYLON.PhysicsImpostor(mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
-              vm.backgroundImpostors.push( mesh.physicsImpostor );
-            }
-          }
+          } // End for
         }
       });
     },
@@ -927,7 +1022,7 @@ export const ViewModel = Map.extend({
     // dirShadowGenerator.useBlurVarianceShadowMap = true;
     dirShadowGenerator.bias *= 0.05;
 
-    var pointLight = new BABYLON.PointLight( "pointlight", new BABYLON.Vector3( 0, 300, 0 ), scene );
+    var pointLight = new BABYLON.PointLight( "pointlight", new BABYLON.Vector3( 0, 3, 0 ), scene );
 
     var hemisphericPointLight = new BABYLON.HemisphericLight( "hemispoint", new BABYLON.Vector3( 0, 1, 0 ), scene );
     hemisphericPointLight.intensity = 0.8;
@@ -961,7 +1056,7 @@ export const ViewModel = Map.extend({
 
     // Gravity & physics stuff
     var physicsPlugin = new BABYLON.CannonJSPlugin();
-    var gravityVector = new BABYLON.Vector3( 0, -0.0000000981, 0 );
+    var gravityVector = new BABYLON.Vector3( 0, -9.9807, 0 );
 
     scene.enablePhysics( gravityVector, physicsPlugin );
 

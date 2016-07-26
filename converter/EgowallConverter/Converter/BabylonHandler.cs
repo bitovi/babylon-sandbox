@@ -174,7 +174,7 @@ namespace EgowallConverter.Converter
                     }
                     else
                     {
-                        Converter.LogMessage("Found a material with no Id: " + a_babylonFile, ConsoleColor.Yellow);
+                        Application.LogMessage("Found a material with no Id: " + a_babylonFile, ConsoleColor.Yellow);
                     }
                 }
             }
@@ -227,7 +227,7 @@ namespace EgowallConverter.Converter
             else
             {
 #if DEBUG
-                Converter.LogMessage("Failed to parse double: " + m.Value, ConsoleColor.Yellow);
+                Application.LogMessage("Failed to parse double: " + m.Value, ConsoleColor.Yellow);
 #endif
                 return m.Value;
             }

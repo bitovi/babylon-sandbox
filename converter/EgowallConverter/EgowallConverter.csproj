@@ -54,7 +54,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Converter\BabylonHandler.cs" />
-    <Compile Include="Converter\Converter.cs" />
+    <Compile Include="Converter\Application.cs" />
+    <Compile Include="Converter\Converters\FurnitureConverter.cs" />
+    <Compile Include="Converter\Converters\IConverter.cs" />
+    <Compile Include="Converter\Converters\TextureConverter.cs" />
     <Compile Include="Converter\FbxExporter.cs" />
     <Compile Include="Converter\TextureCompressor.cs" />
     <Compile Include="Converter\ZipBundler.cs" />

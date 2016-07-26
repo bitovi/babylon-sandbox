@@ -5,13 +5,23 @@
 (function(){
 
     var _isDebugMaterial = false;
-    window.DEBUG3D = {
+    var DEBUG3D = {
         /**
          * Draw a bounding box for a size
          */
-        drawBoundingBox:function ()
+        drawBoundingBox:function (scene, a_boundingBox, a_options)
         {
+            // Create the options if it doesn't exist
+            if (!a_options) a_options = {};
+            // Set the default size
+            if (a_options.size === undefined) a_options.size = 0.1;
+            // Set default time
+            if (a_options.time === undefined) a_options.time = 5000;
+            // And the default red color
+            if (!a_options.color) a_options.color = new BABYLON.Color3(1, 0, 0);
 
+            DEBUG3D.drawPoint(scene, a_boundingBox.minimum, a_options);
+            DEBUG3D.drawPoint(scene, a_boundingBox.maximum, a_options);
         },
         /**
          *
@@ -94,4 +104,6 @@
             _isDebugMaterial = !_isDebugMaterial;
         }
     };
+
+    window.DEBUG3D = DEBUG3D;
 })();

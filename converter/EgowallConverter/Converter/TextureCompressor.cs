@@ -15,8 +15,6 @@ namespace EgowallConverter.Converter
         public const string AdvPngPath = "/Dependancies/advpng.exe";
         public const string PngQuantPath = "/Dependancies/pngquant.exe";
 
-        public static bool Base64Encoding = true;
-
         public TextureCompressor()
         {           
         }
@@ -36,7 +34,7 @@ namespace EgowallConverter.Converter
             {
                 if ( !CompressImage(file, a_directory))
                 {
-                    Converter.LogMessage("Failed to compress image: " + file, ConsoleColor.Red);
+                    Application.LogMessage("Failed to compress image: " + file, ConsoleColor.Red);
                     return false;
                 }
             }
@@ -60,7 +58,7 @@ namespace EgowallConverter.Converter
             }
             catch
             {
-                Converter.LogMessage("Failed to remove file.", ConsoleColor.Red);
+                Application.LogMessage("Failed to remove file.", ConsoleColor.Red);
             }
         }
 
@@ -79,38 +77,24 @@ namespace EgowallConverter.Converter
 
             if (!ConvertTgaToPng(a_file, output))
             {
-                Converter.LogMessage("Failed to convert .tga to .png for: " + a_file, ConsoleColor.Red);
+                Application.LogMessage("Failed to convert .tga to .png for: " + a_file, ConsoleColor.Red);
                 return false;
             }
 
             if (!RunPngQuant(output))
             {
-                Converter.LogMessage("PngQuant failed to run for: " + a_file, ConsoleColor.Red);
+                Application.LogMessage("PngQuant failed to run for: " + a_file, ConsoleColor.Red);
                 return false;
             }
 #if DEBUG
-            Converter.LogMessage("Running AdvPng", ConsoleColor.Cyan);
+            Application.LogMessage("Running AdvPng", ConsoleColor.Cyan);
 #endif
 
             if (!RunAdvPng(output))
             {
-                Converter.LogMessage("AdvPng failed to run for: " + a_file, ConsoleColor.Red);
+                Application.LogMessage("AdvPng failed to run for: " + a_file, ConsoleColor.Red);
                 return false;
             }
-
-//            if (Base64Encoding)
-//            {
-//#if DEBUG
-//                Converter.LogMessage("Running Convert Png to Base64", ConsoleColor.Cyan);
-//#endif
-//                if (!ConvertPngTobase64(output))
-//                {
-//                    Converter.LogMessage("Failed to convert png to base64: " + a_file, ConsoleColor.Red);
-//                    return false;
-
-//                }
-//            }
-
 
             return true;
         }
@@ -162,7 +146,7 @@ namespace EgowallConverter.Converter
                 if (needResize)
                 {
 #if DEBUG
-                    Converter.LogMessage("Resizing texture", ConsoleColor.Cyan);
+                    Application.LogMessage("Resizing texture", ConsoleColor.Cyan);
 #endif
                     using (MagickImage image = new MagickImage(a_output))
                     {

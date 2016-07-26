@@ -4,10 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using EgowallConverter.Converter.Converters;
 
 namespace EgowallConverter.Converter
 {
-    class Converter
+    class Application
     {
         enum Mode
         {
@@ -33,21 +34,16 @@ namespace EgowallConverter.Converter
         /// <summary>
         /// The output directory, mimicks the input file structure with the exception of textures 
         /// </summary>
-        public static string OutputDirectory = "output";
-
-        FbxExporter m_fbxExporter;
-        BabylonHandler m_babylonHandler;
-        TextureCompressor m_textureCompressor = new TextureCompressor();
-        ZipBundler m_zipBundler;
+        public static string OutputDirectory = "output";       
 
         Mode m_converterMode = Mode.NoMode;
 
-        public Converter()
+        IConverter m_converter;
+
+        public Application()
         {
-            m_fbxExporter = new FbxExporter();
-            m_babylonHandler = new BabylonHandler();
-            m_zipBundler = new ZipBundler();
-        }
+            
+        }        
 
         public void Run()
         {
@@ -68,7 +64,7 @@ namespace EgowallConverter.Converter
             // Start by clearing temp folder
             CleanTemp();
 
-            HandleDirectory(InputDirectory);
+            m_converter.Run();            
 
             LogMessage("Finished processing files", ConsoleColor.Green);
             Console.ReadLine();
@@ -78,7 +74,7 @@ namespace EgowallConverter.Converter
         /// </summary>
         public void GetInput()
         {
-            Console.WriteLine("Welcome to Egowall converter. Select you type of conversion:");            
+            Console.WriteLine("Welcome to Egowall converter. Select the type of conversion:");            
 
             while (m_converterMode == Mode.NoMode)
             {
@@ -86,7 +82,7 @@ namespace EgowallConverter.Converter
                 Console.WriteLine("f - Furnitures");
                 Console.WriteLine("t - Textures");
                 Console.WriteLine("x - Exit");
-                Console.Write("Your command: ");
+                Console.Write("Action: ");
 
                 string input = Console.ReadLine();
 
@@ -94,105 +90,35 @@ namespace EgowallConverter.Converter
                 {
                     case "b":
                         m_converterMode = Mode.Backgrounds;
+                        m_converter = new FurnitureConverter();
                         break;
                     case "f":
                         m_converterMode = Mode.Furnitures;
+                        m_converter = new FurnitureConverter();
                         break;
                     case "t":
                         m_converterMode = Mode.Textures;
+                        m_converter = new TextureConverter();
                         break;
                     case "x":
                         m_converterMode = Mode.Exit;
                         break;
                     default:
-                        Console.WriteLine("No such type exists. Please write a valid command.");
+                        Console.WriteLine("No such action exists. Please write a valid action.");
                         Console.WriteLine();
                         break;
                 }
             }
-        }
+        }        
 
         /// <summary>
-        /// Recursive function to find all files & directories
-        /// Does Files first and then Directories
+        /// Takes input path and returns output path.
+        /// input/folder1/folder2/file.fbx
+        /// output/folder1/folder2/file.zip
         /// </summary>
-        /// <param name="a_directoryPath"></param>
-        public void HandleDirectory(string a_directoryPath)
-        {
-            string[] files = Directory.GetFiles(a_directoryPath, "*.fbx");
-            HandleFiles(files);
-
-            string[] directories = Directory.GetDirectories(a_directoryPath);
-
-            LogMessage("Directory '" + a_directoryPath + "' is finished being processed.", ConsoleColor.Gray);
-            foreach (string directory in directories)
-            {
-                HandleDirectory(directory);
-            }            
-        }
-        /// <summary>
-        /// Handles all the fbx files
-        /// </summary>
-        /// <param name="a_files"></param>
-        public void HandleFiles(string[] a_files)
-        {
-            foreach (string file in a_files)
-            {
-                if (ProcessFile(file))
-                {                    
-                    LogMessage("Succesfully processed " + file, ConsoleColor.Gray);
-                }
-                else
-                {
-                    LogMessage("Failed to process " + file, ConsoleColor.Red);
-                }
-            }           
-        }
-
-        public bool ProcessFile(string a_file)
-        {   
-            bool fbxResult = m_fbxExporter.ConvertFbxToBabylon(a_file, TempDirectory);
-
-            if (fbxResult)
-            {
-                // Files exist now
-                string[] tempFiles = Directory.GetFiles(TempDirectory, "*.babylon");
-
-                if (tempFiles.Length == 1)
-                {
-                    string babylonFile = tempFiles[0];
-
-                    m_babylonHandler.FixPrecision(babylonFile);
-
-                    m_babylonHandler.ChangeMaterialId(babylonFile);
-
-                    m_babylonHandler.AddMeshIdTags(babylonFile);
-
-                    m_textureCompressor.CompressImages(TempDirectory);
-
-                    string outputDirectory = GetOutputDirectory(a_file);
-
-                    
-                    m_zipBundler.CreateZipBundle(TempDirectory, babylonFile, outputDirectory);                    
-
-                    CleanTemp();
-
-                    return true;
-                }
-                else
-                {
-                    LogMessage("No babylon file found in temp folder", ConsoleColor.Red);
-                }
-            }
-            else
-            {
-                LogMessage("Failed to process: '" + a_file + "'", ConsoleColor.Red);
-            }
-
-            return false;
-        }
-
-        private string GetOutputDirectory( string a_inputFile)
+        /// <param name="a_inputFile"></param>
+        /// <returns></returns>
+        public static string GetOutputDirectory( string a_inputFile)
         {
             string[] paths = a_inputFile.Split('\\');
 
@@ -205,13 +131,16 @@ namespace EgowallConverter.Converter
 
             return OutputDirectory + "/" + result;
         }
-       
-        private void CleanTemp()
+
+        /// <summary>
+        /// Cleans the temporary directory by removing it
+        /// </summary>
+        public static void CleanTemp()
         {
             if (Directory.Exists(TempDirectory))
             {
                 Directory.Delete(TempDirectory, true);
-            }            
+            }
         }
 
         public static void LogMessage(string a_message, ConsoleColor a_color)

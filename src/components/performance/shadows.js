@@ -6,7 +6,7 @@ function loadModels(BABYLON, vm){
   var position = new BABYLON.Vector3(0, -0.5, 0);
   var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
 
-  let physics = true;
+  let physics = false;
 
   vm.testloadModelZip({
     filename: "Colo_Rug_Fab_LtBrown_001.zip",

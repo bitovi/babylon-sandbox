@@ -43,3 +43,5 @@ bin/
 obj/
 packages/
 .vs/
+*.zip
+*.babylon

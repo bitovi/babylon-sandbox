@@ -763,15 +763,11 @@ export const ViewModel = Map.extend({
       function setMaterial( zipUrl, color ){
 
         if (!vm.studioMaterials[ meshId ] ){
-          //let url = vm.static3DAssetPath + "LS_15/Resources/" + diffuseUrl;
           const root = vm.static3DAssetPath + "LS_15/Resources/";
           let scene = vm.attr("scene");
           let material = new BABYLON.StandardMaterial(zipUrl, scene);
-          //material.diffuseTexture = new BABYLON.Texture( url, scene);
 
           let promise = new Promise( function(resolve, reject){
-
-
             vm.testLoadZip({
               filename: zipUrl,
               root: root
@@ -781,9 +777,6 @@ export const ViewModel = Map.extend({
               let onFinish = function(){
                 finished++;
                 if (finished >= textures.length){
-
-
-
                   resolve(material);
                 }
               }
@@ -799,20 +792,16 @@ export const ViewModel = Map.extend({
               for (var i = 0; i < textures.length; ++i){
                 let texture = textures[i];
                 if (texture.name.endsWith("Diff.png")){
-
                   vm.testLoadMaterialTexture( material, texture, "diffuse").then(onFinish);
                 } else if (texture.name.endsWith("Nrml.png")){
                   vm.testLoadMaterialTexture( material, texture, "normal").then(onFinish);
                 }
-
               }
 
             }, function(error){
               console.log(error);
             });
           });
-
-
 
           material.specularColor = new BABYLON.Color3(0,0,0);
           vm.studioMaterials[ meshId ] = promise;
@@ -825,8 +814,8 @@ export const ViewModel = Map.extend({
           const vScale = 0.225;
 
           mesh.material.diffuseTexture.uScale = uScale;
-          //mesh.material.diffuseTexture.vScale = 0.228;
           mesh.material.diffuseTexture.vScale = vScale;
+
           if (mesh.material.bumpTexture){
             mesh.material.bumpTexture.uScale = uScale;
             mesh.material.bumpTexture.vScale = vScale;

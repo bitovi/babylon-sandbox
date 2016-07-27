@@ -80,7 +80,7 @@ namespace EgowallConverter.Converter
             {
                 Console.WriteLine("b - Background models");
                 Console.WriteLine("f - Furnitures");
-                Console.WriteLine("t - Textures");
+                Console.WriteLine("t - Textures");                
                 Console.WriteLine("x - Exit");
                 Console.Write("Action: ");
 
@@ -126,7 +126,7 @@ namespace EgowallConverter.Converter
 
             for (int i = 1; i < paths.Length - 1; ++i)
             {
-                result = paths[i] + "/";
+                result += paths[i] + "/";
             }            
 
             return OutputDirectory + "/" + result;

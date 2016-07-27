@@ -22,3 +22,31 @@ export var getTooltip = function () {
   return ttVM || null;
 };
 
+/*
+  anyTruthy(    1    ); // true
+  anyTruthy(   "1"   ); // true
+  anyTruthy(    0    ); // false
+  anyTruthy(   "0"   ); // false
+
+  anyTruthy(  true   ); // true
+  anyTruthy(  false  ); // false
+
+  anyTruthy( "true"  ); // true
+  anyTruthy( "false" ); // false
+  anyTruthy( "TRUE"  ); // true
+  anyTruthy(   "t"   ); // true
+  anyTruthy( "FALSE" ); // false
+
+  anyTruthy(  "yes"  ); // true
+  anyTruthy(  "no"   ); // false
+  anyTruthy(   "Y"   ); // true
+  anyTruthy(   "n"   ); // false
+
+  anyTruthy(   []    ); // false
+  anyTruthy(   {}    ); // false
+  anyTruthy(   [1]   ); // true
+  anyTruthy(   ""    ); // false
+*/
+export var anyTruthy = function ( any ) {
+  return /^[ty1]/i.test( any );
+};

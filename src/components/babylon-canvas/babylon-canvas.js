@@ -8,9 +8,12 @@ import 'cannon';
 import BABYLON from 'babylonjs/babylon.max';
 import '../../static/3d/js/babylon.objFileLoader.js';
 
-import { getControls, getTooltip } from '../../util/util.js';
+import { getControls, getTooltip, anyTruthy } from '../../util/util.js';
 
 import Constants from '../../models/constants.js';
+import Homes from '../../models/homes.js';
+import Rooms from '../../models/rooms.js';
+import Asset from '../../models/asset.js';
 
 export const ViewModel = Map.extend({
   define: {
@@ -63,16 +66,16 @@ export const ViewModel = Map.extend({
   pickingItem ( $ev, normalizedKey, heldInfo, deltaTime ) {
     // Return pickingInfo for first object hit except ground
     var scene = this.attr( "scene" );
+    var customizeMode = this.attr( "customizeMode" );
     var controlsVM = getControls();
     var curMousePos = controlsVM.curMousePos();
-    var pickingInfo = scene.pick( curMousePos.x, curMousePos.y, function(a_hitMesh){
-      return a_hitMesh.tag === 1;
+    var pickingInfo = scene.pick( curMousePos.x, curMousePos.y, ( hitMesh ) => {
+      return customizeMode ? hitMesh.backgroundMesh : this.isMeshFurnitureItem( hitMesh );
     });
     var hoveredMesh = this.attr( "hoveredMesh" );
 
-    var allowPick = pickingInfo.hit && !this.attr( "customizeMode" ) && $ev.target.nodeName.toLowerCase() === "canvas";
+    var allowPick = pickingInfo.hit && $ev.target.nodeName.toLowerCase() === "canvas";
 
-    // If the info hit a mesh that isn't the ground then outline it
     if ( allowPick ) {
       var mesh = pickingInfo.pickedMesh;
 
@@ -80,7 +83,6 @@ export const ViewModel = Map.extend({
         this.setMeshOutline( mesh );
       }
       getTooltip().set( "meshHover", mesh.name, "fa-archive", "Click to Manage", curMousePos.x, curMousePos.y );
-    // Else remove outline
     } else {
       if ( hoveredMesh ) {
         this.clearMeshOutline( hoveredMesh );
@@ -91,33 +93,30 @@ export const ViewModel = Map.extend({
   },
 
   clearMeshOutline ( mesh ) {
-    mesh.renderOutline = false;
-    if ( mesh.e_siblings ) {
-      for ( let i = 0; i < mesh.e_siblings.length; ++i ) {
-        mesh.e_siblings[ i ].renderOutline = false;
-      }
+    var groupedMeshes = this.getGroupedMeshesFromMesh( mesh );
+
+    for ( let i = 0; i < groupedMeshes.length; ++i ) {
+      groupedMeshes[ i ].renderOutline = false;
     }
   },
 
-  setMeshOutline ( a_mesh, a_skipSinblings ) {
-    if ( !a_skipSinblings ) {
-      let hoveredMesh = this.attr( "hoveredMesh" );
-      if ( hoveredMesh ){
-        this.clearMeshOutline( hoveredMesh );
-      }
+  setMeshOutline ( mesh ) {
+    let hoveredMesh = this.attr( "hoveredMesh" );
 
-      if (a_mesh.e_siblings){
-        for ( var i = 0; i < a_mesh.e_siblings.length; ++i){
-          this.setMeshOutline(a_mesh.e_siblings[i], true);
-        }
-      }
-      this.attr( "hoveredMesh", a_mesh );
+    if ( hoveredMesh ){
+      this.clearMeshOutline( hoveredMesh );
     }
 
-    a_mesh.renderOutline = true;
-    // rgb( 86, 170, 206)
-    a_mesh.outlineColor = new BABYLON.Color3(0.3359375, 0.6640625, 0.8046875);
-    a_mesh.outlineWidth = 0.025;
+    var groupedMeshes = this.getGroupedMeshesFromMesh( mesh );
+
+    for ( let i = 0; i < groupedMeshes.length; ++i ) {
+      let curMesh = groupedMeshes[ i ];
+      curMesh.renderOutline = true;
+      curMesh.outlineColor = new BABYLON.Color3( 0.3359375, 0.6640625, 0.8046875 ); // rgb( 86, 170, 206 )
+      curMesh.outlineWidth = 0.025;
+    }
+
+    this.attr( "hoveredMesh", mesh );
   },
 
   static3DAssetPath: "/src/static/3d/",
@@ -155,418 +154,10 @@ export const ViewModel = Map.extend({
     return skybox;
   },
 
-  /* Demo/Test Functions */
 
 
-    /**
-     * Multiply quat quaternion with vector3
-     * @param {Array} quat
-     * @param {Array} vec3
-     * @param {Array?} vec3Dest
-     * @returns {*}
-     */
-    multiplyVector3 ( quat, vec3, vec3Dest ) {
-      vec3Dest || (vec3Dest = vec3);
-      var d = vec3[0],
-          e = vec3[1],
-          g = vec3[2],
-          b = quat[0],
-          f = quat[1],
-          h = quat[2],
-          a = quat[3],
-          i = a * d + f * g - h * e,
-          j = a * e + h * d - b * g,
-          k = a * g + b * e - f * d,
-          d = -b * d - f * e - h * g;
-      vec3Dest[0] = i * a + d * -b + j * -h - k * -f;
-      vec3Dest[1] = j * a + d * -f + k * -b - i * -h;
-      vec3Dest[2] = k * a + d * -h + i * -f - j * -b;
-      return vec3Dest;
-    },
-
-    rotateNormals ( mesh ) {
-      var normals = mesh.getVerticesData( BABYLON.VertexBuffer.NormalKind );
-      var rotationQuat = BABYLON.Quaternion.RotationYawPitchRoll( 0,  Math.PI * 1.5, 0 );
-
-      for (var i = 0; i < normals.length; i+= 3){
-        var normalVector = [ normals[i], normals[i + 1], normals[i + 2] ];
-
-        // From glMatrix 0.95
-        this.multiplyVector3(
-          [ rotationQuat.x, rotationQuat.y, rotationQuat.z, rotationQuat.w ],
-          normalVector
-        );
-
-        normals[i] = normalVector[0];
-        normals[i+1] = normalVector[1];
-        normals[i + 2] = normalVector[2];
-      }
-
-      mesh.setVerticesData( BABYLON.VertexBuffer.NormalKind, normals );
-    },
-
-    testLoadModel ( options, loader ) {
-      var vm = this;
-      var items = this.attr( "items" );
-
-      options.root = options.root || this.attr( "static3DAssetPath" );
-
-      //TODO: new can.Deferred();
-      var task = loader.addMeshTask(
-        options.taskname || options.filename,
-        "",
-        options.root,
-        options.filename
-      );
-
-      task.onSuccess = function (t) {
-
-        var item = {
-          name: t.name,
-          meshes: t.loadedMeshes
-        };
-
-        items.push( item );
-
-        // Set the models position
-        for ( var i = 0; i < item.meshes.length; ++i ) {
-          var mesh = item.meshes[i];
-          mesh.e_item = item;
-
-          if ( item.meshes.length > 1 ) {
-            mesh.e_siblings = [];
-
-            for (var j = 0; j < item.meshes.length; ++j){
-              if (j != i){
-                mesh.e_siblings.push(item.meshes[j]);
-              }
-            }
-          }
-
-          //var positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
-          //var normals = mesh.getVerticesData( BABYLON.VertexBuffer.NormalKind );
-          //
-          //BABYLON.VertexData.ComputeNormals( positions, mesh.getIndices(), normals );
-
-          if ( options.rotateNormals ) {
-            vm.rotateNormals( mesh );
-          }
-
-          if ( !options.skipTag ) {
-            mesh.tag = 1;
-          }
-
-          mesh.receiveShadows = true;
-          mesh.position = options.position;
-          mesh.rotationQuaternion = options.rotation;
-
-          if ( !options.skipshadow ) {
-            vm.addToShadowGenerator( mesh );
-          }
-
-          if ( options.physics ) {
-            vm.testSetPhysicsImpostor( mesh );
-          }
-
-          if ( options.hide ) {
-            mesh.visibility = 0;
-          }
-        }
-
-        if ( options.success ) {
-          options.success( item );
-        }
-      };
-      
-      return task;
-    },
-
-    initTestSceneModels () {
-      var loader = this.getAssetsManager();
-
-      var rotateNormals = true;
-
-      var position = new BABYLON.Vector3(0, 0, 0);
-      var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
-      this.testLoadModel({
-        filename: "Colo_Rug_Fab_LtBrown_001.obj",
-        //filename: "StoneWall_LOW.obj",
-        physics: false,
-        position: position,
-        rotation:rotation,
-        rotateNormals: rotateNormals,
-        taskname: "rug"
-      }, loader);
-
-      position = new BABYLON.Vector3(2, 1, 0);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI * -0.5, 0, 0);
-      this.testLoadModel({
-        filename: "West_Chair_Leath_Brown_001.obj",
-        physics: true,
-        position: position,
-        rotation:rotation,
-        rotateNormals: rotateNormals,
-        taskname: "chair"
-      }, loader);
-
-      position = new BABYLON.Vector3(-2, 1, 0);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI * 0.5, 0, 0);
-      this.testLoadModel({
-        filename: "West_Chair_Leath_Brown_001.obj",
-        physics: true,
-        position: position,
-        rotation:rotation,
-        rotateNormals: rotateNormals,
-        taskname: "chair"
-      }, loader);
-
-      position = new BABYLON.Vector3(0, 1, 2);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI, 0, 0);
-      this.testLoadModel({
-        filename: "West_Chair_Leath_Brown_001.obj",
-        physics: true,
-        position: position,
-        rotation:rotation,
-        rotateNormals: rotateNormals,
-        taskname: "chair"
-      }, loader);
-
-      position = new BABYLON.Vector3(0, 1, -2);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
-      this.testLoadModel({
-        filename: "West_Chair_Leath_Brown_001.obj",
-        physics: true,
-        position: position,
-        rotation:rotation,
-        rotateNormals: rotateNormals,
-        taskname: "chair"
-      }, loader);
 
 
-      position = new BABYLON.Vector3(0, 3, 0);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
-      this.testLoadModel({
-        filename: "KidsPrin_CeFan_Wd_LtPurp_001.obj",
-        physics: false,
-        position: position,
-        rotation:rotation,
-        rotateNormals: !rotateNormals,
-        taskname: "bedfan"
-      }, loader);
-
-      position = new BABYLON.Vector3(0, 1, 0);
-      rotation = BABYLON.Quaternion.RotationYawPitchRoll(0, 0, 0);
-      this.testLoadModel({
-        filename: "KidsJng_Bed_Wd_LtBrown_002.obj",
-        physics: true,
-        position: position,
-        rotation:rotation,
-        rotateNormals: rotateNormals,
-        taskname: "bed"
-      }, loader);
-
-      loader.load();
-    },
-
-    changeColor () {
-      if ( !this.attr( "customizeMode" ) ) {
-        return;
-      }
-      var colorId = parseInt(Math.random() * 5);
-      // So there is sliiiiightly higher chance of getting 3 than 0, 1 , 2!
-      if (colorId === 5) colorId = 4;
-      var color;
-  
-      switch ( colorId ){
-        case 0:
-          color = new BABYLON.Color3(73/255, 71/255, 63/255);
-          break;
-        case 1:
-          color = new BABYLON.Color3(149/255, 228/255, 147/255);
-          break;
-        case 2:
-          color = new BABYLON.Color3(232/255, 74/255, 74/255);
-          break;
-        case 3:
-          color = new BABYLON.Color3(104/255, 191/255, 193/255);
-          break;
-        case 4:
-          color = new BABYLON.Color3(1, 1, 0.3);
-          break;
-      }
-  
-      this.setDefaults();
-  
-      this.attr( "ground" ).material.diffuseColor = color;
-    },
-
-    changeTexture () {
-      if ( !this.attr( "customizeMode" ) ) {
-        return;
-      }
-      // randomization from 0 -> 4
-      var textureId = parseInt(Math.random() * 4);
-      // So there is sliiiiightly higher chance of getting 3 than 0, 1 , 2!
-      if (textureId === 4) textureId = 3;
-
-      var textureUrl = this.attr( "static3DAssetPath" ) + "LS_15/Resources/";
-      var bumpUrl;
-
-      switch ( textureId){
-        case 0:
-          textureUrl += "Concrete_005_Tex0_Diff.tga";
-          break;
-        case 1:
-          textureUrl += "Grass_002_Tex0_Diff.tga";
-          break;
-        case 2:
-          textureUrl += "Marble_001_Tex0_Diff.tga";
-          break;
-        case 3:
-          bumpUrl = textureUrl + "Wood_006_Tex0_Nrml.tga";
-          textureUrl += "Wood_006_Tex0_Diff.tga";
-          break;
-      }
-
-      this.setDefaults();
-      var scene = this.attr( "scene" );
-      this.attr( "ground" ).material.diffuseTexture = new BABYLON.Texture(textureUrl, scene);
-      if (bumpUrl){
-        this.attr( "ground" ).material.bumpTexture = new BABYLON.Texture(bumpUrl, scene);
-      }
-    },
-
-    resetGround () {
-      if ( !this.attr( "customizeMode" ) ) {
-        return;
-      }
-      if ( this.attr( "hasChanged" ) ) {
-        let ground = this.attr( "ground" );
-        ground.material.diffuseColor = this.attr( "defaultColor" );
-        ground.material.diffuseTexture = this.attr( "defaultTexture" );
-        ground.material.bumpTexture = this.attr( "defaultBump" );
-      }
-    },
-    
-    setDefaults () {
-      if ( !this.attr( "hasChanged" ) ) {
-        this.attr( "hasChanged", true );
-        let ground = this.attr( "ground" );
-        this.attr( "defaultColor", ground.material.diffuseColor );
-        this.attr( "defaultTexture", ground.material.diffuseTexture );
-        this.attr( "defaultBump", ground.material.bumpTexture );
-      }
-    },
-
-
-    excludeMeshForLight ( a_mesh ) {
-      this.attr( "hemisphericLight" ).excludedMeshes.push(a_mesh);
-      //this.attr( "normalDirLight" ).excludedMeshes.push(a_mesh);
-    },
-
-    initTestGroundPlane () {
-      var vm = this;
-      var scene = this.attr( "scene" );
-      var loader = new BABYLON.AssetsManager(scene);
-
-      var position = new BABYLON.Vector3(0, 0, 0);
-      var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
-
-      var meshId = -1;
-
-      this.testLoadModel({
-        filename: "Patio_001_LOD0.obj",
-        physics: false,
-        position: position,
-        root: this.attr( "static3DAssetPath" ) + "LS_15/",
-        rotation:rotation,
-        rotateNormals: true,
-        taskname: "ground",
-        skipTag:true,
-        skipshadow: true,
-        success: function(a_item){
-
-          for (var i = 0; i < a_item.meshes.length; ++i){
-            var mesh = a_item.meshes[i];
-            mesh.collisionsEnabled = true;
-            mesh.receiveShadows = true;
-
-            if (mesh.id === "Floor_001"){
-              meshId = i;
-              mesh.physicsImpostor = new BABYLON.PhysicsImpostor(mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
-              vm.attr( "ground", mesh );
-
-              vm.excludeMeshForLight(mesh);
-            }
-          }
-        }
-      }, loader);
-
-      loader.load();
-    },
-
-    testSetPhysicsImpostor ( mesh ) {
-      var scene = this.attr( "scene" );
-      var ground = this.attr( "ground" );
-
-      var physicsImpostor = new BABYLON.PhysicsImpostor(
-        mesh,
-        BABYLON.PhysicsImpostor.BoxImpostor,
-        { mass: 1, restitution: 0.8 },
-        scene
-      );
-      mesh.physicsImpostor = physicsImpostor;
-      
-      // On collision with the floor
-      physicsImpostor.registerOnPhysicsCollide( ground.physicsImpostor, function ( physImpos, collidedWithPhysImpos ) {
-        setTimeout(function(){
-          physicsImpostor.dispose();
-          if ( collidedWithPhysImpos.object.id === "Floor_001" ) {
-            physImpos.object.position.y = 0;
-          }
-        }, 1);
-      });
-    },
-
-    testToggleLights () {
-      var scene = this.attr ( "scene" );
-      var hasPointlight = this.attr( "hasPointlight" );
-      var normalDirLight = this.attr( "normalDirLight" );
-      var pointLight = this.attr( "pointLight" );
-      var hemisphericPointLight = this.attr( "hemisphericPointLight" );
-      var hemisphericLight = this.attr( "hemisphericLight" );
-
-      if ( hasPointlight ) {
-        scene.removeLight( pointLight );
-        scene.removeLight( hemisphericPointLight );
-        scene.addLight( hemisphericLight );
-        scene.addLight( normalDirLight );
-      } else {
-        scene.addLight( pointLight );
-        scene.addLight( hemisphericPointLight );
-        scene.removeLight( hemisphericLight );
-        scene.removeLight( normalDirLight );
-      }
-
-      this.attr( "hasPointlight", !hasPointlight );
-    },
-
-    testUpdatePointLights () {
-      var hasPointlight = this.attr( "hasPointlight" );
-      var pointLight = this.attr( "pointLight" );
-      
-      var spr = 30; //seconds per rotation
-      var percentOfRotation = ( ( Date.now() / 1000 ) % spr ) / spr;
-      var degrees = percentOfRotation * 360;
-      var radians = degrees * Math.PI / 180;
-
-      if ( hasPointlight ) {
-        let radius = 3.5;
-        pointLight.position.x = radius * Math.cos( radians );
-        pointLight.position.z = radius * Math.sin( radians );
-      }
-    },
-  /* end Demo/Test Functions */
 
   addToShadowGenerator ( mesh ) {
     this.attr( "shadowGenerator" ).getShadowMap().renderList.push( mesh );
@@ -634,7 +225,310 @@ export const ViewModel = Map.extend({
 
     BABYLON.OBJFileLoader.OPTIMIZE_WITH_UV = true;
     //scene.debugLayer.show();
-  }
+  },
+
+  roomAssetURL ( uroomID ) {
+    var homeLoad = this.attr( "homeLoad" );
+    var roomStatus = homeLoad.roomStatus;
+    var roomBundles = homeLoad.roomBundles;
+    var roomID = "";
+    var roomAssetURL = "";
+
+    for ( let i = 0; i < roomStatus.length; i++ ) {
+      if ( roomStatus[ i ].uroomID === uroomID ) {
+        roomID = roomStatus[ i ].roomID;
+        break;
+      }
+    }
+
+    for ( let i = 0; i < roomBundles.length; i++ ) {
+      if ( roomBundles[ i ].roomID === roomID ) {
+        roomAssetURL = roomBundles[ i ].roomAssetURL;
+        break;
+      }
+    }
+
+    return roomAssetURL;
+  },
+
+  loadTextures ( arrayOfLoadedFurnitures ) {
+    var scene = this.attr( "scene" );
+    for ( let i = 0; i < arrayOfLoadedFurnitures.length; i++ ) {
+      let furnAssets = arrayOfLoadedFurnitures[ i ].unzippedFiles;
+      for ( let x = 0; x < furnAssets.length; x++ ) {
+        let asset = furnAssets[ x ];
+        if ( asset.type === "texture" ) {
+          new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, asset.name, scene );
+        }
+      }
+    }
+
+    return arrayOfLoadedFurnitures;
+  },
+
+  getItemFromMesh ( mesh ) {
+    return mesh && mesh.__itemRef || {};
+  },
+
+  getItemOptionsFromMesh ( mesh ) {
+    var item = this.getItemFromMesh( mesh );
+    return item && item.options || {};
+  },
+
+  getGroupedMeshesFromMesh ( mesh ) {
+    var item = this.getItemFromMesh( mesh );
+    return item && item.meshes || [ mesh ];
+  },
+
+  isMeshFurnitureItem ( mesh ) {
+    var itemOptions = this.getItemOptionsFromMesh( mesh );
+    return itemOptions && itemOptions.furnArg && anyTruthy( itemOptions.furnArg );
+  },
+
+  meshesLoaded ( itemInfo, babylonName, meshes ) {
+    var item = {
+      name: babylonName,
+      options: itemInfo,
+      meshes: meshes
+    };
+
+    this.attr( "items" ).push( item );
+
+    for ( let i = 0; i < meshes.length; ++i ) {
+      let mesh = meshes[ i ];
+
+      mesh.__itemRef = item;
+
+      if ( !mesh.parent ) {
+        continue;
+      }
+
+      mesh.name = itemInfo.furnName || mesh.name;
+
+      mesh.receiveShadows = true;
+      mesh.position.x = parseFloat( itemInfo.position.x ) || 0;
+      mesh.position.y = parseFloat( itemInfo.position.y ) || 0;
+      mesh.position.z = parseFloat( itemInfo.position.z ) || 0;
+      mesh.rotationQuaternion.x = parseFloat( itemInfo.rotation.x ) || 0;
+      mesh.rotationQuaternion.y = parseFloat( itemInfo.rotation.y ) || 0;
+      mesh.rotationQuaternion.z = parseFloat( itemInfo.rotation.z ) || 0;
+      mesh.rotationQuaternion.w = parseFloat( itemInfo.rotation.w ) || 1;
+
+      vm.addToShadowGenerator( mesh );
+
+      if ( parseInt( itemInfo.furnPhysics, 10 ) ) {
+        //vm.testSetPhysicsImpostor( mesh );
+      }
+    }
+  },
+
+  loadModels ( arrayOfLoadedFurnitures ) {
+    var scene = this.attr( "scene" );
+
+    for ( let i = 0; i < arrayOfLoadedFurnitures.length; i++ ) {
+      let furnitureInfo = arrayOfLoadedFurnitures[ i ];
+      let furnAssets = furnitureInfo.unzippedFiles;
+      let len = furnAssets.length;
+      let babylon = len && furnAssets[ len - 1 ];
+      if ( babylon && babylon.type === "babylon" ) {
+        // is a babylon file that's been unpacked
+        let meshesLoadedBound = this.meshesLoaded.bind( this, furnitureInfo, babylon.name );
+        BABYLON.SceneLoader.ImportMesh( "", "", "data:" + babylon.data, scene, meshesLoadedBound );
+      }
+    }
+
+    return arrayOfLoadedFurnitures;
+  },
+
+  loadFurnitures ( roomFurnitures ) {
+    var furnPromises = [];
+    for ( let i = 0; i < roomFurnitures.length; i++ ) {
+      let furn = roomFurnitures[ i ];
+      furnPromises.push( Asset.get( furn ) );
+    }
+
+    return Promise.all( furnPromises ).then(
+      this.loadTextures.bind( this )
+    ).then(
+      this.loadModels.bind( this )
+    );
+  },
+
+  roomLoad ( uroomID ) {
+    var vm = this;
+
+    // furniture & placement info
+    var roomsPromise = Rooms.get({
+      requestType: "roomLoad",
+      format: "json",
+      uroomID: uroomID
+    });
+
+    vm.attr( "roomsPromise", roomsPromise );
+
+    return roomsPromise.then( ( roomLoad ) => {
+      vm.loadFurnitures( roomLoad.furnitures );
+    });
+  },
+
+  homeLoad ( homeID, time ) {
+    var vm = this;
+
+    var homesPromise = Homes.get({
+      requestType: "homeLoad",
+      format: "json",
+      homeID: homeID,
+      time: time
+    });
+
+    vm.attr( "homesPromise", homesPromise );
+
+    return homesPromise.then( ( homeLoad ) => {
+      //TODO: homeLoad.skyboxes.skyboxAssetURL
+      vm.initSkybox();
+      vm.setSkyboxMaterial( "ely_lakes", "lakes" );
+
+      var uroomID = homeLoad.defaultRoomID; //"659"
+      vm.attr({
+        "uroomID": uroomID,
+        "homeLoad": homeLoad
+      });
+
+      var roomAssetURL = vm.roomAssetURL( uroomID );
+      //TODO: use roomAssetURL to load the backgroundMesh
+      vm.initTestGroundPlane();
+
+      //TODO: Figure out materialConstants mapping to backgroundMesh meshes
+
+      return vm.roomLoad( uroomID );
+    });
+  },
+
+
+  // TEMPORARY FUNCTIONS
+
+    testLoadModel ( options, loader ) {
+      var vm = this;
+      var items = this.attr( "items" );
+
+      options.root = options.root || this.attr( "static3DAssetPath" );
+
+      //TODO: new can.Deferred();
+      var task = loader.addMeshTask(
+        options.taskname || options.filename,
+        "",
+        options.root,
+        options.filename
+      );
+
+      task.onSuccess = function (t) {
+
+        var item = {
+          name: t.name,
+          meshes: t.loadedMeshes
+        };
+
+        items.push( item );
+
+        // Set the models position
+        for ( var i = 0; i < item.meshes.length; ++i ) {
+          var mesh = item.meshes[i];
+          mesh.e_item = item;
+
+          if ( item.meshes.length > 1 ) {
+            mesh.e_siblings = [];
+
+            for (var j = 0; j < item.meshes.length; ++j){
+              if (j != i){
+                if ( options.backgroundMesh ) {
+                  item.meshes[j].backgroundMesh = true;
+                }
+                mesh.e_siblings.push(item.meshes[j]);
+              }
+            }
+          }
+
+          //var positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
+          //var normals = mesh.getVerticesData( BABYLON.VertexBuffer.NormalKind );
+          //
+          //BABYLON.VertexData.ComputeNormals( positions, mesh.getIndices(), normals );
+
+          if ( options.rotateNormals ) {
+            vm.rotateNormals( mesh );
+          }
+
+          if ( options.backgroundMesh ) {
+            mesh.backgroundMesh = true;
+          }
+
+          mesh.receiveShadows = true;
+          mesh.position = options.position;
+          mesh.rotationQuaternion = options.rotation;
+
+          if ( !options.skipshadow ) {
+            vm.addToShadowGenerator( mesh );
+          }
+
+          if ( options.physics ) {
+            //vm.testSetPhysicsImpostor( mesh );
+          }
+
+          if ( options.hide ) {
+            mesh.visibility = 0;
+          }
+        }
+
+        if ( options.success ) {
+          options.success( item );
+        }
+      };
+      
+      return task;
+    },
+
+    initTestGroundPlane () {
+      var vm = this;
+      var scene = this.attr( "scene" );
+      var loader = new BABYLON.AssetsManager(scene);
+
+      var position = new BABYLON.Vector3(0, 0, 0);
+      var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
+
+      var meshId = -1;
+
+      this.testLoadModel({
+        filename: "Patio_001_LOD0.obj",
+        physics: false,
+        position: position,
+        root: this.attr( "static3DAssetPath" ) + "LS_15/",
+        rotation:rotation,
+        rotateNormals: true,
+        taskname: "ground",
+        backgroundMesh: true,
+        skipshadow: true,
+        success: function(a_item){
+
+          for (var i = 0; i < a_item.meshes.length; ++i){
+            var mesh = a_item.meshes[i];
+            mesh.collisionsEnabled = true;
+            mesh.receiveShadows = true;
+
+            if (mesh.id === "Floor_001"){
+              meshId = i;
+              mesh.physicsImpostor = new BABYLON.PhysicsImpostor(mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
+              vm.attr( "ground", mesh );
+
+              vm.attr( "hemisphericLight" ).excludedMeshes.push( mesh );
+              //vm.attr( "normalDirLight" ).excludedMeshes.push( mesh );
+            }
+          }
+        }
+      }, loader);
+
+      loader.load();
+    }
+
+  // END TEMP FUNCTIONS
 });
 
 export const controls = {
@@ -665,7 +559,8 @@ export default Component.extend({
       });
 
       constantsPromise.then( ( materialConstants ) => {
-        console.log( "success:", materialConstants );
+        console.log( "success materialConstants:", materialConstants );
+        vm.attr( "materialConstants", materialConstants );
       });
     },
     inserted () {
@@ -681,13 +576,11 @@ export default Component.extend({
 
       vm.initScene();
 
-      vm.initTestGroundPlane();
+      vm.homeLoad( 1845, 110000 );
 
       vm.initLights();
-      vm.initSkybox();
-      vm.setSkyboxMaterial( "ely_lakes", "lakes" );
 
-      vm.initTestSceneModels();
+      //vm.initTestSceneModels();
 
       var renderCount = 0;
       engine.runRenderLoop(function () {
@@ -699,7 +592,7 @@ export default Component.extend({
         scene.render();
         renderCount = ( renderCount + 1 ) % 100;
 
-        vm.testUpdatePointLights();
+        //vm.testUpdatePointLights();
       });
 
       controls[ "context" ] = this.viewModel;

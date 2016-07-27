@@ -78,6 +78,16 @@ var behaviors = [
   "data-parse",
   "data-url",
   //"real-time",
+  {
+    parseInstanceData ( resp ) {
+      var rd = resp.materials || {};
+      delete resp[ "materials" ];
+
+      rd.statusInfo = resp;
+
+      return rd;
+    }
+  },
   "constructor-callbacks-once"
 ];
 

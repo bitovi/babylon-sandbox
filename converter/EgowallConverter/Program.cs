@@ -9,10 +9,7 @@ namespace EgowallConverter
     class Program
     {
         static void Main(string[] args)
-        {
-            //string number = "2.2204460492503131e-16";
-            //decimal dec = decimal.Parse(number, System.Globalization.NumberStyles.Float);
-
+        {            
             Converter.Application converter = new EgowallConverter.Converter.Application();
             converter.Run();            
         }

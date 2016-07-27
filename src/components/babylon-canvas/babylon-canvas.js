@@ -24,6 +24,10 @@ import LoadingZipTests from '../performance/loadingzip';
 // Draw performance tests
 import Draw1000 from '../performance/draw1000';
 import Draw2500 from '../performance/draw2500';
+// Instanced mesh tests
+import Instanced200 from '../performance/instanced200';
+import Instanced2500 from '../performance/instanced2500';
+import Instanced5000 from '../performance/instanced5000';
 // Triangle tests
 import Tri100 from '../performance/tri100';
 import Tri250 from '../performance/tri250';
@@ -142,33 +146,53 @@ export const ViewModel = Map.extend({
   },
 
   clearMeshOutline ( mesh ) {
-    mesh.renderOutline = false;
-    if ( mesh.e_siblings ) {
-      for ( let i = 0; i < mesh.e_siblings.length; ++i ) {
-        mesh.e_siblings[ i ].renderOutline = false;
+
+    if (mesh.__outline){
+      this.clearMeshOutline(mesh.__outline);
+      mesh.__outline.dispose();
+      mesh.__outline = null;
+    } else{
+      mesh.renderOutline = false;
+      if ( mesh.e_siblings ) {
+        for ( let i = 0; i < mesh.e_siblings.length; ++i ) {
+          mesh.e_siblings[ i ].renderOutline = false;
+        }
       }
     }
+
+
   },
 
   setMeshOutline ( a_mesh, a_skipSinblings ) {
-    if ( !a_skipSinblings ) {
-      let hoveredMesh = this.attr( "hoveredMesh" );
-      if ( hoveredMesh ){
-        this.clearMeshOutline( hoveredMesh );
-      }
+    if (a_mesh.__mesh){
+      let mesh = a_mesh.__mesh.clone();
+      mesh.position = a_mesh.position;
+      mesh.rotationQuaternion = a_mesh.rotationQuaternion;
+      a_mesh.__outline = mesh;
 
-      if (a_mesh.e_siblings){
-        for ( var i = 0; i < a_mesh.e_siblings.length; ++i){
-          this.setMeshOutline(a_mesh.e_siblings[i], true);
+      this.setMeshOutline(mesh);
+    } else{
+      if ( !a_skipSinblings ) {
+        let hoveredMesh = this.attr( "hoveredMesh" );
+        if ( hoveredMesh ){
+          this.clearMeshOutline( hoveredMesh );
         }
-      }
-      this.attr( "hoveredMesh", a_mesh );
-    }
 
-    a_mesh.renderOutline = true;
-    // rgb( 86, 170, 206)
-    a_mesh.outlineColor = new BABYLON.Color3(0.3359375, 0.6640625, 0.8046875);
-    a_mesh.outlineWidth = 0.025;
+        if (a_mesh.e_siblings){
+          for ( var i = 0; i < a_mesh.e_siblings.length; ++i){
+            this.setMeshOutline(a_mesh.e_siblings[i], true);
+          }
+        }
+        this.attr( "hoveredMesh", a_mesh );
+      }
+
+
+
+      a_mesh.renderOutline = true;
+      // rgb( 86, 170, 206)
+      a_mesh.outlineColor = new BABYLON.Color3(0.3359375, 0.6640625, 0.8046875);
+      a_mesh.outlineWidth = 0.025;
+    }
   },
 
   static3DAssetPath: "/src/static/3d/",
@@ -548,7 +572,7 @@ export const ViewModel = Map.extend({
             options.success( item );
           }
         // End ImportMesh
-        });
+        }, function(error){ console.log(error); });
         // Babylon async
       });
     },
@@ -580,6 +604,18 @@ export const ViewModel = Map.extend({
           Draw2500(BABYLON, this);
           break;
         case "?test=draw5000":
+          break;
+        /*
+          Instanced mesh tests
+         */
+        case "?test=instanced200":
+          Instanced200(BABYLON, this);
+          break;
+        case "?test=instanced2500":
+          Instanced2500(BABYLON, this);
+          break;
+        case "?test=instanced5000":
+          Instanced5000(BABYLON, this);
           break;
         /*
           Triangle tests
@@ -876,7 +912,88 @@ export const ViewModel = Map.extend({
       }
     },
 
+    testInitEnvironment(){
+      let vm = this;
+      const root = this.attr( "static3DAssetPath" ) + "LS_18/Environment/";
 
+      function setTextures(){
+        let options = arguments;
+
+        return function(a_item){
+          // Set the material
+          for (let i = 0; i < a_item.meshes.length; ++i){
+            let mesh = a_item.meshes[i];
+
+            if (mesh._tags){
+              let scene = vm.attr("scene");
+              for (let i = 0; i < mesh.material.subMaterials.length; ++i){
+                let material = mesh.material.subMaterials[i];
+                let option = options[i];
+
+                if (!option){
+                  console.log("submaterial not accounted for!");
+                  continue;
+                }
+
+                if (!material.diffuseTexture && option.diffuse){
+                  material.diffuseTexture = new BABYLON.Texture("data:" + option.diffuse, scene );
+                }
+
+                if (option.hasAlpha){
+                  material.diffuseTexture.hasAlpha = true;
+                }
+
+                if (option.specular){
+                  material.specularColor = option.specular;
+                }
+
+                if (!material.bumpTexture && option.normal){
+                  material.bumpTexture = new BABYLON.Texture("data:" + option.normal, scene );
+                }
+              }
+            }
+          }
+        }
+      };
+
+      this.testloadModelZip({
+        filename: "Nat_Tree_Org_Green_004_LOD1.zip",
+        root: root,
+        skipTag:true,
+        skipshadow : true,
+        success: setTextures({ diffuse: "Nat_Tree_Org_Green_004_Tex1_Diff.png", hasAlpha:true})
+      });
+
+      // this.testloadModelZip({
+      //   filename: "Cliff_Brown_001_LOD0.zip",
+      //   root: root,
+      //   skipTag:true,
+      //   success: setTextures({ diffuse: "Cliff_Brown_001_Tex0_Diff.png", normal: "Cliff_Brown_001_Tex0_Nrml.png" , specular: new BABYLON.Color3(0,0,0)},
+      //     { diffuse: "Soil_Dark_001_Tex0_Diff.png", specular: new BABYLON.Color3(0,0,0) })
+      // });
+
+      this.testloadModelZip({
+        filename: "Cliff_Grass_001_LOD0.zip",
+        root: root,
+        skipTag:true,
+        success: setTextures({ diffuse: "Cliff_Grass_001_Tex0_Diff.png", hasAlpha:true})
+      });
+
+      this.testloadModelZip({
+        filename: "Cliff_Rock_Stone_Grey_001_LOD0.zip",
+        root: root,
+        skipTag:true,
+        success: setTextures({ diffuse: "Cliff_Rock_Stone_Grey_001_Tex0_Diff.png", normal: "Cliff_Rock_Stone_Grey_001_Tex0_Nrml.png"})
+      });
+
+      this.testloadModelZip({
+        filename: "LS_18_Mountainscape_001_LOD0.zip",
+        root: root,
+        skipTag:true,
+        skipshadow : true,
+        success: setTextures({ diffuse: "LS_18_Mountainscape_001.png", hasAlpha:true })
+      });
+    },
 
     initTestGroundPlane () {
       var vm = this;
@@ -894,7 +1011,6 @@ export const ViewModel = Map.extend({
         position: position,
         root: root,
         rotation:rotation,
-        rotateNormals: true,
         taskname: "ground",
         skipTag:true,
         skipshadow: true,
@@ -1008,8 +1124,11 @@ export const ViewModel = Map.extend({
     
     var dirShadowGenerator = new BABYLON.ShadowGenerator( 1024, normalDirLight );
     dirShadowGenerator.setDarkness( 0 );
-    // dirShadowGenerator.useBlurVarianceShadowMap = true;
+    //dirShadowGenerator.usePoissonSampling = true;
+
     dirShadowGenerator.bias *= 0.05;
+
+    window.shadowgen = dirShadowGenerator;
 
     var pointLight = new BABYLON.PointLight( "pointlight", new BABYLON.Vector3( 0, 3, 0 ), scene );
 
@@ -1110,11 +1229,15 @@ export default Component.extend({
 
       vm.initTestGroundPlane();
 
+      vm.testInitEnvironment();
+
       vm.initLights();
       vm.initSkybox();
       vm.setSkyboxMaterial( "ely_lakes", "lakes" );
 
       vm.initTestSceneModels();
+
+
 
       var renderCount = 0;
 

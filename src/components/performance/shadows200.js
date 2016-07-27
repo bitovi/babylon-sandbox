@@ -4,8 +4,8 @@
 "use strict";
 function loadModels(BABYLON, vm){
 
-  //const filename = "KidsPrin_CeFan_Wd_LtPurp_001.zip";
-  const filename = "West_Chair_Leath_Brown_001.zip";
+  const filename = "KidsPrin_CeFan_Wd_LtPurp_001.zip";
+  //const filename = "West_Chair_Leath_Brown_001.zip";
   const space =1.4;
 
   for (let x = -10; x < 10; ++x){

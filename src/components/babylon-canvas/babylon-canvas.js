@@ -170,7 +170,7 @@ export const ViewModel = Map.extend({
     //This creates a light, aiming 0,1,0 - to the sky.
     var hemisphericLight = new BABYLON.HemisphericLight( "light1", new BABYLON.Vector3( 0, 1, 0 ), scene );
     hemisphericLight.groundColor = new BABYLON.Color3( 1, 1, 1 );
-    hemisphericLight.intensity = 1.0;
+    hemisphericLight.intensity = 1;
 
     var normalDirLight = new BABYLON.DirectionalLight( "dirlight1", new BABYLON.Vector3( 0, -1, 0 ), scene );
     
@@ -559,7 +559,7 @@ export default Component.extend({
       });
 
       constantsPromise.then( ( materialConstants ) => {
-        console.log( "success materialConstants:", materialConstants );
+        console.log( "success materialConstants" );
         vm.attr( "materialConstants", materialConstants );
       });
     },

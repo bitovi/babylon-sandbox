@@ -31,6 +31,9 @@
     "meta": {
       "cannon": {
         "format": "global"
+      },
+      "jszip/dist/jszip": {
+        "format": "global"
       }
     }
   },

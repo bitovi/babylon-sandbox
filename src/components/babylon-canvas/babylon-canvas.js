@@ -534,11 +534,11 @@ export const ViewModel = Map.extend({
 export const controls = {
   "name": "game-canvas",
   "context": null,
-  "keypress": {
-    "8": "changeColor",
-    "9": "changeTexture",
-    "0": "resetGround"
-  },
+  //"keypress": {
+  //  "8": "changeColor",
+  //  "9": "changeTexture",
+  //  "0": "resetGround"
+  //},
   "mousemove": {
     "*": "pickingItem"
   }

@@ -19,9 +19,45 @@ export const ViewModel = Map.extend({
     return true;
   },
   moveCamera ( newCoords, duration ) {
-    var camera = this.attr( "camera" );
+    let camera = this.attr( "camera" );
+    // Clone the value or it'd be linked when doing changes
+    const startPos = camera.position.clone();
+    // How much the camera has to move for all 3 axises
+    const distance = newCoords.subtract( startPos );
+
+    let promise = new Promise(function(resolve, reject){
+      const start = new Date();
+
+      let animationFunction = function(){
+        // Check if Promise is resolved
+        // If not checking for that it would keep on running.
+
+
+        // Ranges from 0 -> 1.0
+        const progress = (new Date() - start) / duration;
+
+        if (progress < 1){
+          // Use + distance because it was newCoords.subtract
+          camera.position.x = startPos.x + ( distance.x * progress);
+          camera.position.y = startPos.y + ( distance.y * progress);
+          camera.position.z = startPos.z + ( distance.z * progress);
+
+          // Pans the camera, need an input parameter instead
+          camera.setTarget( new BABYLON.Vector3( 0, 0, 0 ) );
+
+          requestAnimationFrame(animationFunction);
+        } else {
+          camera.position = newCoords;
+          resolve();
+        }
+      };
+
+      requestAnimationFrame(animationFunction);
+
+    });
     // move camera to position indicated gradually over duration ms
     //return promise that resolves when camera gets to newCoords
+    return promise;
   },
   pointCamera ( newDirection, duration ) {
     //return promise that resolves when camera points to newDirection
@@ -48,15 +84,23 @@ export const ViewModel = Map.extend({
     var newCoords = this.closestValidOfPoints( coordsArray );
     return newCoords || null;
   },
+  //calls moveCamera
+  //  distance between newCoords and camera * speed for 'duration' param
+  //return promise that resolves when camera gets to newCoords
   moveCameraSpeed ( newCoords, speed ) {
-    //calls moveCamera
-    //  distance between newCoords and camera * speed for 'duration' param
-    //return promise that resolves when camera gets to newCoords
+    const distance = newCoords.subtract( this.attr( "camera" ).position ).length();
+    // Get the duration in seconds
+    // Example 15 / 10 = 1.5 seconds
+    const duration = distance / speed;
+    // Convert duration from seconds -> millisecond space.
+    return this.moveCamera(newCoords, duration * 1000);
   },
-
-  movementSpeed: 0.01,
-  rotationSpeed: 0.002,
-  defaultHight: 1.5,
+  // 10 units / second
+  movementSpeed: 10,
+  // 2 radians / second
+  rotationSpeed: 2,
+  // The default height when toggling to/from flyMode.
+  defaultHeight: 1.5,
 
   moveUp ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     if ( this.attr( "movementDisabled" ) || !this.attr( "flyMode" ) ) {
@@ -185,7 +229,7 @@ export const ViewModel = Map.extend({
     var difVert = ( curPos.y - lastPos.y ) / gameApp.offsetHeight;
 
     var camera = this.attr( "camera" );
-    var pi = Math.PI;
+    const pi = Math.PI;
 
     var fov = pi;
 
@@ -203,10 +247,13 @@ export const ViewModel = Map.extend({
       camy = camy + 2 * pi;
     }
 
-    if ( camx > pi ) {
-      camx = camx - 2 * pi;
-    } else if ( camx <= -pi ) {
-      camx = camx + 2 * pi;
+    // This is to prevent the camera from inverting by going beyond the camera's up vector.
+    const maxUp = (pi * 0.5) - 0.01;
+    const maxDown = (-pi * 0.5) + 0.01;
+    if (camx >= maxUp ){
+      camx = maxUp;
+    } else if (camx <= maxDown) {
+      camx = maxDown;
     }
 
     camera.rotation.y = camy;
@@ -249,9 +296,9 @@ export default Component.extend({
     "{viewModel} flyMode": function ( zz1, zz2, newVal ) {
       var vm = this.viewModel;
       if ( newVal ) {
-        vm.attr( "camera" ).position.y = vm.attr( "defaultHight" ) + 0.5;
+        vm.attr( "camera" ).position.y = vm.attr( "defaultHeight" ) + 0.5;
       } else {
-        vm.attr( "camera" ).position.y = vm.attr( "defaultHight" );
+        vm.attr( "camera" ).position.y = vm.attr( "defaultHeight" );
       }
     }
   }

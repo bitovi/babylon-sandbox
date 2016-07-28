@@ -165,7 +165,7 @@ export const ViewModel = Map.extend({
     //This creates a light, aiming 0,1,0 - to the sky.
     var hemisphericLight = new BABYLON.HemisphericLight( "light1", new BABYLON.Vector3( 0, 1, 0 ), scene );
     const groundColor = 1;
-    //hemisphericLight.groundColor = new BABYLON.Color3( groundColor, groundColor, groundColor );
+    hemisphericLight.groundColor = new BABYLON.Color3( groundColor, groundColor, groundColor );
     hemisphericLight.intensity = 0.85;
 
     var normalDirLight = new BABYLON.DirectionalLight( "dirlight1", new BABYLON.Vector3( 0, -1, 0 ), scene );

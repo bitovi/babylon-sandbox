@@ -154,11 +154,6 @@ export const ViewModel = Map.extend({
     return skybox;
   },
 
-
-
-
-
-
   addToShadowGenerator ( mesh ) {
     this.attr( "shadowGenerator" ).getShadowMap().renderList.push( mesh );
     this.attr( "hemisShadowGen" ).getShadowMap().renderList.push( mesh );
@@ -169,13 +164,14 @@ export const ViewModel = Map.extend({
 
     //This creates a light, aiming 0,1,0 - to the sky.
     var hemisphericLight = new BABYLON.HemisphericLight( "light1", new BABYLON.Vector3( 0, 1, 0 ), scene );
+
     hemisphericLight.groundColor = new BABYLON.Color3( 1, 1, 1 );
-    hemisphericLight.intensity = 1;
+    hemisphericLight.intensity = 0.85;
 
     var normalDirLight = new BABYLON.DirectionalLight( "dirlight1", new BABYLON.Vector3( 0, -1, 0 ), scene );
-    
+
     var hemisShadowGen = new BABYLON.ShadowGenerator( 1024, normalDirLight );
-    hemisShadowGen.setDarkness( 0.75 );
+    hemisShadowGen.setDarkness( 0 );
     //hemisShadowGen.usePoissonSampling = true; //PointLight
     //hemisShadowGen.useBlurVarianceShadowMap = true;
     hemisShadowGen.bias *= 0.05;
@@ -289,7 +285,7 @@ export const ViewModel = Map.extend({
     var item = {
       name: babylonName,
       options: itemInfo,
-      meshes: meshes
+      meshes: []
     };
 
     this.attr( "items" ).push( item );
@@ -297,11 +293,15 @@ export const ViewModel = Map.extend({
     for ( let i = 0; i < meshes.length; ++i ) {
       let mesh = meshes[ i ];
 
-      mesh.__itemRef = item;
-
-      if ( !mesh.parent ) {
+      let positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
+      if (!positions){
         continue;
+      // If the mesh isn't a mesh group then add it to meshes[]
+      } else {
+        item.meshes.push(mesh);
       }
+
+      mesh.__itemRef = item;
 
       mesh.name = itemInfo.furnName || mesh.name;
 
@@ -314,7 +314,7 @@ export const ViewModel = Map.extend({
       mesh.rotationQuaternion.z = parseFloat( itemInfo.rotation.z ) || 0;
       mesh.rotationQuaternion.w = parseFloat( itemInfo.rotation.w ) || 1;
 
-      vm.addToShadowGenerator( mesh );
+      this.addToShadowGenerator( mesh );
 
       if ( parseInt( itemInfo.furnPhysics, 10 ) ) {
         //vm.testSetPhysicsImpostor( mesh );
@@ -448,14 +448,14 @@ export const ViewModel = Map.extend({
             }
           }
 
-          //var positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
-          //var normals = mesh.getVerticesData( BABYLON.VertexBuffer.NormalKind );
-          //
-          //BABYLON.VertexData.ComputeNormals( positions, mesh.getIndices(), normals );
+          if (options.rotateNormals){
+            var positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
+            var normals = mesh.getVerticesData( BABYLON.VertexBuffer.NormalKind );
 
-          if ( options.rotateNormals ) {
-            vm.rotateNormals( mesh );
+            BABYLON.VertexData.ComputeNormals( positions, mesh.getIndices(), normals );
+            mesh.setVerticesData(BABYLON.VertexBuffer.NormalKind, normals);
           }
+
 
           if ( options.backgroundMesh ) {
             mesh.backgroundMesh = true;
@@ -506,7 +506,7 @@ export const ViewModel = Map.extend({
         taskname: "ground",
         backgroundMesh: true,
         skipshadow: true,
-        success: function(a_item){
+        success: function(a_item) {
 
           for (var i = 0; i < a_item.meshes.length; ++i){
             var mesh = a_item.meshes[i];
@@ -517,9 +517,6 @@ export const ViewModel = Map.extend({
               meshId = i;
               mesh.physicsImpostor = new BABYLON.PhysicsImpostor(mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
               vm.attr( "ground", mesh );
-
-              vm.attr( "hemisphericLight" ).excludedMeshes.push( mesh );
-              //vm.attr( "normalDirLight" ).excludedMeshes.push( mesh );
             }
           }
         }

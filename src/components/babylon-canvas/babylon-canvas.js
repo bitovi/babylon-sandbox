@@ -13,6 +13,9 @@ import { getControls, getTooltip } from '../../util/util.js';
 import JSZip from 'jszip/dist/jszip';
 import $ from 'jquery';
 
+// adds 'eash' global for outlines
+import '../../util/eash';
+
 /*
 Tests
  */
@@ -186,12 +189,38 @@ export const ViewModel = Map.extend({
         this.attr( "hoveredMesh", a_mesh );
       }
 
+      // if (a_mesh.geometry && !a_mesh.__outlined){
+      //   // outline material
+      //   var redMaterial = new BABYLON.StandardMaterial('redMat', scene);
+      //   redMaterial.diffuseColor = new BABYLON.Color3(1, 0, 0);
+      //   redMaterial.hasAlpha = true;
+      //
+      //   var geometry = a_mesh.geometry.copy('new_geo');
+      //   var outline = a_mesh.clone();
+      //   geometry.applyToMesh(outline);
+      //
+      //   outline.flipFaces(true);
+      //
+      //   const scale = 1.01;
+      //   outline.scaling = new BABYLON.Vector3(scale, scale, scale);
+      //   outline.material = redMaterial;
+      //   outline.visibility = 0.9;
+      //   outline.tag = 0;
+      //
+      //   a_mesh.__outlined = true;
+      // }
 
+      // a_mesh.renderOutline = true;
+      // // rgb( 86, 170, 206)
+      // a_mesh.outlineColor = new BABYLON.Color3(0.3359375, 0.6640625, 0.8046875);
+      // a_mesh.outlineWidth = 0.0055;
+      let scene = this.attr("scene");
+      let camera = this.attr("camera");
+      a_mesh.material = eash.shader(eash.multi([eash.solid(0xff0000), eash.noise({pos:'pos*5.3'})]), scene);
 
-      a_mesh.renderOutline = true;
-      // rgb( 86, 170, 206)
-      a_mesh.outlineColor = new BABYLON.Color3(0.3359375, 0.6640625, 0.8046875);
-      a_mesh.outlineWidth = 0.025;
+      a_mesh.material.setVector3('camera', camera.position);
+      a_mesh.material.setFloat('time', 0);
+
     }
   },
 
@@ -956,13 +985,13 @@ export const ViewModel = Map.extend({
         }
       };
 
-      this.testloadModelZip({
-        filename: "Nat_Tree_Org_Green_004_LOD1.zip",
-        root: root,
-        skipTag:true,
-        skipshadow : true,
-        success: setTextures({ diffuse: "Nat_Tree_Org_Green_004_Tex1_Diff.png", hasAlpha:true})
-      });
+      // this.testloadModelZip({
+      //   filename: "Nat_Tree_Org_Green_004_LOD1.zip",
+      //   root: root,
+      //   skipTag:true,
+      //   skipshadow : true,
+      //   success: setTextures({ diffuse: "Nat_Tree_Org_Green_004_Tex1_Diff.png", hasAlpha:true})
+      // });
 
       // this.testloadModelZip({
       //   filename: "Cliff_Brown_001_LOD0.zip",
@@ -1023,7 +1052,7 @@ export const ViewModel = Map.extend({
             var mesh = a_item.meshes[i];
 
             if (mesh._tags){
-              mesh.tag = 1;
+              //mesh.tag = 1;
               mesh.label = mesh.id;
 
               if (mesh.id === "74_GlassIn_001" || mesh.id === "73_GlassOut_001"){
@@ -1173,6 +1202,39 @@ export const ViewModel = Map.extend({
 
     var camera = this.initCamera();
 
+    window.time = 0;
+    eash.linerPostProcess(
+      eash.cameraShot({ uv: 'uv+ vec2(1.,0.)*0.0015  ' }) +
+      'vec4 rs1 = result;' +
+      eash.cameraShot({ uv: 'uv+ vec2(1.,1.)*0.0015  ' }) +
+      'vec4 rs2 = result;' +
+      eash.cameraShot({ uv: 'uv+ vec2(1.,0.)*0.0015  ' }) +
+      'vec4 rs3 = result;' +
+      eash.cameraShot({ uv: 'uv+ vec2(-1.,-1.)*0.0015  ' }) +
+      'vec4 rs4 = result;' +
+      eash.cameraShot({ uv: 'uv+ vec2(-1.,0.)*0.0015  ' }) +
+      'vec4 rs5 = result;' +
+      eash.cameraShot({ uv: 'uv+ vec2(0.,-1.)*0.0015  ' }) +
+      'vec4 rs6 = result;' +
+
+      eash.multi([
+        ' result = vec4(vec3(pow(length(rs1.xyz-rs2.xyz),1.)),1.0) ;',
+        ' result = vec4(vec3(pow(length(rs2.xyz-rs3.xyz),1.)),1.0) ;',
+        ' result = vec4(vec3(pow(length(rs3.xyz-rs4.xyz),1.)),1.0) ;',
+        ' result = vec4(vec3(pow(length(rs3.xyz-rs4.xyz),1.)),1.0) ;',
+        ' result = vec4(vec3(pow(length(rs4.xyz-rs5.xyz),1.)),1.0) ;',
+        ' result = vec4(vec3(pow(length(rs5.xyz-rs6.xyz),1.)),1.0) ;',
+        ' result = vec4(vec3(pow(length(rs6.xyz-rs1.xyz),1.)),1.0) ;',
+      ],true) +
+      'vec4 rs7 = result; float s = max(0.,min(1.,pow(length(rs7.xyz),0.8)/0.5));'+
+
+      eash.cameraShot({ uv: 'uv' }) +
+
+      eash.effect({pr:'pow(pr,2.0)/0.5'})
+      + ' result = vec4(result.xyz*( s),1.0);'
+      , camera, 1.0);
+
+
     BABYLON.StandardMaterial.AmbientTextureEnabled = false;
 
     BABYLON.OBJFileLoader.OPTIMIZE_WITH_UV = true;
@@ -1227,17 +1289,15 @@ export default Component.extend({
       });
       vm.initScene();
 
-      vm.initTestGroundPlane();
+      //vm.initTestGroundPlane();
 
-      vm.testInitEnvironment();
+      //vm.testInitEnvironment();
 
       vm.initLights();
       vm.initSkybox();
       vm.setSkyboxMaterial( "ely_lakes", "lakes" );
 
       vm.initTestSceneModels();
-
-
 
       var renderCount = 0;
 

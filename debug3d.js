@@ -62,10 +62,10 @@
          * @returns {BABYLON.ShaderMaterial}
          */
         getDebugMaterial: function(a_scene){
-            var material = new BABYLON.ShaderMaterial("debugmaterial", a_scene, "/shaders/debug",
+            var material = new BABYLON.ShaderMaterial("debugmaterial", a_scene, "/shaders/outline",
                 {
                     attributes: ["position", "uv", "normal"],
-                    uniforms: ["worldViewProjection", "world"]
+                    uniforms: ["worldViewProjection", "world", "cameraPosition"]
                 });
 
             return material;
@@ -76,7 +76,7 @@
          */
         toggleDebugMaterial: function(a_scene){
             var meshes = a_scene.meshes.filter(function(a_mesh){
-                if (a_mesh.material && (a_mesh.material.name === "skyBox" || a_mesh.material.name === "groundmat") ){
+                if (a_mesh.material && (a_mesh.material.name === "skyBox") ){
                     return false;
                 }
                 else{

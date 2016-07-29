@@ -11,19 +11,13 @@ uniform mat4 worldView;
 uniform mat4 worldViewProjection;
 
 // Varying
-varying vec3 vPositionW;
-varying vec3 vNormalW;
 varying vec2 vUV;
-
 
 void main(void) {
 
     vec4 outPosition = worldViewProjection * vec4(position, 1.0);
-
-    vNormalW   = (worldView * vec4(normal, 1.0)).xyz;
     vUV = uv;
 
     gl_Position = outPosition;
 
 }
-    

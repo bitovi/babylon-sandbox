@@ -1,26 +1,21 @@
 precision highp float;
 
+uniform sampler2D diffuseSampler;
+
 // Lights
 varying vec3 vPositionW;
 varying vec3 vNormalW;
-
-// Refs
-uniform vec3 cameraPosition;
+varying vec2 vUV;
 
 void main(void) {
 
+    vec4 color = texture2D(diffuseSampler, vUV);
+    if (color.a < 0.05)
+    {
+        discard;
+    }
+    vec3 normal = normalize(vNormalW);
 
-
-    vec3 color = vec3(1., 1., 1.);
-    vec3 cameraPos = vec3(-3, 1.5, -4);
-
-    vec3 viewDirectionW = normalize(cameraPos - vPositionW);
-
-    //gl_FragColor = vec4(cameraPosition, 1.0);
-
-    // Fresnel
-	float fresnelTerm = dot(viewDirectionW, vNormalW);
-	fresnelTerm = clamp(1.0 - fresnelTerm, 0., 1.);
-    fresnelTerm = pow(fresnelTerm,80.)* 1250.0;
-    gl_FragColor = vec4(color * fresnelTerm , 1.);
+    //gl_FragColor = vec4(n, n, n, 1.);
+    gl_FragColor = vec4(normal, 1.0);
 }

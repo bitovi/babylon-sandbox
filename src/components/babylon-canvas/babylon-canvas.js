@@ -13,9 +13,6 @@ import { getControls, getTooltip } from '../../util/util.js';
 import JSZip from 'jszip/dist/jszip';
 import $ from 'jquery';
 
-// adds 'eash' global for outlines
-import '../../util/eash';
-
 /*
 Tests
  */
@@ -53,6 +50,8 @@ import Rot50 from '../performance/rot50';
 
 export const ViewModel = Map.extend({
   debug: true,
+  exists: false,
+  renderTarget: null,
   define: {
     items: {
       get ( last ) {
@@ -189,6 +188,58 @@ export const ViewModel = Map.extend({
         this.attr( "hoveredMesh", a_mesh );
       }
 
+      if (!this.exists) {
+        if (!a_mesh.__outlineMat && a_mesh.geometry){
+          let scene = this.attr("scene");
+          var tOutlineMat1 = new BABYLON.StandardMaterial("outlineMat", scene);
+          tOutlineMat1.emissiveColor = BABYLON.Color3.Green();
+          tOutlineMat1.disableLighting = true;
+
+          let hiddenMaterial = new BABYLON.StandardMaterial("hidden", scene);
+
+          // outline material
+          var geometry = a_mesh.geometry.copy('new_geo');
+          var outlineMesh = a_mesh.clone();
+          geometry.applyToMesh(outlineMesh);
+
+          outlineMesh.flipFaces(true);
+
+          const scale = 1.05;
+          outlineMesh.scaling = new BABYLON.Vector3(scale, scale, scale);
+          outlineMesh.material = tOutlineMat1;
+          outlineMesh.visibility = 0;
+          outlineMesh.tag = 0;
+
+          this.attr("renderTarget").renderList.push(outlineMesh);
+          outlineMesh.__outlineMat = tOutlineMat1;
+          outlineMesh.material = tOutlineMat1;
+
+          this.exists = true;
+        }
+      }
+
+      // if (!this.exists){
+      //   if (a_mesh.geometry){
+      //     var outlineMaterial = new BABYLON.ShaderMaterial("outlinematerial", this.attr("scene"), "/shaders/outline",
+      //       {
+      //         attributes: ["position", "uv", "normal"],
+      //         uniforms: ["worldViewProjection", "world", "worldView", "uDiffuseSampler"]
+      //       });
+      //
+      //     outlineMaterial.setTexture("uDiffuseSampler", a_mesh.material.subMaterials[0].diffuseTexture);
+      //
+      //     let copiedMesh = a_mesh.clone('outlinemesh');
+      //
+      //     copiedMesh.position.y += 2;
+      //     copiedMesh.material = outlineMaterial;
+      //     copiedMesh.tag = 0;
+      //     this.exists = true;
+      //   }
+      // }
+
+
+
+
       // if (a_mesh.geometry && !a_mesh.__outlined){
       //   // outline material
       //   var redMaterial = new BABYLON.StandardMaterial('redMat', scene);
@@ -214,13 +265,6 @@ export const ViewModel = Map.extend({
       // // rgb( 86, 170, 206)
       // a_mesh.outlineColor = new BABYLON.Color3(0.3359375, 0.6640625, 0.8046875);
       // a_mesh.outlineWidth = 0.0055;
-      let scene = this.attr("scene");
-      let camera = this.attr("camera");
-      a_mesh.material = eash.shader(eash.multi([eash.solid(0xff0000), eash.noise({pos:'pos*5.3'})]), scene);
-
-      a_mesh.material.setVector3('camera', camera.position);
-      a_mesh.material.setFloat('time', 0);
-
     }
   },
 
@@ -1202,46 +1246,158 @@ export const ViewModel = Map.extend({
 
     var camera = this.initCamera();
 
-    window.time = 0;
-    eash.linerPostProcess(
-      eash.cameraShot({ uv: 'uv+ vec2(1.,0.)*0.0015  ' }) +
-      'vec4 rs1 = result;' +
-      eash.cameraShot({ uv: 'uv+ vec2(1.,1.)*0.0015  ' }) +
-      'vec4 rs2 = result;' +
-      eash.cameraShot({ uv: 'uv+ vec2(1.,0.)*0.0015  ' }) +
-      'vec4 rs3 = result;' +
-      eash.cameraShot({ uv: 'uv+ vec2(-1.,-1.)*0.0015  ' }) +
-      'vec4 rs4 = result;' +
-      eash.cameraShot({ uv: 'uv+ vec2(-1.,0.)*0.0015  ' }) +
-      'vec4 rs5 = result;' +
-      eash.cameraShot({ uv: 'uv+ vec2(0.,-1.)*0.0015  ' }) +
-      'vec4 rs6 = result;' +
-
-      eash.multi([
-        ' result = vec4(vec3(pow(length(rs1.xyz-rs2.xyz),1.)),1.0) ;',
-        ' result = vec4(vec3(pow(length(rs2.xyz-rs3.xyz),1.)),1.0) ;',
-        ' result = vec4(vec3(pow(length(rs3.xyz-rs4.xyz),1.)),1.0) ;',
-        ' result = vec4(vec3(pow(length(rs3.xyz-rs4.xyz),1.)),1.0) ;',
-        ' result = vec4(vec3(pow(length(rs4.xyz-rs5.xyz),1.)),1.0) ;',
-        ' result = vec4(vec3(pow(length(rs5.xyz-rs6.xyz),1.)),1.0) ;',
-        ' result = vec4(vec3(pow(length(rs6.xyz-rs1.xyz),1.)),1.0) ;',
-      ],true) +
-      'vec4 rs7 = result; float s = max(0.,min(1.,pow(length(rs7.xyz),0.8)/0.5));'+
-
-      eash.cameraShot({ uv: 'uv' }) +
-
-      eash.effect({pr:'pow(pr,2.0)/0.5'})
-      + ' result = vec4(result.xyz*( s),1.0);'
-      , camera, 1.0);
-
-
     BABYLON.StandardMaterial.AmbientTextureEnabled = false;
 
     BABYLON.OBJFileLoader.OPTIMIZE_WITH_UV = true;
     if (this.attr("debug")){
       scene.debugLayer.show();
     }
+  },
+
+  initOutline(){
+    let scene = this.attr("scene");
+    let plane = BABYLON.Mesh.CreateGround('RT', 6, 6, 2, scene);
+    const root = this.attr( "static3DAssetPath" );
+
+
+    var outlineMaterial = new BABYLON.ShaderMaterial("outlinematerial", this.attr("scene"), "/shaders/outline2",
+      {
+        attributes: ["position", "uv", "normal"],
+        uniforms: ["worldViewProjection", "world", "worldView", "uNormalSampler", "uResolution", "uDiffuseSampler"]
+      });
+
+    let texture = new BABYLON.Texture(root + "fancutout.png", scene);
+    let diffTexture = new BABYLON.Texture(root + "diffuse.png", scene);
+
+    outlineMaterial.setTexture("uNormalSampler", texture);
+    outlineMaterial.setTexture("uDiffuseSampler", diffTexture);
+
+    const width = scene.getEngine().getRenderWidth();
+    const height = scene.getEngine().getRenderHeight();
+
+    outlineMaterial.setVector2("uResolution", new BABYLON.Vector2(width, height));
+    console.log(outlineMaterial);
+    plane.material = outlineMaterial;
+
+  },
+
+  initOutline2(canvas){
+
+
+    // BABYLON.Effect.ShadersStore["outlineCombineVertexShader"] =
+    //   "varying vec2 vUV;"+
+    //   "uniform sampler2D textureSampler;"+
+    //   "uniform sampler2D passSampler;"+
+    //   "uniform sampler2D maskSampler;"+
+    //
+    //   "void main(void)"+
+    //   "{"+
+    //   "	vec4 mask = texture2D(maskSampler, vUV);"+
+    //   "	vec4 orig = texture2D(passSampler, vUV);"+
+    //   "	vec4 blur = texture2D(textureSampler, vUV);"+
+    //
+    //   "	float outline = smoothstep(0.0, 1.0, length(blur.rgb - mask.rgb) * -1.5);"+
+    //   "	vec3 final = orig.rgb * (1.0 - outline) + (blur.rgb * (outline));"+
+    //   "	//vec3 final = orig.rgb + (blur.rgb * outline);"+
+    //   "	//vec3 final = vec3(0.4, 1.0, 0.6) * outline;\n"+
+    //
+    //   "	gl_FragColor.rgb = final;"+
+    //   "	gl_FragColor.a = outline;"+
+    //   "}";
+
+    BABYLON.Effect.ShadersStore["outlineCombineFragmentShader"] =
+      "varying vec2 vUV;"+
+      "uniform sampler2D textureSampler;"+
+      "uniform sampler2D passSampler;"+
+      "uniform sampler2D maskSampler;"+
+
+      "void main(void)"+
+      "{"+
+      "	vec4 mask = texture2D(maskSampler, vUV);"+
+      "	vec4 orig = texture2D(passSampler, vUV);"+
+      "	vec4 blur = texture2D(textureSampler, vUV);"+
+
+      "	float outline = smoothstep(0.0, 1.0, length(blur.rgb - mask.rgb) * 1.5);"+
+      "	vec3 final = orig.rgb * (1.0 - outline) + (blur.rgb * (outline));"+
+      "	//vec3 final = orig.rgb + (blur.rgb * outline);"+
+      "	//vec3 final = vec3(0.4, 1.0, 0.6) * outline;\n"+
+
+      "	gl_FragColor.rgb = final;"+
+      "	gl_FragColor.a = outline;"+
+      "}";
+
+    let scene = this.attr("scene");
+    let engine = scene.getEngine();
+    let camera = this.attr("camera");
+
+
+
+    let camera2 = new BABYLON.TargetCamera( "camera1", new BABYLON.Vector3( -3, 1.5, -4 ), scene );
+    camera2.fov = 1;
+
+    camera2.setTarget( new BABYLON.Vector3( 0, 1.25, 0 ) );
+    camera2.attachControl(canvas, true);
+
+    scene.activeCameras.push(camera, camera2);
+
+    // setup render target
+    var renderTarget = new BABYLON.RenderTargetTexture("depth", 1024, scene, false);
+    scene.customRenderTargets.push(renderTarget);
+    renderTarget.activeCamera = camera2;
+    this.attr("renderTarget", renderTarget);
+
+    var tOutlineMat1 = new BABYLON.StandardMaterial("outlineMat", scene);
+    tOutlineMat1.emissiveColor = BABYLON.Color3.Green();
+    tOutlineMat1.disableLighting = true;
+
+    renderTarget.onBeforeRender = function () {
+      for (var index = 0; index < renderTarget.renderList.length; index++) {
+        let mesh = renderTarget.renderList[index];
+        mesh.visibility = 1;
+
+        // if (mesh.__outlineMat){
+        //   mesh._savedMaterial = mesh.material;
+        //   mesh.material = mesh.__outlineMat;
+        // } else{
+        //   console.log("no mat for " + mesh.id);
+        // }
+      }
+    };
+
+    renderTarget.onAfterRender = function () {
+      for (var index = 0; index < renderTarget.renderList.length; index++) {
+        let mesh = renderTarget.renderList[index];
+        mesh.visibility = 0;
+        //renderTarget.renderList[index].material = renderTarget.renderList[index]._savedMaterial;
+      }
+    };
+
+    //setup post processing
+    var tPass = new BABYLON.PassPostProcess("pass", 1.0, camera2);
+
+    var tDisplayPass = new BABYLON.DisplayPassPostProcess("displayRenderTarget", 1.0, camera2);
+    tDisplayPass.onApply = function (pEffect) {
+      pEffect.setTexture("passSampler", renderTarget);
+    };
+
+    new BABYLON.BlurPostProcess("blurH", new BABYLON.Vector2(1.0, 0), 1.0, 0.25, camera2);
+    new BABYLON.BlurPostProcess("blurV", new BABYLON.Vector2(0, 1.0), 1.0, 0.25, camera2);
+
+    var tCombine = new BABYLON.PostProcess("combine", "outlineCombine", null, ["maskSampler", "passSampler"], 1.0, camera2);
+    tCombine.onApply = function (pEffect) {
+      pEffect.setTexture("maskSampler", renderTarget);
+      pEffect.setTextureFromPostProcess("passSampler", tPass);
+    };
+
+    tCombine.onBeforeRender = function () {
+      engine.setAlphaMode(BABYLON.Engine.ALPHA_COMBINE);
+    };
+
+    tCombine.onAfterRender = function () {
+      engine.setAlphaMode(BABYLON.Engine.ALPHA_DISABLE);
+    };
   }
+
 });
 
 export const controls = {
@@ -1289,9 +1445,9 @@ export default Component.extend({
       });
       vm.initScene();
 
-      //vm.initTestGroundPlane();
+      vm.initTestGroundPlane();
 
-      //vm.testInitEnvironment();
+      vm.testInitEnvironment();
 
       vm.initLights();
       vm.initSkybox();
@@ -1302,6 +1458,9 @@ export default Component.extend({
       var renderCount = 0;
 
       engine.runRenderLoop(vm.renderLoop);
+
+       // vm.initOutline();
+      vm.initOutline2(canvas);
 
       controls[ "context" ] = this.viewModel;
       getControls().registerControls( controls.name, controls );

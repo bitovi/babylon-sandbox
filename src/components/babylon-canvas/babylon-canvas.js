@@ -201,9 +201,7 @@ export const ViewModel = Map.extend({
             uniforms: ["worldViewProjection", "worldView"]
           });
 
-          //tOutlineMat1.setTexture("uDiffuseSampler", a_mesh.material.subMaterials[0].diffuseTexture.clone());
-
-          let hiddenMaterial = new BABYLON.StandardMaterial("hidden", scene);
+          tOutlineMat1.setTexture("diffuseSampler", a_mesh.material.subMaterials[0].diffuseTexture);
 
           // outline material
           var geometry = a_mesh.geometry.copy('new_geo');
@@ -219,7 +217,7 @@ export const ViewModel = Map.extend({
 
           this.attr("renderTarget").renderList.push(outlineMesh);
           outlineMesh.__outlineMat = tOutlineMat1;
-          outlineMesh.material = tOutlineMat1;
+          //outlineMesh.material = tOutlineMat1;
 
           a_mesh.__outlineMat = tOutlineMat1;
 

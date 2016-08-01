@@ -8,9 +8,9 @@ import $ from 'jquery';
 import { isServer } from '../../util/environment';
 
 //!steal-remove-start
-// if you want fixtures in production, don't wrap this import in steal-remove- comments
-import '../../models/fixtures/fixtures.js';
+  // if you want fixtures in production, don't wrap this import in steal-remove- comments
 //!steal-remove-end
+  import '../../models/fixtures/fixtures.js';
 
 export const ViewModel = Map.extend({
   define: {

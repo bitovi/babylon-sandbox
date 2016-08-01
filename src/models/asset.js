@@ -170,9 +170,12 @@ var options = {
   ajax: $.ajax,
   url: { 
     getData: function ( set ) {
-      var url = set.furnURL;
+      var url = set.furnURL || set.assetURL;
 
       url = url.replace( ".unity3d", ".zip" );
+
+      // TODO: will need to remove this eventually
+      url = url.replace( "/CDN/", "/CDN_new/" );
 
       var prom = unzipCache[ url ];
 
@@ -197,7 +200,7 @@ var options = {
       });
     }
   },
-  idProp: "ufurnID",
+  idProp: "assetID",
   Map: Asset,
   List: Asset.List,
   name: "asset"

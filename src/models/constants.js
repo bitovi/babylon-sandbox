@@ -80,12 +80,15 @@ var behaviors = [
   //"real-time",
   {
     parseInstanceData ( resp ) {
-      var rd = resp.materials || {};
+      var obj = {};
+      var respList = resp.materials || [];
+
       delete resp[ "materials" ];
 
-      rd.statusInfo = resp;
+      obj.materials = respList;
+      obj.statusInfo = resp;
 
-      return rd;
+      return obj;
     }
   },
   "constructor-callbacks-once"

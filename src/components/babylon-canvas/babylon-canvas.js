@@ -3,6 +3,7 @@ import Map from 'can/map/';
 import 'can/map/define/';
 import './babylon-canvas.less!';
 import template from './babylon-canvas.stache!';
+import _find from 'lodash/find.js';
 
 import 'cannon';
 import BABYLON from 'babylonjs/babylon.max';
@@ -41,6 +42,8 @@ export const ViewModel = Map.extend({
     //var camera = new BABYLON.FreeCamera( "camera1", new BABYLON.Vector3(0, 5, -10), scene );
     var camera = new BABYLON.TargetCamera( "camera1", new BABYLON.Vector3( -3, 1.5, -4 ), scene );
     //var camera = new BABYLON.Camera( "camera1", new BABYLON.Vector3(0, 5, -10), scene );
+    camera.fov = 1;
+
     this.attr( "camera", camera );
 
     //setTimeout( ()=> {
@@ -119,15 +122,6 @@ export const ViewModel = Map.extend({
     this.attr( "hoveredMesh", mesh );
   },
 
-  static3DAssetPath: "/src/static/3d/",
-
-  resourcePath ( fileName ) {
-    return this.attr( "static3DAssetPath" ) + "Resources/" + fileName;
-  },
-  skyboxPath ( skyboxName, fileNamePrefix ) {
-    return this.attr( "static3DAssetPath" ) + "skybox/" + skyboxName + "/" + fileNamePrefix;
-  },
-
   setSkyboxMaterial ( skyboxName, fileNamePrefix ) {
     var scene = this.attr( "scene" );
     var skybox = this.attr( "skybox" );
@@ -179,7 +173,7 @@ export const ViewModel = Map.extend({
     var pointLight = new BABYLON.PointLight( "pointlight", new BABYLON.Vector3( 0, 3, 0 ), scene );
 
     var hemisphericPointLight = new BABYLON.HemisphericLight( "hemispoint", new BABYLON.Vector3( 0, 1, 0 ), scene );
-    hemisphericPointLight.intensity = 0.2;
+    hemisphericPointLight.intensity = 0.8;
 
     scene.removeLight( pointLight );
     scene.removeLight( hemisphericPointLight );
@@ -187,7 +181,7 @@ export const ViewModel = Map.extend({
     // Shadows
     var shadowGenerator = new BABYLON.ShadowGenerator( 1024, pointLight );
     shadowGenerator.usePoissonSampling = true;
-    shadowGenerator.setDarkness( 0.5 );
+    shadowGenerator.setDarkness( 0 );
 
     this.attr({
       hasPointlight: false,
@@ -223,43 +217,59 @@ export const ViewModel = Map.extend({
     //scene.debugLayer.show();
   },
 
-  roomAssetURL ( uroomID ) {
+  roomInfo ( uroomID ) {
     var homeLoad = this.attr( "homeLoad" );
     var roomStatus = homeLoad.roomStatus;
     var roomBundles = homeLoad.roomBundles;
-    var roomID = "";
-    var roomAssetURL = "";
+    var info = {};
+    var goodIf2 = 0;
 
     for ( let i = 0; i < roomStatus.length; i++ ) {
       if ( roomStatus[ i ].uroomID === uroomID ) {
-        roomID = roomStatus[ i ].roomID;
+        info.roomStatus = roomStatus[ i ];
+        goodIf2++;
         break;
       }
+    }
+
+    if ( !goodIf2 ) {
+      return null;
     }
 
     for ( let i = 0; i < roomBundles.length; i++ ) {
-      if ( roomBundles[ i ].roomID === roomID ) {
-        roomAssetURL = roomBundles[ i ].roomAssetURL;
+      if ( roomBundles[ i ].roomID === info.roomStatus.roomID ) {
+        info.roomBundle = roomBundles[ i ];
+        goodIf2++;
         break;
       }
     }
 
-    return roomAssetURL;
+    if ( goodIf2 !== 2 ) {
+      return null;
+    }
+
+    return info;
   },
 
-  loadTextures ( arrayOfLoadedFurnitures ) {
+  roomAssetURL ( uroomID ) {
+    var roomInfo = this.roomInfo( uroomID );
+
+    return roomInfo ? roomInfo.roomBundle.roomAssetURL : "";
+  },
+
+  loadTextures ( arrayOfLoadedAssets ) {
     var scene = this.attr( "scene" );
-    for ( let i = 0; i < arrayOfLoadedFurnitures.length; i++ ) {
-      let furnAssets = arrayOfLoadedFurnitures[ i ].unzippedFiles;
-      for ( let x = 0; x < furnAssets.length; x++ ) {
-        let asset = furnAssets[ x ];
+    for ( let i = 0; i < arrayOfLoadedAssets.length; i++ ) {
+      let unzippedAssets = arrayOfLoadedAssets[ i ].unzippedFiles;
+      for ( let x = 0; x < unzippedAssets.length; x++ ) {
+        let asset = unzippedAssets[ x ];
         if ( asset.type === "texture" ) {
-          new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, asset.name, scene );
+          asset.instance = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, asset.name, scene );
         }
       }
     }
 
-    return arrayOfLoadedFurnitures;
+    return arrayOfLoadedAssets;
   },
 
   getItemFromMesh ( mesh ) {
@@ -294,11 +304,11 @@ export const ViewModel = Map.extend({
       let mesh = meshes[ i ];
 
       let positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
-      if (!positions){
+      if ( !positions ) {
         continue;
       // If the mesh isn't a mesh group then add it to meshes[]
       } else {
-        item.meshes.push(mesh);
+        item.meshes.push( mesh );
       }
 
       mesh.__itemRef = item;
@@ -306,6 +316,7 @@ export const ViewModel = Map.extend({
       mesh.name = itemInfo.furnName || mesh.name;
 
       mesh.receiveShadows = true;
+      mesh.collisionsEnabled = true;
       mesh.position.x = parseFloat( itemInfo.position.x ) || 0;
       mesh.position.y = parseFloat( itemInfo.position.y ) || 0;
       mesh.position.z = parseFloat( itemInfo.position.z ) || 0;
@@ -322,28 +333,29 @@ export const ViewModel = Map.extend({
     }
   },
 
-  loadModels ( arrayOfLoadedFurnitures ) {
+  loadModels ( arrayOfLoadedAssets ) {
     var scene = this.attr( "scene" );
 
-    for ( let i = 0; i < arrayOfLoadedFurnitures.length; i++ ) {
-      let furnitureInfo = arrayOfLoadedFurnitures[ i ];
-      let furnAssets = furnitureInfo.unzippedFiles;
-      let len = furnAssets.length;
-      let babylon = len && furnAssets[ len - 1 ];
+    for ( let i = 0; i < arrayOfLoadedAssets.length; i++ ) {
+      let assetInfo = arrayOfLoadedAssets[ i ];
+      let unzippedAssets = assetInfo.unzippedFiles;
+      let len = unzippedAssets.length;
+      let babylon = len && unzippedAssets[ len - 1 ];
       if ( babylon && babylon.type === "babylon" ) {
         // is a babylon file that's been unpacked
-        let meshesLoadedBound = this.meshesLoaded.bind( this, furnitureInfo, babylon.name );
+        let meshesLoadedBound = this.meshesLoaded.bind( this, assetInfo, babylon.name );
         BABYLON.SceneLoader.ImportMesh( "", "", "data:" + babylon.data, scene, meshesLoadedBound );
       }
     }
 
-    return arrayOfLoadedFurnitures;
+    return arrayOfLoadedAssets;
   },
 
   loadFurnitures ( roomFurnitures ) {
     var furnPromises = [];
     for ( let i = 0; i < roomFurnitures.length; i++ ) {
       let furn = roomFurnitures[ i ];
+      furn.assetID = furn.assetID || furn.ufurnID;
       furnPromises.push( Asset.get( furn ) );
     }
 
@@ -371,6 +383,204 @@ export const ViewModel = Map.extend({
     });
   },
 
+  //TODO: this may not be a thing we need if dependencies are properly defined somewhere we haven't located 
+  alaysLoadTheseMaterialConstants ( cacheUrls, neededMaterialsPromises ) {
+    var ids = [ "87", "17" ];
+    var materialConstants = this.attr( "materialConstants" );
+
+    for ( let i = 0; i < ids.length; i++ ) {
+      let materialID = { materialID: ids[ i ] };
+      let matConst = _find( materialConstants, materialID );
+      // TODO: replacement here is not finalized
+      let materialURL = matConst.materialURL.replace( ".unity3d", "_Tex1.zip" );
+
+      if ( !cacheUrls[ materialURL ] ) {
+        cacheUrls[ materialURL ] = true;
+        matConst.attr({
+          "assetID": materialURL,
+          "assetURL": materialURL
+        });
+
+        neededMaterialsPromises.push( Asset.get( matConst ) );
+      }
+    }
+  },
+
+  loadAllNeededMaterialConstants ( meshes ) {
+    var materialConstants = this.attr( "materialConstants" );
+    /**
+     *  meshes = [
+     *    {
+     *      "meshID": "1",
+     *      "materialID": "43"
+     *    }
+     *  ];
+     *
+     *  materialConstants = [
+     *    {
+     *      "categoryID": "1",
+     *      "materialID": "2",
+     *      "materialName": "Arches",
+     *      "internalName": "ArchWay_001",
+     *      "materialURL": "https:\/\/cdn.testing.egowall.com\/CDN\/Game\/Assetbundles\/Material\/ArchWay_001.unity3d",
+     *      "materialThumbURL": "https:\/\/cdn.testing.egowall.com\/CDN\/Game\/Images\/Material\/128\/ArchWay_001.png",
+     *      "materialImgURL": "https:\/\/cdn.testing.egowall.com\/CDN\/Game\/Images\/Material\/256\/ArchWay_001.png"
+     *    }
+     *  ];
+     *
+     */
+
+    var neededMaterialsPromises = [];
+    var cacheUrls = {};
+
+    for ( let i = 0; i < meshes.length; i++ ) {
+      let materialID = { materialID: meshes[ i ].materialID };
+      let matConst = _find( materialConstants, materialID );
+      // TODO: replacement here is not finalized
+      let materialURL = matConst.materialURL.replace( ".unity3d", "_Tex1.zip" );
+
+      if ( !cacheUrls[ materialURL ] ) {
+        cacheUrls[ materialURL ] = true;
+        matConst.attr({
+          "assetID": materialURL,
+          "assetURL": materialURL
+        });
+
+        neededMaterialsPromises.push( Asset.get( matConst ) );
+      }
+    }
+    this.alaysLoadTheseMaterialConstants( cacheUrls, neededMaterialsPromises );
+
+    return Promise.all( neededMaterialsPromises ).then( ( loadedOnes ) => {
+      //replace the 'loadedOnes' with their materialConstants[] counterpart
+      //TODO: figure out why these instances aren't automatically joined
+      for ( let i = 0; i < loadedOnes.length; i++ ) {
+        let materialID = loadedOnes[ i ].materialID;
+        let sourceMat = _find( materialConstants, { materialID } );
+        loadedOnes[ i ] = sourceMat;
+      }
+      return loadedOnes;
+    }).then(
+      this.loadTextures.bind( this )
+    );
+  },
+
+  createMaterial ( materialName, unzippedTextures ) {
+    var scene = this.attr( "scene" );
+    var material = new BABYLON.StandardMaterial( materialName, scene );
+
+    for ( let i = 0; i < unzippedTextures.length; i++ ) {
+      let info = unzippedTextures[ i ];
+      if ( info.type !== "texture" ) {
+        continue;
+      }
+      if ( /_Diff\.png/i.test( info.name ) ) {
+        material.diffuseTexture = info.instance;
+      } else { // if ( /_Nrml\.png/i.test( info.name ) ) {
+        material.bumpTexture = info.instance;
+      }
+    }
+
+    material.specularColor = new BABYLON.Color3( 0, 0, 0 );
+
+    return material;
+  },
+
+  // TODO: we probably shouldn't need this - gotta figure out where the info comes from
+  testHardcodedMaterials ( mesh ) {
+    var materialConstants = this.attr( "materialConstants" );
+    //console.log( mesh.id )
+    if ( mesh.id === "74_GlassIn_001" || mesh.id === "73_GlassOut_001" ) {
+      mesh.visibility = 0;
+
+    } else if ( mesh.id === "72_WindowFrame_001" || ( mesh.parent && mesh.parent.id === "52_DoorFrame_LOD0" ) ) {
+      // Tile - Concrete
+      let matConst = _find( materialConstants, { materialID: "87" } );
+      mesh.material = matConst.instance.clone();
+      mesh.material.diffuseColor = new BABYLON.Color3( 0.1, 0.1, 0.1 );
+
+    } else if ( mesh.parent && mesh.parent.id === "44_Balcony_001_LOD0" ) {
+      // Concrete_006 ( 17 )
+      let matConst = _find( materialConstants, { materialID: "17" } );
+      mesh.material = matConst.instance.clone();
+    }
+  },
+
+  bgMeshSetMaterial ( mesh, roomInfo ) {
+    var materialConstants = this.attr( "materialConstants" );
+
+    var meshId = mesh._tags ? Object.keys( mesh._tags )[ 0 ].replace( "meshId_", "" ) : "";
+    var parentBabylonId = ( mesh.parent && mesh.parent.id || "" ).toLowerCase();
+
+    var rs = roomInfo.roomStatus || {};
+    var key = ( rs.roomTypeName || "" ).replace( /[^a-z]/gi, "" ).toLowerCase();
+
+    if ( key && parentBabylonId && parentBabylonId.indexOf( key ) > -1 ) {
+      //This mesh is in of the room
+      let temp = _find( rs.meshes || [], { meshID: meshId } ) || {};
+      let materialID = temp.materialID || "";
+      let matConst = _find( materialConstants, { materialID } );
+
+      mesh.material = matConst.instance.clone();
+    } else {
+      this.testHardcodedMaterials( mesh );
+    }
+
+    if ( mesh.material ) {
+      const uScale = 0.19995;
+      const vScale = 0.225;
+
+      mesh.material.diffuseTexture.uScale = uScale;
+      mesh.material.diffuseTexture.vScale = vScale;
+
+      if ( mesh.material.bumpTexture ) {
+        mesh.material.bumpTexture.uScale = uScale;
+        mesh.material.bumpTexture.vScale = vScale;
+      }
+    }
+  },
+
+  bgMeshLoaded ( itemInfo, babylonName, meshes ) {
+    var uroomID = this.attr( "uroomID" );
+    var roomInfo = this.roomInfo( uroomID );
+    for ( let i = 0; i < meshes.length; ++i ) {
+      let mesh = meshes[ i ];
+      mesh.collisionsEnabled = true;
+      mesh.receiveShadows = true;
+      //mesh.position = new BABYLON.Vector3( 0, 0, 0 );
+      //mesh.rotation = BABYLON.Quaternion.RotationYawPitchRoll( 0, 0, 0 );
+      //let positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
+      //let normals = mesh.getVerticesData( BABYLON.VertexBuffer.NormalKind );
+
+      //BABYLON.VertexData.ComputeNormals( positions, mesh.getIndices(), normals );
+      //mesh.setVerticesData(BABYLON.VertexBuffer.NormalKind, normals);
+
+      this.bgMeshSetMaterial ( mesh, roomInfo );
+    }
+  },
+
+  renderBackgroundMesh ( data ) {
+    var scene = this.attr( "scene" );
+    var arrayOfLoadedMaterials = data[ 0 ];
+    var roomMeshSetDef = data[ 1 ];
+    var unzippedMeshFiles = roomMeshSetDef.unzippedFiles;
+
+    for ( let i = 0; i < arrayOfLoadedMaterials.length; i++ ) {
+      let curMaterial = arrayOfLoadedMaterials[ i ];
+      curMaterial.attr( "instance", this.createMaterial( curMaterial.internalName, curMaterial.unzippedFiles ) );
+      //curMaterial.removeAttr( "unzippedFiles" );
+    }
+
+    for ( let i = 0; i < unzippedMeshFiles.length; i++ ) {
+      let assetInfo = unzippedMeshFiles[ i ];
+      if ( assetInfo && assetInfo.type === "babylon" ) {
+        // is a babylon file that's been unpacked
+        let bgMeshLoadedBound = this.bgMeshLoaded.bind( this, assetInfo, assetInfo.name );
+        BABYLON.SceneLoader.ImportMesh( "", "", "data:" + assetInfo.data, scene, bgMeshLoadedBound );
+      }
+    }
+  },
+
   homeLoad ( homeID, time ) {
     var vm = this;
 
@@ -394,137 +604,45 @@ export const ViewModel = Map.extend({
         "homeLoad": homeLoad
       });
 
+      var meshes = vm.roomInfo( uroomID ).roomStatus.meshes;
+      vm.attr( "bgMeshes", meshes );
+
+      var materialsLodedProm = vm.attr(
+        "materialConstantsPromise"
+      ).then(
+        vm.loadAllNeededMaterialConstants.bind( vm, meshes )
+      );
+
       var roomAssetURL = vm.roomAssetURL( uroomID );
-      //TODO: use roomAssetURL to load the backgroundMesh
-      vm.initTestGroundPlane();
-
-      //TODO: Figure out materialConstants mapping to backgroundMesh meshes
-
-      return vm.roomLoad( uroomID );
+      //TODO: use real roomAssetURL to load the backgroundMesh
+      roomAssetURL = "https://cdn.testing.egowall.com/CDN_new/Game/Assetbundles/Home/LS_18_test.zip";
+      var setDef = new Map({ assetID: roomAssetURL, assetURL: roomAssetURL });
+      var roomMeshProm = Asset.get( setDef );
+      
+      var materialsAndMeshProm = Promise.all( [ materialsLodedProm, roomMeshProm ] );
+      
+      return materialsAndMeshProm.then(
+        // load the background mesh in babylon
+        vm.renderBackgroundMesh.bind( vm )
+      ).then(
+        // load and place the furniture
+        vm.roomLoad.bind( vm, uroomID )
+      );
     });
   },
 
 
   // TEMPORARY FUNCTIONS
 
-    testLoadModel ( options, loader ) {
-      var vm = this;
-      var items = this.attr( "items" );
+    static3DAssetPath: "/src/static/3d/",
 
-      options.root = options.root || this.attr( "static3DAssetPath" );
-
-      //TODO: new can.Deferred();
-      var task = loader.addMeshTask(
-        options.taskname || options.filename,
-        "",
-        options.root,
-        options.filename
-      );
-
-      task.onSuccess = function (t) {
-
-        var item = {
-          name: t.name,
-          meshes: t.loadedMeshes
-        };
-
-        items.push( item );
-
-        // Set the models position
-        for ( var i = 0; i < item.meshes.length; ++i ) {
-          var mesh = item.meshes[i];
-          mesh.e_item = item;
-
-          if ( item.meshes.length > 1 ) {
-            mesh.e_siblings = [];
-
-            for (var j = 0; j < item.meshes.length; ++j){
-              if (j != i){
-                if ( options.backgroundMesh ) {
-                  item.meshes[j].backgroundMesh = true;
-                }
-                mesh.e_siblings.push(item.meshes[j]);
-              }
-            }
-          }
-
-          if (options.rotateNormals){
-            var positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
-            var normals = mesh.getVerticesData( BABYLON.VertexBuffer.NormalKind );
-
-            BABYLON.VertexData.ComputeNormals( positions, mesh.getIndices(), normals );
-            mesh.setVerticesData(BABYLON.VertexBuffer.NormalKind, normals);
-          }
-
-
-          if ( options.backgroundMesh ) {
-            mesh.backgroundMesh = true;
-          }
-
-          mesh.receiveShadows = true;
-          mesh.position = options.position;
-          mesh.rotationQuaternion = options.rotation;
-
-          if ( !options.skipshadow ) {
-            vm.addToShadowGenerator( mesh );
-          }
-
-          if ( options.physics ) {
-            //vm.testSetPhysicsImpostor( mesh );
-          }
-
-          if ( options.hide ) {
-            mesh.visibility = 0;
-          }
-        }
-
-        if ( options.success ) {
-          options.success( item );
-        }
-      };
-      
-      return task;
+    resourcePath ( fileName ) {
+      return this.attr( "static3DAssetPath" ) + "Resources/" + fileName;
     },
-
-    initTestGroundPlane () {
-      var vm = this;
-      var scene = this.attr( "scene" );
-      var loader = new BABYLON.AssetsManager(scene);
-
-      var position = new BABYLON.Vector3(0, 0, 0);
-      var rotation = BABYLON.Quaternion.RotationYawPitchRoll(0,0,0);
-
-      var meshId = -1;
-
-      this.testLoadModel({
-        filename: "Patio_001_LOD0.obj",
-        physics: false,
-        position: position,
-        root: this.attr( "static3DAssetPath" ) + "LS_15/",
-        rotation:rotation,
-        rotateNormals: true,
-        taskname: "ground",
-        backgroundMesh: true,
-        skipshadow: true,
-        success: function(a_item) {
-
-          for (var i = 0; i < a_item.meshes.length; ++i){
-            var mesh = a_item.meshes[i];
-            mesh.collisionsEnabled = true;
-            mesh.receiveShadows = true;
-
-            if (mesh.id === "Floor_001"){
-              meshId = i;
-              mesh.physicsImpostor = new BABYLON.PhysicsImpostor(mesh, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 0, restitution: 0.5 }, scene);
-              vm.attr( "ground", mesh );
-            }
-          }
-        }
-      }, loader);
-
-      loader.load();
+    skyboxPath ( skyboxName, fileNamePrefix ) {
+      return this.attr( "static3DAssetPath" ) + "skybox/" + skyboxName + "/" + fileNamePrefix;
     }
-
+    
   // END TEMP FUNCTIONS
 });
 
@@ -553,12 +671,14 @@ export default Component.extend({
       var constantsPromise = Constants.get({
         requestType: "materialList",
         format: "json"
+      }).then( ( materialConstantsResp ) => {
+        //TODO: handle the materialConstantsResp.statusInfo
+        var materialConstants = materialConstantsResp.attr( "materials" );
+        vm.attr( "materialConstants", materialConstants );
+        return materialConstants;
       });
 
-      constantsPromise.then( ( materialConstants ) => {
-        console.log( "success materialConstants" );
-        vm.attr( "materialConstants", materialConstants );
-      });
+      vm.attr( "materialConstantsPromise", constantsPromise );
     },
     inserted () {
       var vm = this.viewModel;

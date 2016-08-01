@@ -702,7 +702,8 @@ export default Component.extend({
       var renderCount = 0;
       engine.runRenderLoop(function () {
         vm.attr({
-          "deltaTime": engine.deltaTime,
+          // Convert deltaTime from milliseconds to seconds
+          "deltaTime": engine.deltaTime / 1000,
           "renderCount": renderCount
         });
 

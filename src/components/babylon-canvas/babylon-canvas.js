@@ -191,9 +191,17 @@ export const ViewModel = Map.extend({
       if (!this.exists) {
         if (!a_mesh.__outlineMat && a_mesh.geometry){
           let scene = this.attr("scene");
-          var tOutlineMat1 = new BABYLON.StandardMaterial("outlineMat", scene);
+          /*var tOutlineMat1 = new BABYLON.StandardMaterial("outlineMat", scene);
           tOutlineMat1.emissiveColor = BABYLON.Color3.Green();
-          tOutlineMat1.disableLighting = true;
+          tOutlineMat1.disableLighting = true;*/
+
+          var tOutlineMat1 = new BABYLON.ShaderMaterial("outlinematerial", scene, "/shaders/outline",
+          {
+            attributes: ["position", "uv", "normal"],
+            uniforms: ["worldViewProjection", "worldView"]
+          });
+
+          //tOutlineMat1.setTexture("uDiffuseSampler", a_mesh.material.subMaterials[0].diffuseTexture.clone());
 
           let hiddenMaterial = new BABYLON.StandardMaterial("hidden", scene);
 
@@ -202,9 +210,8 @@ export const ViewModel = Map.extend({
           var outlineMesh = a_mesh.clone();
           geometry.applyToMesh(outlineMesh);
 
-          outlineMesh.flipFaces(true);
-
-          const scale = 1.05;
+          //a_mesh.visibility = 0;
+          const scale = 1.0;
           outlineMesh.scaling = new BABYLON.Vector3(scale, scale, scale);
           outlineMesh.material = tOutlineMat1;
           outlineMesh.visibility = 0;
@@ -214,7 +221,9 @@ export const ViewModel = Map.extend({
           outlineMesh.__outlineMat = tOutlineMat1;
           outlineMesh.material = tOutlineMat1;
 
-          this.exists = true;
+          a_mesh.__outlineMat = tOutlineMat1;
+
+          //this.exists = true;
         }
       }
 
@@ -1230,7 +1239,7 @@ export const ViewModel = Map.extend({
 
   initScene () {
     var scene = this.attr( "scene" );
-    scene.clearColor = new BABYLON.Color3( 1, 1, 1 );
+    scene.clearColor = new BABYLON.Color3( 0, 0, 0 );
 
     window.scene = scene;
     window.BABYLON = BABYLON;
@@ -1305,50 +1314,170 @@ export const ViewModel = Map.extend({
     //   "	gl_FragColor.a = outline;"+
     //   "}";
 
+    // BABYLON.Effect.ShadersStore["outlineCombineFragmentShader"] =
+    //   "varying vec2 vUV;"+
+    //   "uniform sampler2D textureSampler;"+
+    //   "uniform sampler2D passSampler;"+
+    //   "uniform sampler2D maskSampler;"+
+    //
+    //   "void main(void)"+
+    //   "{"+
+    //   "	vec4 mask = texture2D(maskSampler, vUV);"+
+    //   "	vec4 orig = texture2D(passSampler, vUV);"+
+    //   "	vec4 blur = texture2D(textureSampler, vUV);"+
+    //
+    //   "	float outline = smoothstep(0.0, 1.0, length(blur.rgb - mask.rgb) * 1.5);"+
+    //   "	vec3 final = orig.rgb * (1.0 - outline) + (blur.rgb * (outline));"+
+    //   "	//vec3 final = orig.rgb + (blur.rgb * outline);"+
+    //   "	//vec3 final = vec3(0.4, 1.0, 0.6) * outline;\n"+
+    //
+    //   "	gl_FragColor.rgb = final;"+
+    //   "	gl_FragColor.a = outline;"+
+    //   "}";
+
+    // BABYLON.Effect.ShadersStore["outlineCombineFragmentShader"] =
+    //   "varying vec2 vUV;"+
+    //   "uniform sampler2D textureSampler;"+
+    //   "uniform sampler2D passSampler;"+
+    //   "uniform sampler2D maskSampler;"+
+    //
+    //   "void main(void)"+
+    //   "{"+
+    //   "	vec4 mask = texture2D(maskSampler, vUV);"+
+    //   "	vec4 orig = texture2D(passSampler, vUV);"+
+    //   "	vec4 blur = texture2D(textureSampler, vUV);"+
+    //
+    //   "	float outline = clamp((blur.r - mask.r) * 2.0, 0.0, 1.0);"+
+    //
+    //   "	vec3 final = orig.rgb * (1.0 - outline) + (vec3(0.4, 1.0, 0.6) * outline);"+
+    //   "	//vec3 final = vec3(0.4, 1.0, 0.6) * outline;\n"+
+    //
+    //   "	gl_FragColor = vec4(mask.xyz, 1.0);"+
+    //   "	//gl_FragColor.a = orig.a;"+
+    //   "}";
+
     BABYLON.Effect.ShadersStore["outlineCombineFragmentShader"] =
-      "varying vec2 vUV;"+
-      "uniform sampler2D textureSampler;"+
-      "uniform sampler2D passSampler;"+
-      "uniform sampler2D maskSampler;"+
+    "uniform sampler2D passSampler;"+
+    "uniform sampler2D maskSampler;"+
+    "varying vec2 vUV;"+
 
-      "void main(void)"+
-      "{"+
-      "	vec4 mask = texture2D(maskSampler, vUV);"+
-      "	vec4 orig = texture2D(passSampler, vUV);"+
-      "	vec4 blur = texture2D(textureSampler, vUV);"+
+    "void main(void)"+
+    "{"+
+      //vec2 uv = vec2(mod(vuv.x,1.),vuv.y);
+    "  vec4 orig = texture2D(passSampler, vUV);"+
+    "  vec4 mask = texture2D(maskSampler, vUV);"+
+    "  float dx = 0.0005208 * 1.5;"+
+    "  float dy = 0.001923 * 1.5;"+
+      // Center
+    "  float c0 = texture2D( maskSampler, vec2( vUV.x, vUV.y ) ).r;"+
+      // Top right
+    "  float c1 = texture2D( maskSampler, vec2( vUV.x + dx, vUV.y + dy ) ).r;"+
+      // Top left
+    "  float c2 = texture2D( maskSampler, vec2( vUV.x - dx, vUV.y + dy ) ).r;"+
+      // Bottom right
+    "  float c3 = texture2D( maskSampler, vec2( vUV.x + dx, vUV.y - dy ) ).r;"+
+      // Bottom left
+    "  float c4 = texture2D( maskSampler, vec2( vUV.x - dx, vUV.y - dy ) ).r;"+
+      // Right
+    "  float c5 = texture2D( maskSampler, vec2( vUV.x + dx, vUV.y ) ).r;"+
+      // Left
+    "  float c6 = texture2D( maskSampler, vec2( vUV.x - dx, vUV.y ) ).r;"+
+      // Up
+    "  float c7 = texture2D( maskSampler, vec2( vUV.x, vUV.y + dy ) ).r;"+
+      // Down
+    "  float c8 = texture2D( maskSampler, vec2( vUV.x, vUV.y - dy ) ).r;"+
+      // If center isn't on the mesh
+      // But if the surrounding ones are then return white color
+    "float adjacent = 0.0;"+
+    "adjacent = max( adjacent, c1 );"+
+    "adjacent = max( adjacent, c2 );"+
+    "adjacent = max( adjacent, c3 );"+
+    "adjacent = max( adjacent, c4 );"+
+    "adjacent = max( adjacent, c5 );"+
+    "adjacent = max( adjacent, c6 );"+
+    "adjacent = max( adjacent, c7 );"+
+    "adjacent = max( adjacent, c8 );"+
 
-      "	float outline = smoothstep(0.0, 1.0, length(blur.rgb - mask.rgb) * 1.5);"+
-      "	vec3 final = orig.rgb * (1.0 - outline) + (blur.rgb * (outline));"+
-      "	//vec3 final = orig.rgb + (blur.rgb * outline);"+
-      "	//vec3 final = vec3(0.4, 1.0, 0.6) * outline;\n"+
+    "float n = 1.0 - ( adjacent - c0);"+
+    "clamp(n, 0.0, 1.0);"+
+    // Original rgb and return border if border
+    "  vec3 color = orig.rgb * n + (1.0- n) * vec3(0.4, 1.0, 0.6);"+
+    // "   vec3 color = orig.rgb * n;"+
+    "  gl_FragColor = vec4( color, 1.0 );"+
 
-      "	gl_FragColor.rgb = final;"+
-      "	gl_FragColor.a = outline;"+
-      "}";
+
+    // "  gl_FragColor = vec4( n, 0.0, 0.0, 1.0 );"+
+    "}";
+
+    // BABYLON.Effect.ShadersStore["outlineCombineFragmentShader"] =
+    //   "varying vec2 vUV;"+
+    //   "uniform sampler2D textureSampler;"+
+    //   "uniform sampler2D passSampler;"+
+    //   "uniform sampler2D maskSampler;"+
+    //
+    //   "void main(void)"+
+    //   "{"+
+    //   //"	vec4 mask = texture2D(maskSampler, vUV);"+
+    //   "	vec4 orig = texture2D(passSampler, vUV);"+
+    //   //"	vec4 blur = texture2D(textureSampler, vUV);"+
+    //   " float dx = 0.0005208;"+
+    //   " float dy = 0.001923;"+
+    //
+    //   " vec3 center = texture2D( maskSampler, vec2( vUV.x, vUV.y) ).xyz;"+
+    //   " vec2 topUV = vec2(vUV.x, vUV.y + dy);"+
+    //
+    //   " vec3 top = texture2D( maskSampler, topUV ).xyz;"+
+    //   " vec3 topRight = texture2D( maskSampler, vec2(vUV.x + dx, vUV.y + dy) ).xyz;"+
+    //   " vec3 right = texture2D( maskSampler, vec2(vUV.x + dx, vUV.y) ).xyz;"+
+    //   // the rest is pretty arbitrary, but seemed to give me the
+    //   // best-looking results for whatever reason.
+    //   " vec3 t = center - top;"+
+    //   " vec3 r = center - right;"+
+    //   " vec3 tr = center - topRight;"+
+    //
+    //   " t = abs( t );"+
+    //   " r = abs( r );"+
+    //   " tr = abs( tr );"+
+    //
+    //   " float n;"+
+    //   " n = max( n, t.x );"+
+    //   " n = max( n, t.y );"+
+    //   " n = max( n, t.z );"+
+    //   " n = max( n, r.x );"+
+    //   " n = max( n, r.y );"+
+    //   " n = max( n, r.z );"+
+    //   " n = max( n, tr.x );"+
+    //   " n = max( n, tr.y );"+
+    //   " n = max( n, tr.z );"+
+    //
+    //   " n = 1.0 - clamp( clamp((n * 2.0) - 0.8, 0.0, 1.0) * 1.5, 0.0, 1.0 );"+
+    //   " vec3 final = orig.rgb * n + (vec3(0.4, 1.0, 0.6) * (1.0 - n));"+
+    //   //" vec3 final = orig.rgb * n;"+
+    //
+    //   "	gl_FragColor.rgb = final;"+
+    //   "	gl_FragColor.a = orig.a;"+
+    //   "}";
 
     let scene = this.attr("scene");
     let engine = scene.getEngine();
     let camera = this.attr("camera");
 
-
-
-    let camera2 = new BABYLON.TargetCamera( "camera1", new BABYLON.Vector3( -3, 1.5, -4 ), scene );
-    camera2.fov = 1;
-
-    camera2.setTarget( new BABYLON.Vector3( 0, 1.25, 0 ) );
-    camera2.attachControl(canvas, true);
-
-    scene.activeCameras.push(camera, camera2);
+    // let camera2 = new BABYLON.TargetCamera( "camera1", new BABYLON.Vector3( -3, 1.5, -4 ), scene );
+    // camera2.fov = 1;
+    //
+    // camera2.setTarget( new BABYLON.Vector3( 0, 1.25, 0 ) );
+    // camera2.attachControl(canvas, true);
+    //
+    // scene.activeCameras.push(camera, camera2);
 
     // setup render target
     var renderTarget = new BABYLON.RenderTargetTexture("depth", 1024, scene, false);
-    scene.customRenderTargets.push(renderTarget);
-    renderTarget.activeCamera = camera2;
-    this.attr("renderTarget", renderTarget);
 
-    var tOutlineMat1 = new BABYLON.StandardMaterial("outlineMat", scene);
-    tOutlineMat1.emissiveColor = BABYLON.Color3.Green();
-    tOutlineMat1.disableLighting = true;
+    console.log(renderTarget);
+
+    scene.customRenderTargets.push(renderTarget);
+    renderTarget.activeCamera = camera;
+    this.attr("renderTarget", renderTarget);
 
     renderTarget.onBeforeRender = function () {
       for (var index = 0; index < renderTarget.renderList.length; index++) {
@@ -1373,19 +1502,20 @@ export const ViewModel = Map.extend({
     };
 
     //setup post processing
-    var tPass = new BABYLON.PassPostProcess("pass", 1.0, camera2);
+    var tPass = new BABYLON.PassPostProcess("pass", 1.0, camera);
 
-    var tDisplayPass = new BABYLON.DisplayPassPostProcess("displayRenderTarget", 1.0, camera2);
+    var tDisplayPass = new BABYLON.DisplayPassPostProcess("displayRenderTarget", 1.0, camera);
     tDisplayPass.onApply = function (pEffect) {
       pEffect.setTexture("passSampler", renderTarget);
     };
 
-    new BABYLON.BlurPostProcess("blurH", new BABYLON.Vector2(1.0, 0), 1.0, 0.25, camera2);
-    new BABYLON.BlurPostProcess("blurV", new BABYLON.Vector2(0, 1.0), 1.0, 0.25, camera2);
+    new BABYLON.BlurPostProcess("blurH", new BABYLON.Vector2(1.0, 0), 1.0, 0.25, camera);
+    new BABYLON.BlurPostProcess("blurV", new BABYLON.Vector2(0, 1.0), 1.0, 0.25, camera);
 
-    var tCombine = new BABYLON.PostProcess("combine", "outlineCombine", null, ["maskSampler", "passSampler"], 1.0, camera2);
+    var tCombine = new BABYLON.PostProcess("combine", "outlineCombine", null, ["passSampler", "maskSampler"], 1.0, camera);
     tCombine.onApply = function (pEffect) {
       pEffect.setTexture("maskSampler", renderTarget);
+      //pEffect.setTextureFromPostProcess("rendering", renderTarget);
       pEffect.setTextureFromPostProcess("passSampler", tPass);
     };
 

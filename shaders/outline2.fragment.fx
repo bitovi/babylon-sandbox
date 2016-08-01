@@ -21,9 +21,7 @@ void main(void) {
 //    vec3 topRight = texture2D( uNormalSampler, vec2(dx, dy) ).xyz;
 //    vec3 right = texture2D( uNormalSampler, vec2(dx, 0.0) ).xyz;
 
-    vec2 topUV = vec2(vUV.x, vUV.y + dy);
-
-    vec3 top = texture2D( uNormalSampler, topUV ).xyz;
+    vec3 top = texture2D( uNormalSampler, vUV.x, vUV.y + dy ).xyz;
     vec3 topRight = texture2D( uNormalSampler, vec2(vUV.x + dx, vUV.y + dy) ).xyz;
     vec3 right = texture2D( uNormalSampler, vec2(vUV.x + dx, vUV.y) ).xyz;
 

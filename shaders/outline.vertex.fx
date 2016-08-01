@@ -6,12 +6,10 @@ attribute vec3 normal;
 attribute vec2 uv;
 
 // Uniforms
-uniform mat4 world;
 uniform mat4 worldView;
 uniform mat4 worldViewProjection;
 
 // Varying
-varying vec3 vPositionW;
 varying vec3 vNormalW;
 varying vec2 vUV;
 

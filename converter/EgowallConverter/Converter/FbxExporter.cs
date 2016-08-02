@@ -13,7 +13,7 @@ namespace EgowallConverter.Converter
 
         public bool ConvertFbxToBabylon(string a_inputfile, string a_outputDirectory)
         {
-            int exitCode = RunConverter(Environment.CurrentDirectory + "/" + a_inputfile, Environment.CurrentDirectory + "/" + a_outputDirectory);           
+            int exitCode = RunConverter(Environment.CurrentDirectory + "\\" + a_inputfile, Environment.CurrentDirectory + "\\" + a_outputDirectory);           
             return exitCode == 0;
         }
 

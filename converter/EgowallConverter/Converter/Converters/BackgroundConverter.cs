@@ -10,14 +10,16 @@ namespace EgowallConverter.Converter.Converters
     class BackgroundConverter : IConverter
     {
         FbxExporter m_fbxExporter;
+        FbxFileMerger m_fbxFileMerger;
         BabylonHandler m_babylonHandler;
         TextureFinder m_textureFinder;
         TextureCompressor m_textureCompressor;
-        ZipBundler m_zipBundler;
+        ZipBundler m_zipBundler;        
         
         public BackgroundConverter()
         {            
             m_fbxExporter = new FbxExporter();
+            m_fbxFileMerger = new FbxFileMerger();
             m_babylonHandler = new BabylonHandler();
             m_textureFinder = new TextureFinder();
             m_textureCompressor = new TextureCompressor();
@@ -37,18 +39,17 @@ namespace EgowallConverter.Converter.Converters
                 return;
             }
 
-            string resourcespath = a_directoryPath + "/" + "Resources";
+            string resourcespath = a_directoryPath + "\\" + "Resources";
             if (!Directory.Exists(resourcespath))
             {
                 string[] textures = Directory.GetFiles(a_directoryPath, "*.tga");
                 if (textures.Length > 0)
                 {
-
                     Directory.CreateDirectory(resourcespath);
                     foreach (string texture in textures)
                     {
                         FileInfo info = new FileInfo(texture);
-                        File.Copy(texture, resourcespath + "/" + info.Name, true);
+                        File.Copy(texture, resourcespath + "\\" + info.Name, true);
                     }
                 }
             }
@@ -65,6 +66,8 @@ namespace EgowallConverter.Converter.Converters
 
             // Incase some fbx files need the resource director specifically copy all .tga files there.
             CreateResourcesFolder(a_directoryPath);
+            // For every directory reset the fbx automerge!
+            m_fbxFileMerger.ResetAutoMerge();
 
             HandleFiles(files);
 
@@ -98,55 +101,77 @@ namespace EgowallConverter.Converter.Converters
 
         public bool ProcessFile(string a_file)
         {
-
-
             bool success = false;
-            bool fbxResult = m_fbxExporter.ConvertFbxToBabylon(a_file, Application.TempDirectory);
 
-            if (fbxResult)
+            if (!m_fbxFileMerger.IsProcessed( a_file))
             {
-                // Files exist now
-                string[] tempFiles = Directory.GetFiles(Application.TempDirectory, "*.babylon");
-
-                if (tempFiles.Length == 1)
+                if (m_fbxFileMerger.ProcessFile( a_file, Application.TempMergeDirectory  ))
                 {
-                    string babylonFile = tempFiles[0];
+                    // Copy textures
+                    m_fbxFileMerger.CopyTextures(a_file, Application.TempMergeDirectory);
 
-                    try
+                    bool fbxResult = m_fbxExporter.ConvertFbxToBabylon(m_fbxFileMerger.MergedFile, Application.TempDirectory);
+                    // After parsing the file clean up the newly created file
+                    m_fbxFileMerger.Cleanup();
+
+                    if (fbxResult)
                     {
-                        // Since some meshes doesn't have textures try and add them to the material
-                        if (m_textureFinder.TryFindFiles(a_file, Application.TempDirectory))
-                        {
-                            m_babylonHandler.AddTexturesToMaterial(babylonFile, m_textureFinder.TextureInfos);
-                        }
-
-                        m_babylonHandler.FixPrecision(babylonFile);
-                        m_babylonHandler.ChangeMaterialId(babylonFile);                       
-                        m_babylonHandler.AddMeshIdTags(babylonFile);                        
-
-                        m_textureCompressor.CompressImages(Application.TempDirectory);
-
-                        string outputDirectory = Application.GetOutputDirectory(a_file);
-
-                        m_zipBundler.CreateZipBundle(Application.TempDirectory, babylonFile, outputDirectory);
-                        success = true;
-
+                        ProcessFileTemp(a_file);
                     }
-                    catch (Exception e)
+                    else
                     {
-                        Application.LogMessage("An error occured when parsing babylon file. - " + e.Message, ConsoleColor.Red);
+                        Application.LogMessage("Failed to process: '" + a_file + "'", ConsoleColor.Red);
                     }
-
-                    Application.CleanTemp();
-                }
-                else
-                {
-                    Application.LogMessage("No babylon file found in temp folder", ConsoleColor.Red);
-                }
+                }                
             }
             else
             {
-                Application.LogMessage("Failed to process: '" + a_file + "'", ConsoleColor.Red);
+                success = true;
+            }
+
+            return success;
+        }
+
+        public bool ProcessFileTemp(string a_file)
+        {
+            bool success = false;
+            // Files exist now
+            string[] tempFiles = Directory.GetFiles(Application.TempDirectory, "*.babylon");
+
+            if (tempFiles.Length == 1)
+            {
+                string babylonFile = tempFiles[0];
+
+                try
+                {
+                    // Since some meshes doesn't have textures try and add them to the material
+                    if (m_textureFinder.TryFindFiles(a_file, Application.TempDirectory))
+                    {
+                        m_babylonHandler.AddTexturesToMaterial(babylonFile, m_textureFinder.TextureInfos);
+                    }
+
+                    m_babylonHandler.FixPrecision(babylonFile);
+                    m_babylonHandler.ChangeMaterialId(babylonFile);
+                    m_babylonHandler.AddMeshIdTags(babylonFile);
+
+                    m_textureCompressor.CompressImages(Application.TempDirectory);
+
+                    string outputDirectory = Application.GetOutputDirectory(a_file);
+
+                    m_zipBundler.CreateZipBundle(Application.TempDirectory, babylonFile, outputDirectory);
+                    success = true;
+
+                }
+                catch (Exception e)
+                {
+                    Application.LogMessage("An error occured when parsing babylon file. - " + e.Message, ConsoleColor.Red);
+                }
+
+                Application.CleanTemp();
+            }
+            else
+            {
+                Application.LogMessage("No babylon file found in temp folder", ConsoleColor.Red);
             }
 
             return success;

@@ -95,11 +95,9 @@ namespace EgowallConverter.Converter.Converters
                 }
             }
         }
-
+        
         public bool ProcessFile(string a_file)
         {
-
-
             bool success = false;
             bool fbxResult = m_fbxExporter.ConvertFbxToBabylon(a_file, Application.TempDirectory);
 

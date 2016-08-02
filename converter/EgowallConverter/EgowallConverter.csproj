@@ -55,10 +55,12 @@
   <ItemGroup>
     <Compile Include="Converter\BabylonHandler.cs" />
     <Compile Include="Converter\Application.cs" />
+    <Compile Include="Converter\Converters\BackgroundConverter.cs" />
     <Compile Include="Converter\Converters\FurnitureConverter.cs" />
     <Compile Include="Converter\Converters\IConverter.cs" />
     <Compile Include="Converter\Converters\TextureConverter.cs" />
     <Compile Include="Converter\FbxExporter.cs" />
+    <Compile Include="Converter\FbxFileMerger.cs" />
     <Compile Include="Converter\Json\TextureObject.cs" />
     <Compile Include="Converter\TextureInfo.cs" />
     <Compile Include="Converter\TextureCompressor.cs" />

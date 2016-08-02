@@ -34,6 +34,11 @@ namespace EgowallConverter.Converter
         /// </summary>
         public static string TempDirectory = "temp";
         /// <summary>
+        /// Used when doing backgrounds and meshes needs to be merged
+        /// </summary>
+        public static string TempMergeDirectory = "tempmerge";
+
+        /// <summary>
         /// The output directory, mimicks the input file structure with the exception of textures 
         /// </summary>
         public static string OutputDirectory = "output";
@@ -97,6 +102,7 @@ namespace EgowallConverter.Converter
             while (m_converterMode == Mode.NoMode)
             {
                 Console.WriteLine("b - Background models");
+                //Console.WriteLine("e - Environment models");
                 Console.WriteLine("f - Furnitures");
                 Console.WriteLine("t - Textures");                
                 Console.WriteLine("x - Exit");

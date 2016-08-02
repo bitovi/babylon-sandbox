@@ -7,16 +7,16 @@ using System.Threading.Tasks;
 
 namespace EgowallConverter.Converter.Converters
 {
-    class FurnitureConverter : IConverter
+    class BackgroundConverter : IConverter
     {
         FbxExporter m_fbxExporter;
         BabylonHandler m_babylonHandler;
         TextureFinder m_textureFinder;
         TextureCompressor m_textureCompressor;
-        ZipBundler m_zipBundler;        
-
-        public FurnitureConverter()
-        {   
+        ZipBundler m_zipBundler;
+        
+        public BackgroundConverter()
+        {            
             m_fbxExporter = new FbxExporter();
             m_babylonHandler = new BabylonHandler();
             m_textureFinder = new TextureFinder();
@@ -43,7 +43,7 @@ namespace EgowallConverter.Converter.Converters
                 string[] textures = Directory.GetFiles(a_directoryPath, "*.tga");
                 if (textures.Length > 0)
                 {
-                    
+
                     Directory.CreateDirectory(resourcespath);
                     foreach (string texture in textures)
                     {
@@ -67,7 +67,7 @@ namespace EgowallConverter.Converter.Converters
             CreateResourcesFolder(a_directoryPath);
 
             HandleFiles(files);
-            
+
 
             string[] directories = Directory.GetDirectories(a_directoryPath);
 
@@ -111,7 +111,7 @@ namespace EgowallConverter.Converter.Converters
                 if (tempFiles.Length == 1)
                 {
                     string babylonFile = tempFiles[0];
-                    
+
                     try
                     {
                         // Since some meshes doesn't have textures try and add them to the material
@@ -121,8 +121,8 @@ namespace EgowallConverter.Converter.Converters
                         }
 
                         m_babylonHandler.FixPrecision(babylonFile);
-
-                        m_babylonHandler.ChangeMaterialId(babylonFile);                        
+                        m_babylonHandler.ChangeMaterialId(babylonFile);                       
+                        m_babylonHandler.AddMeshIdTags(babylonFile);                        
 
                         m_textureCompressor.CompressImages(Application.TempDirectory);
 
@@ -132,12 +132,12 @@ namespace EgowallConverter.Converter.Converters
                         success = true;
 
                     }
-                    catch(Exception e)
+                    catch (Exception e)
                     {
                         Application.LogMessage("An error occured when parsing babylon file. - " + e.Message, ConsoleColor.Red);
                     }
 
-                    Application.CleanTemp();                   
+                    Application.CleanTemp();
                 }
                 else
                 {

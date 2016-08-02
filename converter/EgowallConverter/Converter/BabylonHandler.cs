@@ -9,6 +9,7 @@ using Newtonsoft.Json;
 using System.Threading;
 using System.Globalization;
 using Newtonsoft.Json.Linq;
+using EgowallConverter.Converter.Json;
 
 namespace EgowallConverter.Converter
 {
@@ -18,13 +19,63 @@ namespace EgowallConverter.Converter
 
         private Regex tgaToPng;
         private Regex idPrefixRemoval;
-  
-
+        
         public BabylonHandler()
-        {
+        {           
             precision = new Regex(@"(-?\d+\.\d+(e[+\-]\d+)?)", RegexOptions.IgnoreCase);
             tgaToPng = new Regex(@"\.tga", RegexOptions.IgnoreCase);
             idPrefixRemoval = new Regex(@"^\d+_");
+        }
+
+        public void AddTexturesToMaterial(string a_babylonFile, List<TextureInfo> a_textureInfo)
+        {
+            string text;
+
+            using (StreamReader sr = new StreamReader(a_babylonFile))
+            {
+                text = sr.ReadToEnd();
+            }
+           
+            dynamic rootObject = JsonConvert.DeserializeObject(text);
+
+            foreach (dynamic material in rootObject.materials)
+            {
+                foreach (TextureInfo info in a_textureInfo)
+                {
+                    if (info.TextureType == TextureInfo.TexType.Diffuse)
+                    {
+                        if (material["diffuseTexture"] == null)
+                        {
+                            TextureObject obj = new TextureObject()
+                            {
+                                // Note: data: is set by ChangeMaterialId()
+                                name = info.Prefix + "_" + info.Name + ".png"
+                            };
+                            string json = JsonConvert.SerializeObject(obj);
+                            material.diffuseTexture = JsonConvert.DeserializeObject(json);
+                        }
+                    }
+                    else
+                    {
+                        if (material["bumpTexture"] == null)
+                        {
+                            TextureObject obj = new TextureObject()
+                            {
+                                name = info.Prefix + "_" + info.Name + ".png"
+                            };
+                            string json = JsonConvert.SerializeObject(obj);
+                            material.diffuseTexture = JsonConvert.DeserializeObject(json);
+                        }
+                    }
+                }
+            }
+
+            string output = JsonConvert.SerializeObject(rootObject);
+
+            using (StreamWriter sw = new StreamWriter(a_babylonFile, false))
+            {
+                sw.WriteLine(output);
+            } 
         }
 
         /// <summary>

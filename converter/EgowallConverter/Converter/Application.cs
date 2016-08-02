@@ -5,12 +5,14 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using EgowallConverter.Converter.Converters;
+using System.Globalization;
+using System.Threading;
 
 namespace EgowallConverter.Converter
 {
     class Application
     {
-        enum Mode
+        public enum Mode
         {
             Backgrounds,
             Exit,
@@ -34,9 +36,11 @@ namespace EgowallConverter.Converter
         /// <summary>
         /// The output directory, mimicks the input file structure with the exception of textures 
         /// </summary>
-        public static string OutputDirectory = "output";       
+        public static string OutputDirectory = "output";
 
         Mode m_converterMode = Mode.NoMode;
+
+        public static Mode ConverterMode;
 
         IConverter m_converter;
 
@@ -47,12 +51,16 @@ namespace EgowallConverter.Converter
 
         public void Run()
         {
+            ChangeCulture();
+
             GetInput();
 
             if (m_converterMode == Mode.Exit)
             {                
                 return;
             }
+
+            ConverterMode = m_converterMode;
 
             if (!Directory.Exists(InputDirectory))
             {
@@ -68,6 +76,16 @@ namespace EgowallConverter.Converter
 
             LogMessage("Finished processing files", ConsoleColor.Green);
             Console.ReadLine();
+        }
+
+        /// <summary>
+        /// As noticed when going to a different country the output changed from . -> , breaking json parser
+        /// </summary>
+        public void ChangeCulture()
+        {
+            CultureInfo culture = new CultureInfo("en-US");
+            Thread.CurrentThread.CurrentCulture = culture;
+            Thread.CurrentThread.CurrentUICulture = culture;
         }
         /// <summary>
         /// Get user input and set the converter mode
@@ -90,7 +108,7 @@ namespace EgowallConverter.Converter
                 {
                     case "b":
                         m_converterMode = Mode.Backgrounds;
-                        m_converter = new FurnitureConverter();
+                        m_converter = new BackgroundConverter();
                         break;
                     case "f":
                         m_converterMode = Mode.Furnitures;
@@ -148,7 +166,5 @@ namespace EgowallConverter.Converter
             Console.ForegroundColor = a_color;
             Console.WriteLine(a_message);
         }
-
-
     }
 }

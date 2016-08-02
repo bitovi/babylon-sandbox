@@ -97,7 +97,7 @@ namespace EgowallConverter.Converter.Converters
             m_textureCompressor.CompressImages(Application.TempDirectory);
 
             string outputDirectory = Application.GetOutputDirectory(a_files[0]);
-            FilePrefix filePrefix = GetFilePrefix(a_files[0]);
+            TextureInfo filePrefix = TextureInfo.GetInfo(a_files[0]);
 
             m_zipBundler.CreateZipBundle(Application.TempDirectory, filePrefix.Prefix + ".png", outputDirectory);
 
@@ -116,7 +116,7 @@ namespace EgowallConverter.Converter.Converters
         private List<string> FindSiblings(string a_file, string[] a_files)
         {
             List<string> result = new List<string>();
-            FilePrefix filePrefix = GetFilePrefix(a_file);
+            TextureInfo filePrefix = TextureInfo.GetInfo(a_file);
 
             foreach (string file in a_files)
             {
@@ -130,42 +130,6 @@ namespace EgowallConverter.Converter.Converters
             }
 
             return result;
-        }
-
-        /// <summary>
-        /// Input: Concrete_001_Tex0_Nrm.tga
-        /// Output: Concrete_001_Tex0
-        /// </summary>
-        /// <param name="a_file"></param>
-        /// <returns></returns>
-        private FilePrefix GetFilePrefix(string a_file)
-        {
-            FileInfo fileInfo = new FileInfo(a_file);
-            string[] parts = fileInfo.Name.Split('_');
-            FilePrefix result = new FilePrefix();
-
-            for (int i = 0; i < parts.Length - 1; i++)
-            {
-                result.Prefix += parts[i];
-                if (i < parts.Length - 2)
-                {
-                    result.Prefix += "_";
-                }
-            }
-
-            string lastPart = parts[parts.Length - 1];
-            result.Name = lastPart.Substring(0, lastPart.Length - fileInfo.Extension.Length);
-
-            result.FolderPath = a_file.Substring(0, a_file.Length - fileInfo.Name.Length);
-
-            return result;
-        }
-
-        private class FilePrefix
-        {
-            public string FolderPath { get; set; }
-            public string Prefix { get; set; }
-            public string Name { get; set; }
-        }
+        }         
     }
 }

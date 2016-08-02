@@ -59,7 +59,10 @@
     <Compile Include="Converter\Converters\IConverter.cs" />
     <Compile Include="Converter\Converters\TextureConverter.cs" />
     <Compile Include="Converter\FbxExporter.cs" />
+    <Compile Include="Converter\Json\TextureObject.cs" />
+    <Compile Include="Converter\TextureInfo.cs" />
     <Compile Include="Converter\TextureCompressor.cs" />
+    <Compile Include="Converter\TextureFinder.cs" />
     <Compile Include="Converter\ZipBundler.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

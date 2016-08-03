@@ -276,7 +276,6 @@ export const ViewModel = Map.extend({
 
   loadTextures ( arrayOfLoadedAssets ) {
     var scene = this.attr( "scene" );
-console.log( arrayOfLoadedAssets )
     for ( let i = 0; i < arrayOfLoadedAssets.length; i++ ) {
       let unzippedAssets = arrayOfLoadedAssets[ i ].unzippedFiles;
       for ( let x = 0; x < unzippedAssets.length; x++ ) {

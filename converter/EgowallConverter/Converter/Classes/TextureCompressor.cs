@@ -97,34 +97,18 @@ namespace EgowallConverter.Converter
             }
 
             return true;
-        }
+        }        
 
-        private bool ConvertPngTobase64(string a_file)
-        {
-            string base64String = "";          
-            using (Image image = Image.FromFile(a_file))
-            {
-                using (MemoryStream ms = new MemoryStream())
-                {
-                    // Convert Image to byte[]
-                    image.Save(ms, image.RawFormat);
-                    byte[] imageBytes = ms.ToArray();
-
-                    // Convert byte[] to Base64 String
-                    base64String = Convert.ToBase64String(imageBytes);
-                                      
-                }
-            }
-
-            using (StreamWriter sw = new StreamWriter(a_file))
-            {
-                sw.WriteLine("data:image/png;base64," + base64String);
-            }
-
-
-            return true;
-        }
-
+        /// <summary>
+        /// 1. Convert from Tga to Png
+        /// 2. Resize by a factor of 2 and minimum of 512x512.  
+        /// So 1024x1024 => 512x512
+        /// 2048x2048 => 1024x1024
+        /// 256x256 => 256x256
+        /// </summary>
+        /// <param name="a_file"></param>
+        /// <param name="a_output"></param>
+        /// <returns></returns>
         private bool ConvertTgaToPng(string a_file, string a_output)
         {
             try

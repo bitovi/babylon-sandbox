@@ -102,9 +102,9 @@ namespace EgowallConverter.Converter
             while (m_converterMode == Mode.NoMode)
             {
                 Console.WriteLine("b - Background models");
-                //Console.WriteLine("e - Environment models");
+                Console.WriteLine("e - Environment models");
                 Console.WriteLine("f - Furnitures");
-                Console.WriteLine("t - Textures");                
+                Console.WriteLine("t - Material Constants");                
                 Console.WriteLine("x - Exit");
                 Console.Write("Action: ");
 
@@ -114,7 +114,11 @@ namespace EgowallConverter.Converter
                 {
                     case "b":
                         m_converterMode = Mode.Backgrounds;
-                        m_converter = new UnityConverter();
+                        m_converter = new UnityConverter(true);
+                        break;
+                    case "e":
+                        m_converterMode = Mode.Backgrounds;
+                        m_converter = new UnityConverter(false);
                         break;
                     case "f":
                         m_converterMode = Mode.Furnitures;
@@ -167,10 +171,16 @@ namespace EgowallConverter.Converter
             }
         }
 
+        /// <summary>
+        /// Write a message to console with a color        
+        /// </summary>
+        /// <param name="a_message"></param>
+        /// <param name="a_color"></param>
         public static void LogMessage(string a_message, ConsoleColor a_color)
         {
             Console.ForegroundColor = a_color;
             Console.WriteLine(a_message);
+            Console.ForegroundColor = ConsoleColor.Gray;
         }
     }
 }

@@ -16,9 +16,12 @@ namespace EgowallConverter.Converter.Converters
         UnityBabylonHandler m_unityBabylonHandler;
         ZipBundler m_zipBundler;
 
-        public UnityConverter()
+        bool m_addMeshIds;
+
+        public UnityConverter(bool a_addNeshIds)
         {
-            
+            m_addMeshIds = a_addNeshIds;
+
             m_babylonHandler = new BabylonHandler();
             m_textureFinder = new TextureFinder();
             m_textureCompressor = new TextureCompressor();
@@ -75,8 +78,6 @@ namespace EgowallConverter.Converter.Converters
             
             if (m_unityBabylonHandler.CopyFile( a_file, Application.TempDirectory))
             {
-                
-
                 // Files exist now
                 string[] tempFiles = Directory.GetFiles(Application.TempDirectory, "*.babylon");
 
@@ -87,14 +88,16 @@ namespace EgowallConverter.Converter.Converters
                     // Minify the output
                     m_unityBabylonHandler.Minify(babylonFile);
 
-
                     try
-                    {                       
-
+                    {       
                         m_babylonHandler.FixPrecision(babylonFile);
-                        //m_babylonHandler.ChangeMaterialId(babylonFile);
+                        
                         m_babylonHandler.ChangeMaterialTextureUrls(babylonFile);
-                        m_babylonHandler.AddMeshIdTags(babylonFile);
+
+                        if (m_addMeshIds)
+                        {
+                            m_babylonHandler.AddMeshIdTags(babylonFile);
+                        }
 
                         m_textureCompressor.CompressImages(Application.TempDirectory);
 

@@ -27,16 +27,15 @@ namespace EgowallConverter.Converter
             idPrefixRemoval = new Regex(@"^\d+_");
         }
 
+        /// <summary>
+        /// Add found textures to the material.
+        /// Used by furnitures if fbx exporter failed to find any textures.
+        /// </summary>
+        /// <param name="a_babylonFile"></param>
+        /// <param name="a_textureInfo"></param>
         public void AddTexturesToMaterial(string a_babylonFile, List<TextureInfo> a_textureInfo)
         {
-            string text;
-
-            using (StreamReader sr = new StreamReader(a_babylonFile))
-            {
-                text = sr.ReadToEnd();
-            }
-           
-            dynamic rootObject = JsonConvert.DeserializeObject(text);
+            dynamic rootObject = GetJsonObject(a_babylonFile);
 
             foreach (dynamic material in rootObject.materials)
             {
@@ -70,12 +69,7 @@ namespace EgowallConverter.Converter
                 }
             }
 
-            string output = JsonConvert.SerializeObject(rootObject);
-
-            using (StreamWriter sw = new StreamWriter(a_babylonFile, false))
-            {
-                sw.WriteLine(output);
-            } 
+            SaveJsonObject(rootObject, a_babylonFile);
         }
 
         /// <summary>
@@ -83,22 +77,14 @@ namespace EgowallConverter.Converter
         /// </summary>
         public void AddMeshIdTags(string a_babylonFile)
         {
-            string text;
-
-            using (StreamReader sr = new StreamReader(a_babylonFile))
-            {
-                text = sr.ReadToEnd();
-            }
-
-
-            dynamic rootObject = JsonConvert.DeserializeObject(text);
+            dynamic rootObject = GetJsonObject(a_babylonFile);
 
             Dictionary<string, List<dynamic>> groups = new Dictionary<string, List<dynamic>>();
 
             foreach (dynamic mesh in rootObject.meshes)
             {
                 // First check if parentid exists
-                if (mesh["parentId"] != null)
+                if (mesh["parentId"] != null )
                 {
                     // Check if no positions exist meaning it's not a "sub group"
                     if (mesh["positions"] != null)
@@ -119,15 +105,12 @@ namespace EgowallConverter.Converter
                     if (!groups.ContainsKey(id))
                     {
                         groups[id] = new List<dynamic>() { };
-                    }
-                    
+                    }                    
                 }
             }
 
             foreach (var keyValue in groups)
-            {
-                Console.WriteLine("Adding meshId to " + keyValue.Key);
-
+            {                
                 List<MeshSortData> sorted = new List<MeshSortData>();
 
                 for (int i = 0; i < keyValue.Value.Count; i++)
@@ -153,12 +136,7 @@ namespace EgowallConverter.Converter
                 }
             }
 
-            string output = JsonConvert.SerializeObject(rootObject);
-
-            using (StreamWriter sw = new StreamWriter(a_babylonFile, false))
-            {
-                sw.WriteLine(output);
-            }
+            SaveJsonObject(rootObject, a_babylonFile);
         }        
 
         /// <summary>
@@ -168,13 +146,7 @@ namespace EgowallConverter.Converter
         /// <param name="a_babylonFile"></param>
         public void ChangeMaterialId(string a_babylonFile)
         {
-            string text;
-            
-            using (StreamReader sr = new StreamReader(a_babylonFile))
-            {
-                text = sr.ReadToEnd();
-            }   
-            dynamic rootObject = JsonConvert.DeserializeObject(text);
+            dynamic rootObject = GetJsonObject(a_babylonFile);
 
             Dictionary<string, string> materialsIds = new Dictionary<string, string>();
                         
@@ -189,8 +161,7 @@ namespace EgowallConverter.Converter
             }
 
             foreach (dynamic multimaterial in rootObject.multiMaterials)
-            {
-                
+            {                
                 for (var i = 0; i < multimaterial.materials.Count; ++i)
                 {
                     string id = multimaterial.materials[i];
@@ -205,24 +176,17 @@ namespace EgowallConverter.Converter
                 }
             }
 
-            string output = JsonConvert.SerializeObject(rootObject);
-
-            using (StreamWriter sw = new StreamWriter(a_babylonFile, false))
-            {
-                sw.WriteLine(output);
-            }            
+            SaveJsonObject(rootObject, a_babylonFile);
         }
         
+        /// <summary>
+        /// Add data: at start of material file url.
+        /// </summary>
+        /// <param name="a_babylonFile"></param>
         public void ChangeMaterialTextureUrls( string a_babylonFile)
         {
-            string text;
-
-            using (StreamReader sr = new StreamReader(a_babylonFile))
-            {
-                text = sr.ReadToEnd();
-            }
-
-            dynamic rootObject = JsonConvert.DeserializeObject(text);
+            
+            dynamic rootObject = GetJsonObject(a_babylonFile);
             foreach (dynamic material in rootObject.materials)
             {
                 // Iterate over all properties to find object types
@@ -254,12 +218,7 @@ namespace EgowallConverter.Converter
                 }
             }
 
-            string output = JsonConvert.SerializeObject(rootObject);
-
-            using (StreamWriter sw = new StreamWriter(a_babylonFile, false))
-            {
-                sw.WriteLine(output);
-            }
+            SaveJsonObject(rootObject, a_babylonFile);
         }
 
         /// <summary>
@@ -282,6 +241,26 @@ namespace EgowallConverter.Converter
             //string output = firstPass.Replace(text, new MatchEvaluator(FirstpassAdjuster));
             //output = secondPass.Replace(output, new MatchEvaluator(SecondPassAdjuster));
             // Overwrite the babylon file with the new file
+            using (StreamWriter sw = new StreamWriter(a_babylonFile, false))
+            {
+                sw.WriteLine(output);
+            }
+        }
+
+        private dynamic GetJsonObject( string a_babylonFile)
+        {
+            string text;
+            using (StreamReader sr = new StreamReader(a_babylonFile))
+            {
+                text = sr.ReadToEnd();
+            }
+
+            return JsonConvert.DeserializeObject(text);
+        }
+
+        private void SaveJsonObject(  dynamic a_rootObject, string a_babylonFile)
+        {
+            string output = JsonConvert.SerializeObject(a_rootObject);
             using (StreamWriter sw = new StreamWriter(a_babylonFile, false))
             {
                 sw.WriteLine(output);

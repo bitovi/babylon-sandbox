@@ -102,7 +102,7 @@ namespace EgowallConverter.Converter.Classes
                 }
                 else
                 {
-                    Application.LogMessage("Found a texture that isn't in the folder. " + textureList[i], ConsoleColor.Yellow);
+                    Application.LogMessage("Found a referenced texture that doesn't exist for: " + a_file, ConsoleColor.Yellow);
                     textureList.RemoveAt(i);
                 }
             }

@@ -52,10 +52,14 @@ var options = {
       };
 
       return $.ajax({
+        //url: "https://testing.egowall.com/ajax/rooms",
         url: "/ajax/rooms",
         type: "POST",
-        data: JSON.stringify( postData ),
+        data: can.param( postData ),
         dataType: "json",
+        //xhrFields: {
+        //  withCredentials: true
+        //},
         cache: false
       });
     }

@@ -356,6 +356,7 @@ export const ViewModel = Map.extend({
     for ( let i = 0; i < roomFurnitures.length; i++ ) {
       let furn = roomFurnitures[ i ];
       furn.assetID = furn.assetID || furn.ufurnID;
+      furn.furnURL = furn.furnURL.replace( ".unity3d", "_LOD0.zip" );
       furnPromises.push( Asset.get( furn ) );
     }
 
@@ -541,6 +542,7 @@ export const ViewModel = Map.extend({
   },
 
   bgMeshLoaded ( itemInfo, babylonName, meshes ) {
+    console.log( "meow" );
     var uroomID = this.attr( "uroomID" );
     var roomInfo = this.roomInfo( uroomID );
     for ( let i = 0; i < meshes.length; ++i ) {
@@ -614,8 +616,9 @@ export const ViewModel = Map.extend({
       );
 
       var roomAssetURL = vm.roomAssetURL( uroomID );
-      //TODO: use real roomAssetURL to load the backgroundMesh
-      roomAssetURL = "https://cdn.testing.egowall.com/CDN_new/Game/Assetbundles/Home/LS_18_test.zip";
+      //TODO: use real roomAssetURL to load the backgroundMesh or change service
+      let livingSpaceID = homeLoad.livingSpaceID;
+      roomAssetURL = "https://cdn.testing.egowall.com/CDN_new/Game/Assetbundles/Home/LS_" + livingSpaceID + "_test.zip";
       var setDef = new Map({ assetID: roomAssetURL, assetURL: roomAssetURL });
       var roomMeshProm = Asset.get( setDef );
       
@@ -693,7 +696,7 @@ export default Component.extend({
 
       vm.initScene();
 
-      vm.homeLoad( 1845, 110000 );
+      vm.homeLoad( 1083, 110000 );
 
       vm.initLights();
 

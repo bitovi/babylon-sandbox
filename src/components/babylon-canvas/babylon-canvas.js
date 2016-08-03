@@ -276,6 +276,7 @@ export const ViewModel = Map.extend({
 
   loadTextures ( arrayOfLoadedAssets ) {
     var scene = this.attr( "scene" );
+console.log( arrayOfLoadedAssets )
     for ( let i = 0; i < arrayOfLoadedAssets.length; i++ ) {
       let unzippedAssets = arrayOfLoadedAssets[ i ].unzippedFiles;
       for ( let x = 0; x < unzippedAssets.length; x++ ) {
@@ -285,7 +286,6 @@ export const ViewModel = Map.extend({
         }
       }
     }
-
     return arrayOfLoadedAssets;
   },
 
@@ -334,7 +334,7 @@ export const ViewModel = Map.extend({
 
       mesh.receiveShadows = true;
       mesh.collisionsEnabled = true;
-      
+
       if ( itemInfo.egoID ) {
         mesh.position.x = parseFloat( itemInfo.roomInfo.position.x ) || 0;
         mesh.position.y = parseFloat( itemInfo.roomInfo.position.y ) || 0;
@@ -411,6 +411,22 @@ export const ViewModel = Map.extend({
     );
   },
 
+  loadTerrain ( terrainURL ) {
+    var terrain = new can.Map({
+      terrain: true,
+      assetID: -222,
+      assetURL: terrainURL
+    });
+    var terrainProm = Asset.get( terrain );
+
+    // Promise.all here just because loadTextures expects array of loaded assets
+    return Promise.all( [ terrainProm ] ).then(
+      this.loadTextures.bind( this )
+    ).then(
+      this.loadModels.bind( this )
+    );
+  },
+
   roomLoad ( uroomID ) {
     var vm = this;
 
@@ -428,7 +444,8 @@ export const ViewModel = Map.extend({
       var egoProm = null;
 
       if ( roomLoad.egoObjects && roomLoad.egoObjects.length ) {
-        egoProm = vm.loadEgoObjects( roomLoad.egoObjects );
+        // TODO: figure out why on earth the coords/rotations for these are rotated +/- 90deg about z axis of the whole scene
+        // egoProm = vm.loadEgoObjects( roomLoad.egoObjects );
       }
     });
   },
@@ -592,8 +609,6 @@ export const ViewModel = Map.extend({
       this.testHardcodedMaterials( mesh );
     }
 
-    console.log( meshID, mesh.__backgroundMeshInfo.ajaxInfo.color );
-
     if ( mesh.material && mesh.__backgroundMeshInfo.ajaxInfo.color ) {
       let ajaxColor = mesh.__backgroundMeshInfo.ajaxInfo.color;
       let r = parseFloat( ajaxColor.r );
@@ -684,6 +699,8 @@ export const ViewModel = Map.extend({
         "uroomID": uroomID,
         "homeLoad": homeLoad
       });
+
+      var terrainProm = vm.loadTerrain( homeLoad.terrainURL );
 
       var meshes = vm.roomInfo( uroomID ).roomStatus.meshes;
       vm.attr( "bgMeshesInfo", meshes );

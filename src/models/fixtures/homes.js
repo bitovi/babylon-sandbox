@@ -309,11 +309,23 @@ var homesResponse1083 = {
         },
         {
           "meshID": "4",
-          "materialID": "43"
+          "materialID": "43",
+          "color": {
+            "r": "0.435",
+            "g": "0.439",
+            "b": "0.435",
+            "a": "1"
+          }
         },
         {
           "meshID": "5",
-          "materialID": "43"
+          "materialID": "43",
+          "color": {
+            "r": "0.435",
+            "g": "0.439",
+            "b": "0.435",
+            "a": "1"
+          }
         },
         {
           "meshID": "6",
@@ -353,7 +365,13 @@ var homesResponse1083 = {
         },
         {
           "meshID": "15",
-          "materialID": "45"
+          "materialID": "45",
+          "color": {
+            "r": "0.973",
+            "g": "0.616",
+            "b": "0.176",
+            "a": "1"
+          }
         }
       ],
       "isUserAllowed": "true"

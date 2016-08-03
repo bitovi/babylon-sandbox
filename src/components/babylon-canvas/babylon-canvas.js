@@ -66,26 +66,20 @@ export const ViewModel = Map.extend({
   },
 
   hoveredMesh: null,
-  pickingItem ( $ev, normalizedKey, heldInfo, deltaTime ) {
-    // Return pickingInfo for first object hit except ground
+  pickingEvent ( $ev, normalizedKey, heldInfo, deltaTime ) {
     var scene = this.attr( "scene" );
     var customizeMode = this.attr( "customizeMode" );
     var controlsVM = getControls();
     var curMousePos = controlsVM.curMousePos();
     var pickingInfo = scene.pick( curMousePos.x, curMousePos.y, ( hitMesh ) => {
-      return customizeMode ? hitMesh.backgroundMesh : this.isMeshFurnitureItem( hitMesh );
+      return customizeMode ? hitMesh.__backgroundMeshInfo : this.isMeshFurnitureItem( hitMesh );
     });
     var hoveredMesh = this.attr( "hoveredMesh" );
 
     var allowPick = pickingInfo.hit && $ev.target.nodeName.toLowerCase() === "canvas";
 
     if ( allowPick ) {
-      var mesh = pickingInfo.pickedMesh;
-
-      if (hoveredMesh !== mesh){
-        this.setMeshOutline( mesh );
-      }
-      getTooltip().set( "meshHover", mesh.name, "fa-archive", "Click to Manage", curMousePos.x, curMousePos.y );
+      this[ customizeMode ? "pickingBG" : "pickingItem" ]( hoveredMesh, pickingInfo, curMousePos );
     } else {
       if ( hoveredMesh ) {
         this.clearMeshOutline( hoveredMesh );
@@ -93,6 +87,29 @@ export const ViewModel = Map.extend({
         this.attr( "hoveredMesh", null );
       }
     }
+  },
+
+  pickingBG ( hoveredMesh, pickingInfo, curMousePos ) {
+    var mesh = pickingInfo.pickedMesh;
+    var title = "Click to customize.<br>Press and hold right mouse to look around.";
+    var message = mesh.name + " (" + mesh.__backgroundMeshInfo.meshID + ")";
+
+    if ( hoveredMesh !== mesh ) {
+      this.setMeshOutline( mesh );
+    }
+
+    getTooltip().set( "meshHover", title, null, message, curMousePos.x, curMousePos.y );
+  },
+
+  pickingItem ( hoveredMesh, pickingInfo, curMousePos ) {
+    var mesh = pickingInfo.pickedMesh;
+    var name = mesh.name;
+
+    if ( hoveredMesh !== mesh ) {
+      this.setMeshOutline( mesh );
+    }
+
+    getTooltip().set( "meshHover", name, "fa-archive", "Click to Manage", curMousePos.x, curMousePos.y );
   },
 
   clearMeshOutline ( mesh ) {
@@ -317,13 +334,24 @@ export const ViewModel = Map.extend({
 
       mesh.receiveShadows = true;
       mesh.collisionsEnabled = true;
-      mesh.position.x = parseFloat( itemInfo.position.x ) || 0;
-      mesh.position.y = parseFloat( itemInfo.position.y ) || 0;
-      mesh.position.z = parseFloat( itemInfo.position.z ) || 0;
-      mesh.rotationQuaternion.x = parseFloat( itemInfo.rotation.x ) || 0;
-      mesh.rotationQuaternion.y = parseFloat( itemInfo.rotation.y ) || 0;
-      mesh.rotationQuaternion.z = parseFloat( itemInfo.rotation.z ) || 0;
-      mesh.rotationQuaternion.w = parseFloat( itemInfo.rotation.w ) || 1;
+      
+      if ( itemInfo.egoID ) {
+        mesh.position.x = parseFloat( itemInfo.roomInfo.position.x ) || 0;
+        mesh.position.y = parseFloat( itemInfo.roomInfo.position.y ) || 0;
+        mesh.position.z = parseFloat( itemInfo.roomInfo.position.z ) || 0;
+        mesh.rotationQuaternion.x = parseFloat( itemInfo.roomInfo.rotation.x ) || 0;
+        mesh.rotationQuaternion.y = parseFloat( itemInfo.roomInfo.rotation.y ) || 0;
+        mesh.rotationQuaternion.z = parseFloat( itemInfo.roomInfo.rotation.z ) || 0;
+        mesh.rotationQuaternion.w = parseFloat( itemInfo.roomInfo.rotation.w ) || 1;
+      } else {
+        mesh.position.x = parseFloat( itemInfo.position.x ) || 0;
+        mesh.position.y = parseFloat( itemInfo.position.y ) || 0;
+        mesh.position.z = parseFloat( itemInfo.position.z ) || 0;
+        mesh.rotationQuaternion.x = parseFloat( itemInfo.rotation.x ) || 0;
+        mesh.rotationQuaternion.y = parseFloat( itemInfo.rotation.y ) || 0;
+        mesh.rotationQuaternion.z = parseFloat( itemInfo.rotation.z ) || 0;
+        mesh.rotationQuaternion.w = parseFloat( itemInfo.rotation.w ) || 1;
+      }
 
       this.addToShadowGenerator( mesh );
 
@@ -367,6 +395,22 @@ export const ViewModel = Map.extend({
     );
   },
 
+  loadEgoObjects ( egoObjects ) {
+    var egoPromises = [];
+    for ( let i = 0; i < egoObjects.length; i++ ) {
+      let egoObj = egoObjects[ i ];
+      egoObj.assetID = egoObj.assetID || egoObj.egoID;
+      egoObj.assetURL = egoObj.roomInfo.frameURL.replace( ".unity3d", "_LOD0.zip" );
+      egoPromises.push( Asset.get( egoObj ) );
+    }
+
+    return Promise.all( egoPromises ).then(
+      this.loadTextures.bind( this )
+    ).then(
+      this.loadModels.bind( this )
+    );
+  },
+
   roomLoad ( uroomID ) {
     var vm = this;
 
@@ -380,12 +424,17 @@ export const ViewModel = Map.extend({
     vm.attr( "roomsPromise", roomsPromise );
 
     return roomsPromise.then( ( roomLoad ) => {
-      vm.loadFurnitures( roomLoad.furnitures );
+      var furnProm = vm.loadFurnitures( roomLoad.furnitures );
+      var egoProm = null;
+
+      if ( roomLoad.egoObjects && roomLoad.egoObjects.length ) {
+        egoProm = vm.loadEgoObjects( roomLoad.egoObjects );
+      }
     });
   },
 
   //TODO: this may not be a thing we need if dependencies are properly defined somewhere we haven't located 
-  alaysLoadTheseMaterialConstants ( cacheUrls, neededMaterialsPromises ) {
+  alwaysLoadTheseMaterialConstants ( cacheUrls, neededMaterialsPromises ) {
     var ids = [ "87", "17" ];
     var materialConstants = this.attr( "materialConstants" );
 
@@ -450,7 +499,7 @@ export const ViewModel = Map.extend({
         neededMaterialsPromises.push( Asset.get( matConst ) );
       }
     }
-    this.alaysLoadTheseMaterialConstants( cacheUrls, neededMaterialsPromises );
+    this.alwaysLoadTheseMaterialConstants( cacheUrls, neededMaterialsPromises );
 
     return Promise.all( neededMaterialsPromises ).then( ( loadedOnes ) => {
       //replace the 'loadedOnes' with their materialConstants[] counterpart
@@ -490,49 +539,78 @@ export const ViewModel = Map.extend({
   // TODO: we probably shouldn't need this - gotta figure out where the info comes from
   testHardcodedMaterials ( mesh ) {
     var materialConstants = this.attr( "materialConstants" );
-    //console.log( mesh.id )
-    if ( mesh.id === "74_GlassIn_001" || mesh.id === "73_GlassOut_001" ) {
-      mesh.visibility = 0;
+    var name = mesh.name.replace( /[^a-z]/gi, "" ).toLowerCase();
+    var parentName = mesh.parent && mesh.parent.name || "";
 
-    } else if ( mesh.id === "72_WindowFrame_001" || ( mesh.parent && mesh.parent.id === "52_DoorFrame_LOD0" ) ) {
+    if ( name === "glassin" || name === "glassout" ) {
+      mesh.visibility = 0;
+      mesh.__backgroundMeshInfo.materialID = "";
+
+    } else if ( name === "windowframe" || parentName === "doorframe" ) {
       // Tile - Concrete
       let matConst = _find( materialConstants, { materialID: "87" } );
       mesh.material = matConst.instance.clone();
       mesh.material.diffuseColor = new BABYLON.Color3( 0.1, 0.1, 0.1 );
+      mesh.__backgroundMeshInfo.materialID = "87";
 
-    } else if ( mesh.parent && mesh.parent.id === "44_Balcony_001_LOD0" ) {
+    } else if ( parentName === "balconylod" ) {
       // Concrete_006 ( 17 )
       let matConst = _find( materialConstants, { materialID: "17" } );
       mesh.material = matConst.instance.clone();
+      mesh.__backgroundMeshInfo.materialID = "17";
+
     }
   },
 
   bgMeshSetMaterial ( mesh, roomInfo ) {
     var materialConstants = this.attr( "materialConstants" );
 
-    var meshId = mesh._tags ? Object.keys( mesh._tags )[ 0 ].replace( "meshId_", "" ) : "";
-    var parentBabylonId = ( mesh.parent && mesh.parent.id || "" ).toLowerCase();
+    var meshID = mesh._tags ? Object.keys( mesh._tags )[ 0 ].replace( "meshId_", "" ) : "";
+    var parentBabylonName = ( mesh.parent && mesh.parent.name || "" ).toLowerCase();
 
     var rs = roomInfo.roomStatus || {};
     var key = ( rs.roomTypeName || "" ).replace( /[^a-z]/gi, "" ).toLowerCase();
 
-    if ( key && parentBabylonId && parentBabylonId.indexOf( key ) > -1 ) {
+    mesh.__backgroundMeshInfo = {
+      meshID: meshID,
+      parentBabylonName: parentBabylonName,
+      ajaxInfo: {},
+      materialID: ""
+    };
+
+    if ( key && parentBabylonName && parentBabylonName.indexOf( key ) > -1 ) {
       //This mesh is in of the room
-      let temp = _find( rs.meshes || [], { meshID: meshId } ) || {};
-      let materialID = temp.materialID || "";
+      let ajaxInfo = _find( rs.meshes || [], { meshID: meshID } ) || {};
+      let materialID = ajaxInfo.materialID || "";
       let matConst = _find( materialConstants, { materialID } );
+
+      mesh.__backgroundMeshInfo.ajaxInfo = ajaxInfo;
+      mesh.__backgroundMeshInfo.materialID = materialID;
 
       mesh.material = matConst.instance.clone();
     } else {
       this.testHardcodedMaterials( mesh );
     }
 
-    if ( mesh.material ) {
+    console.log( meshID, mesh.__backgroundMeshInfo.ajaxInfo.color );
+
+    if ( mesh.material && mesh.__backgroundMeshInfo.ajaxInfo.color ) {
+      let ajaxColor = mesh.__backgroundMeshInfo.ajaxInfo.color;
+      let r = parseFloat( ajaxColor.r );
+      let g = parseFloat( ajaxColor.g );
+      let b = parseFloat( ajaxColor.b );
+      let a = parseFloat( ajaxColor.a );
+      mesh.material.diffuseColor = new BABYLON.Color3( r, g, b );
+    }
+
+    if ( false && mesh.material ) {
       const uScale = 0.19995;
       const vScale = 0.225;
 
-      mesh.material.diffuseTexture.uScale = uScale;
-      mesh.material.diffuseTexture.vScale = vScale;
+      if ( mesh.material.diffuseTexture ) {
+        mesh.material.diffuseTexture.uScale = uScale;
+        mesh.material.diffuseTexture.vScale = vScale;
+      }
 
       if ( mesh.material.bumpTexture ) {
         mesh.material.bumpTexture.uScale = uScale;
@@ -542,13 +620,14 @@ export const ViewModel = Map.extend({
   },
 
   bgMeshLoaded ( itemInfo, babylonName, meshes ) {
-    console.log( "meow" );
     var uroomID = this.attr( "uroomID" );
     var roomInfo = this.roomInfo( uroomID );
+
     for ( let i = 0; i < meshes.length; ++i ) {
       let mesh = meshes[ i ];
       mesh.collisionsEnabled = true;
       mesh.receiveShadows = true;
+
       //mesh.position = new BABYLON.Vector3( 0, 0, 0 );
       //mesh.rotation = BABYLON.Quaternion.RotationYawPitchRoll( 0, 0, 0 );
       //let positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
@@ -607,7 +686,7 @@ export const ViewModel = Map.extend({
       });
 
       var meshes = vm.roomInfo( uroomID ).roomStatus.meshes;
-      vm.attr( "bgMeshes", meshes );
+      vm.attr( "bgMeshesInfo", meshes );
 
       var materialsLodedProm = vm.attr(
         "materialConstantsPromise"
@@ -658,7 +737,7 @@ export const controls = {
   //  "0": "resetGround"
   //},
   "mousemove": {
-    "*": "pickingItem"
+    "*": "pickingEvent"
   }
 };
 
@@ -668,6 +747,8 @@ export default Component.extend({
   template,
   events: {
     init () {
+      // have to dump it to global for one tiny detail when loading custom PBR materials ( PBR = Physically Based Rendering )
+      window.BABYLON = BABYLON; // see babylon.max.js@4450 - Tools.Instantiate
       var vm = this.viewModel;
       vm.attr( "$el", this.element );
 

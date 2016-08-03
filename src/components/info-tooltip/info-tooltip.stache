@@ -1,10 +1,10 @@
-<div class="title {{#if description}}description-visible{{/if}}">{{title}}</div>
+<div class="title {{#if description}}description-visible{{/if}}">{{{title}}}</div>
 
 {{#if description}}
   <div class="description {{#if icon}}icon-visible{{/if}}">
     {{#if icon}}
       <div class="tootltip-icon {{icon}}"></div>
     {{/if}}
-    {{description}}
+    {{{description}}}
   </div>
 {{/if}}

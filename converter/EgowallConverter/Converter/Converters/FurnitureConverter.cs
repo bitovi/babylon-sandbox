@@ -120,7 +120,8 @@ namespace EgowallConverter.Converter.Converters
 
                         m_babylonHandler.FixPrecision(babylonFile);
 
-                        m_babylonHandler.ChangeMaterialId(babylonFile);                        
+                        m_babylonHandler.ChangeMaterialId(babylonFile);
+                        m_babylonHandler.ChangeMaterialTextureUrls(babylonFile);
 
                         m_textureCompressor.CompressImages(Application.TempDirectory);
 
@@ -141,12 +142,8 @@ namespace EgowallConverter.Converter.Converters
                 {
                     Application.LogMessage("No babylon file found in temp folder", ConsoleColor.Red);
                 }
-            }
-            else
-            {
-                Application.LogMessage("Failed to process: '" + a_file + "'", ConsoleColor.Red);
-            }
-
+            }            
+            
             return success;
         }
     }

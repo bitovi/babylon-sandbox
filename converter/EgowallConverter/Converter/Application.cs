@@ -114,7 +114,7 @@ namespace EgowallConverter.Converter
                 {
                     case "b":
                         m_converterMode = Mode.Backgrounds;
-                        m_converter = new BackgroundConverter();
+                        m_converter = new UnityConverter();
                         break;
                     case "f":
                         m_converterMode = Mode.Furnitures;

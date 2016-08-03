@@ -53,19 +53,21 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Converter\BabylonHandler.cs" />
+    <Compile Include="Converter\Classes\BabylonHandler.cs" />
     <Compile Include="Converter\Application.cs" />
+    <Compile Include="Converter\Classes\UnityBabylonHandler.cs" />
     <Compile Include="Converter\Converters\BackgroundConverter.cs" />
     <Compile Include="Converter\Converters\FurnitureConverter.cs" />
     <Compile Include="Converter\Converters\IConverter.cs" />
     <Compile Include="Converter\Converters\TextureConverter.cs" />
-    <Compile Include="Converter\FbxExporter.cs" />
-    <Compile Include="Converter\FbxFileMerger.cs" />
+    <Compile Include="Converter\Converters\UnityConverter.cs" />
+    <Compile Include="Converter\Classes\FbxExporter.cs" />
+    <Compile Include="Converter\Classes\FbxFileMerger.cs" />
     <Compile Include="Converter\Json\TextureObject.cs" />
-    <Compile Include="Converter\TextureInfo.cs" />
-    <Compile Include="Converter\TextureCompressor.cs" />
-    <Compile Include="Converter\TextureFinder.cs" />
-    <Compile Include="Converter\ZipBundler.cs" />
+    <Compile Include="Converter\Classes\TextureInfo.cs" />
+    <Compile Include="Converter\Classes\TextureCompressor.cs" />
+    <Compile Include="Converter\Classes\TextureFinder.cs" />
+    <Compile Include="Converter\Classes\ZipBundler.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

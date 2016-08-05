@@ -1176,7 +1176,7 @@ var roomsResponse9667 = {
 };
 
 fixture({
-  "POST /ajax/rooms": function ( req ) {
+  "POST https://testing.egowall.com/ajax/rooms": function ( req ) {
     var data = req.data || {};
 
     if ( data.requestType === "roomLoad" ) {

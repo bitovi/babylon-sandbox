@@ -6,6 +6,7 @@
   <babylon-canvas
     {^delta-time}="deltaTime"
     {^render-count}="renderCount"
+    {^homes-promise}="homesPromise"
     {fly-mode}="flyMode"
     {customize-mode}="customizeMode"
   >
@@ -18,7 +19,7 @@
   <mode-menu {^fly-mode}="flyMode" {^customize-mode}="customizeMode"></mode-menu>
 
   <can-import from="egospace/components/location-menu/" />
-  <location-menu />
+  <location-menu {homes-promise}="homesPromise"></location-menu>
 
   <can-import from="egospace/components/misc-menu/" />
   <misc-menu />

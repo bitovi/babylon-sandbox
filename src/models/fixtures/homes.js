@@ -389,7 +389,7 @@ var homesResponse1083 = {
 };
 
 fixture({
-  "POST /ajax/homes": function ( req ) {
+  "POST https://testing.egowall.com/ajax/homes": function ( req ) {
     var data = req.data || {};
     /*
       POST DATA

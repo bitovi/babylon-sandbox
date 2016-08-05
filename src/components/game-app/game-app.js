@@ -9,8 +9,8 @@ import { isServer } from '../../util/environment';
 
 //!steal-remove-start
   // if you want fixtures in production, don't wrap this import in steal-remove- comments
-//!steal-remove-end
   import '../../models/fixtures/fixtures.js';
+//!steal-remove-end
 
 export const ViewModel = Map.extend({
   define: {

@@ -108,14 +108,13 @@ var options = {
       }
 
       return $.ajax({
-        //url: "https://testing.egowall.com/ajax/constants",
-        url: "/ajax/constants",
+        url: "https://testing.egowall.com/ajax/constants",
         type: "POST",
         data: can.param( postData ),
         dataType: "json",
-        //xhrFields: {
-        //  withCredentials: true
-        //},
+        xhrFields: {
+          withCredentials: true
+        },
         cache: false
       });
     }

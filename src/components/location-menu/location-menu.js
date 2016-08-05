@@ -15,5 +15,13 @@ export const ViewModel = Map.extend({
 export default Component.extend({
   tag: 'location-menu',
   viewModel: ViewModel,
-  template
+  template,
+  events: {
+    inserted () {
+      var vm = this.viewModel;
+      vm.attr( "homesPromise" ).then( ( hl ) => {
+        vm.attr( "homeName", hl.attr( "homeName" ) );
+      });
+    }
+  }
 });

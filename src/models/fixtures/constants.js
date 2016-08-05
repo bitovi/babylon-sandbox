@@ -778,7 +778,7 @@ var materialResponse = {
 };
 
 fixture({
-  "POST /ajax/constants": function ( req ) {
+  "POST https://testing.egowall.com/ajax/constants": function ( req ) {
     var data = req.data || {};
 
     if ( data.requestType === "materialList" ) {

@@ -53,14 +53,13 @@ var options = {
       };
 
       return $.ajax({
-        //url: "https://testing.egowall.com/ajax/homes",
-        url: "/ajax/homes",
+        url: "https://testing.egowall.com/ajax/homes",
         type: "POST",
         data: can.param( postData ),
         dataType: "json",
-        //xhrFields: {
-        //  withCredentials: true
-        //},
+        xhrFields: {
+          withCredentials: true
+        },
         cache: false
       });
     }

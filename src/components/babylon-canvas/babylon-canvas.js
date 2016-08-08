@@ -597,6 +597,8 @@ export const ViewModel = Map.extend({
       materialID: ""
     };
 
+    this.attr( "bgMeshes" ).push( mesh );
+
     if ( key && parentBabylonName && parentBabylonName.indexOf( key ) > -1 ) {
       //This mesh is in of the room
       let ajaxInfo = _find( rs.meshes || [], { meshID: meshID } ) || {};
@@ -663,6 +665,8 @@ export const ViewModel = Map.extend({
     var roomMeshSetDef = data[ 1 ];
     var unzippedMeshFiles = roomMeshSetDef.unzippedFiles;
 
+    this.attr( "bgMeshes", [] );
+
     for ( let i = 0; i < arrayOfLoadedMaterials.length; i++ ) {
       let curMaterial = arrayOfLoadedMaterials[ i ];
       curMaterial.attr( "instance", this.createMaterial( curMaterial.internalName, curMaterial.unzippedFiles ) );
@@ -705,7 +709,7 @@ export const ViewModel = Map.extend({
       var terrainProm = vm.loadTerrain( homeLoad.terrainURL );
 
       var meshes = vm.roomInfo( uroomID ).roomStatus.meshes;
-      vm.attr( "bgMeshesInfo", meshes );
+      vm.attr( "bgMeshesAjaxInfo", meshes );
 
       var materialsLodedProm = vm.attr(
         "materialConstantsPromise"

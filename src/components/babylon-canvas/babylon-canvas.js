@@ -335,9 +335,13 @@ export const ViewModel = Map.extend({
       mesh.collisionsEnabled = true;
 
       if ( itemInfo.egoID ) {
-        mesh.position.x = parseFloat( itemInfo.roomInfo.position.x ) || 0;
-        mesh.position.y = parseFloat( itemInfo.roomInfo.position.y ) || 0;
-        mesh.position.z = parseFloat( itemInfo.roomInfo.position.z ) || 0;
+        let parent = mesh.parent || mesh;
+        while ( parent.parent ) {
+          parent = parent.parent;
+        }
+        parent.position.x = parseFloat( itemInfo.roomInfo.position.x ) || 0;
+        parent.position.y = parseFloat( itemInfo.roomInfo.position.y ) || 0;
+        parent.position.z = parseFloat( itemInfo.roomInfo.position.z ) || 0;
         mesh.rotationQuaternion.x = parseFloat( itemInfo.roomInfo.rotation.x ) || 0;
         mesh.rotationQuaternion.y = parseFloat( itemInfo.roomInfo.rotation.y ) || 0;
         mesh.rotationQuaternion.z = parseFloat( itemInfo.roomInfo.rotation.z ) || 0;
@@ -444,7 +448,7 @@ export const ViewModel = Map.extend({
 
       if ( roomLoad.egoObjects && roomLoad.egoObjects.length ) {
         // TODO: figure out why on earth the coords/rotations for these are rotated +/- 90deg about z axis of the whole scene
-        // egoProm = vm.loadEgoObjects( roomLoad.egoObjects );
+        egoProm = vm.loadEgoObjects( roomLoad.egoObjects );
       }
     });
   },
@@ -797,8 +801,6 @@ export default Component.extend({
 
       vm.initLights();
 
-      //vm.initTestSceneModels();
-
       var renderCount = 0;
       engine.runRenderLoop(function () {
         vm.attr({
@@ -809,8 +811,6 @@ export default Component.extend({
 
         scene.render();
         renderCount = ( renderCount + 1 ) % 100;
-
-        //vm.testUpdatePointLights();
       });
 
       controls[ "context" ] = this.viewModel;

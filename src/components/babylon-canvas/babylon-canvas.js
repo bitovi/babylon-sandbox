@@ -447,7 +447,7 @@ export const ViewModel = Map.extend({
 
       if ( roomLoad.egoObjects && roomLoad.egoObjects.length ) {
         // TODO: figure out why on earth the coords/rotations for these are rotated +/- 90deg about z axis of the whole scene
-        egoProm = vm.loadEgoObjects( roomLoad.egoObjects );
+        // egoProm = vm.loadEgoObjects( roomLoad.egoObjects );
       }
     });
   },
@@ -787,7 +787,16 @@ export default Component.extend({
         requestType: "materialList",
         format: "json"
       }).then( ( materialConstantsResp ) => {
-        //TODO: handle the materialConstantsResp.statusInfo
+        var statusInfo = materialConstantsResp.statusInfo || {};
+        if ( statusInfo.isError ) {
+          if ( statusInfo.errorCat === 1 && !statusInfo.silentError ) {
+            // not logged in
+            alert( statusInfo.errorMessage + "\n\nPlease log in at https://testing.egowall.com/" );
+          } else {
+            alert( statusInfo.errorMessage );
+          }
+        }
+        //TODO: handle the rest of materialConstantsResp.statusInfo
         var materialConstants = materialConstantsResp.attr( "materials" );
         vm.attr( "materialConstants", materialConstants );
         return materialConstants;

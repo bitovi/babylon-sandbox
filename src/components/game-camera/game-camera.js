@@ -13,12 +13,14 @@ export const ViewModel = Map.extend({
       value: 'This is the game-camera component'
     }
   },
+
   validCameraPos ( newCoords ) {
     //TODO: collsion/bounds check here
 
     return true;
   },
-  moveCamera ( newCoords, duration ) {
+
+  moveCamera ( newCoords, duration, lookAtTargetVector3 ) {
     let camera = this.attr( "camera" );
     // Clone the value or it'd be linked when doing changes
     const startPos = camera.position.clone();
@@ -43,7 +45,9 @@ export const ViewModel = Map.extend({
           camera.position.z = startPos.z + ( distance.z * progress);
 
           // Pans the camera, need an input parameter instead
-          camera.setTarget( new BABYLON.Vector3( 0, 0, 0 ) );
+          if ( lookAtTargetVector3 ) {
+            camera.setTarget( lookAtTargetVector3 ); // new BABYLON.Vector3( 0, 0, 0 )
+          }
 
           requestAnimationFrame(animationFunction);
         } else {
@@ -59,12 +63,15 @@ export const ViewModel = Map.extend({
     //return promise that resolves when camera gets to newCoords
     return promise;
   },
+
   pointCamera ( newDirection, duration ) {
     //return promise that resolves when camera points to newDirection
   },
+
   getDirectionVector( pos1, pos2 ) {
     //
   },
+
   objCameraPoints ( obj ) {
     //return array of coordinates corresponding to each horizontal side of the object
     //  where the coords are the position the camera should be for that side
@@ -74,27 +81,31 @@ export const ViewModel = Map.extend({
     //    direction vector away from the center towards each side
     //    position the x & z coords a TBD fixed distance beyond the edge of a side along its direction vector
   },
+
   closestValidOfPoints ( arryOfPoints ) {
     //filter the set of coordinates in the passed-in array to only valid ones
     //  using validCameraPos
     //return which of those points is closest || null
   },
+
   getCameraPosForObj ( obj ) {
     var coordsArray = this.objCameraPoints( obj );
     var newCoords = this.closestValidOfPoints( coordsArray );
     return newCoords || null;
   },
+
   //calls moveCamera
   //  distance between newCoords and camera * speed for 'duration' param
   //return promise that resolves when camera gets to newCoords
-  moveCameraSpeed ( newCoords, speed ) {
+  moveCameraSpeed ( newCoords, speed, lookAtTargetVector3 ) {
     const distance = newCoords.subtract( this.attr( "camera" ).position ).length();
     // Get the duration in seconds
     // Example 15 / 10 = 1.5 seconds
     const duration = distance / speed;
     // Convert duration from seconds -> millisecond space.
-    return this.moveCamera(newCoords, duration * 1000);
+    return this.moveCamera( newCoords, duration * 1000, lookAtTargetVector3 );
   },
+
   // 10 units / second
   movementSpeed: 10,
   // 2 radians / second
@@ -111,6 +122,7 @@ export const ViewModel = Map.extend({
 
     this.attr( "camera" ).position.y += dist;
   },
+
   moveDown ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     if ( this.attr( "movementDisabled" ) || !this.attr( "flyMode" ) ) {
       return false;
@@ -125,6 +137,7 @@ export const ViewModel = Map.extend({
 
     this.attr( "camera" ).position.y = newPos;
   },
+
   moveForward ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     if ( this.attr( "movementDisabled" ) || controlsVM.heldDuplicateExecution( this.moveForward ) ) {
       return false;
@@ -138,6 +151,7 @@ export const ViewModel = Map.extend({
     camera.position.x += Math.sin( rad ) * dist;
     camera.position.z += Math.cos( rad ) * dist;
   },
+
   rotateLeft ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     if ( this.attr( "movementDisabled" ) ) {
       return false;
@@ -157,6 +171,7 @@ export const ViewModel = Map.extend({
 
     camera.rotation.y = camy;
   },
+
   strafeLeft ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     if ( this.attr( "movementDisabled" ) || controlsVM.heldDuplicateExecution( this.strafeLeft ) ) {
       return false;
@@ -170,6 +185,7 @@ export const ViewModel = Map.extend({
     camera.position.x += Math.sin( rad ) * dist;
     camera.position.z += Math.cos( rad ) * dist;
   },
+
   moveBackward ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     if ( this.attr( "movementDisabled" ) || controlsVM.heldDuplicateExecution( this.moveBackward ) ) {
       return false;
@@ -183,6 +199,7 @@ export const ViewModel = Map.extend({
     camera.position.x -= Math.sin( rad ) * dist;
     camera.position.z -= Math.cos( rad ) * dist;
   },
+
   rotateRight ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     if ( this.attr( "movementDisabled" ) ) {
       return false;
@@ -202,6 +219,7 @@ export const ViewModel = Map.extend({
 
     camera.rotation.y = camy;
   },
+
   strafeRight ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     if ( this.attr( "movementDisabled" ) || controlsVM.heldDuplicateExecution( this.strafeRight ) ) {
       return false;
@@ -215,6 +233,7 @@ export const ViewModel = Map.extend({
     camera.position.x += Math.sin( rad ) * dist;
     camera.position.z += Math.cos( rad ) * dist;
   },
+
   rotateMouseDelta ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     if ( this.attr( "movementDisabled" ) ) {
       return false;
@@ -264,6 +283,32 @@ export const ViewModel = Map.extend({
 export const controls = {
   "name": "game-camera",
   "context": null,
+  "click": {
+    "Left" ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
+      var camera = this.attr( "camera" );
+      var scene = camera._scene;
+      var curMousePos = controlsVM.curMousePos();
+
+      var pickingInfo = scene.pick( curMousePos.x, curMousePos.y, ( hitMesh ) => {
+        let pickFloor = hitMesh.__backgroundMeshInfo ? true : false;
+
+        if ( pickFloor ) {
+          let meshName = hitMesh.name || "";
+          meshName = meshName.toLowerCase().replace( /[^a-z]/g, "" );
+          pickFloor = ( meshName === "floor" || meshName === "ground" );
+        }
+
+        return pickFloor;
+      });
+
+      if ( pickingInfo && pickingInfo.pickedPoint ) {
+        let speed = this.attr( "movementSpeed" );
+        let point = pickingInfo.pickedPoint;
+        point.y = this.attr( "defaultHeight" );
+        this.moveCameraSpeed( point, speed, point );
+      }
+    }
+  },
   "held": {
     "w": "moveForward",
     "a": "strafeLeft",

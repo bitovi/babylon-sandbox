@@ -66,10 +66,9 @@ export const ViewModel = Map.extend({
   },
 
   hoveredMesh: null,
-  pickingEvent ( $ev, normalizedKey, heldInfo, deltaTime ) {
+  pickingEvent ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     var scene = this.attr( "scene" );
     var customizeMode = this.attr( "customizeMode" );
-    var controlsVM = getControls();
     var curMousePos = controlsVM.curMousePos();
     var pickingInfo = scene.pick( curMousePos.x, curMousePos.y, ( hitMesh ) => {
       return customizeMode ? hitMesh.__backgroundMeshInfo : this.isMeshFurnitureItem( hitMesh );
@@ -756,6 +755,14 @@ export const controls = {
   //  "9": "changeTexture",
   //  "0": "resetGround"
   //},
+  "click": {
+    "Left" ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
+      if ( this.attr( "hoveredMesh" ) ) {
+        // don't execute camera click on ground
+        $ev.controlPropagationStopped = true;
+      }
+    }
+  },
   "mousemove": {
     "*": "pickingEvent"
   }

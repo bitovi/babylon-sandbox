@@ -66,10 +66,9 @@ export const ViewModel = Map.extend({
   },
 
   hoveredMesh: null,
-  pickingEvent ( $ev, normalizedKey, heldInfo, deltaTime ) {
+  pickingEvent ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     var scene = this.attr( "scene" );
     var customizeMode = this.attr( "customizeMode" );
-    var controlsVM = getControls();
     var curMousePos = controlsVM.curMousePos();
     var pickingInfo = scene.pick( curMousePos.x, curMousePos.y, ( hitMesh ) => {
       return customizeMode ? hitMesh.__backgroundMeshInfo : this.isMeshFurnitureItem( hitMesh );
@@ -79,7 +78,6 @@ export const ViewModel = Map.extend({
     var allowPick = pickingInfo.hit && $ev.target.nodeName.toLowerCase() === "canvas";
 
     if ( allowPick ) {
-      window.pickingInfo = pickingInfo;
       this[ customizeMode ? "pickingBG" : "pickingItem" ]( hoveredMesh, pickingInfo, curMousePos );
     } else {
       if ( hoveredMesh ) {
@@ -138,7 +136,6 @@ export const ViewModel = Map.extend({
     }
 
     this.attr( "hoveredMesh", mesh );
-    window.hoveredMesh = mesh;
   },
 
   setSkyboxMaterial ( skyboxName, fileNamePrefix ) {
@@ -216,7 +213,6 @@ export const ViewModel = Map.extend({
   initScene () {
     var scene = this.attr( "scene" );
     scene.clearColor = new BABYLON.Color3( 1, 1, 1 );
-    window.scene = scene;
 
     // Gravity & physics stuff
     var physicsPlugin = new BABYLON.CannonJSPlugin();
@@ -314,158 +310,60 @@ export const ViewModel = Map.extend({
     var item = {
       name: babylonName,
       options: itemInfo,
-      meshes: [],
-      // minimum, maximum
-      boundingInfo: null
+      meshes: []
     };
 
-    try{
-      this.attr( "items" ).push( item );
-      let rootParents = [];
-      // No need to do babylon3
-      let minimum = new BABYLON.Vector3( Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE );
-      let maximum = new BABYLON.Vector3( -Number.MAX_VALUE, -Number.MAX_VALUE, -Number.MAX_VALUE );
+    this.attr( "items" ).push( item );
 
-      // The ternary expression is for environment.babylon that has neither itemInfo.position or roomInfo
-      const position = itemInfo.position || ( ( itemInfo.roomInfo && itemInfo.roomInfo.position ) ? itemInfo.roomInfo.position : {} );
-      const rotation = itemInfo.rotation || ( ( itemInfo.roomInfo && itemInfo.roomInfo.rotation) ? itemInfo.roomInfo.rotation : {} );
+    for ( let i = 0; i < meshes.length; ++i ) {
+      let mesh = meshes[ i ];
 
-      const posX = parseFloat( position.x ) || 0;
-      const posY = parseFloat( position.y ) || 0;
-      const posZ = parseFloat( position.z ) || 0;
-
-      const rotX = parseFloat( rotation.x ) || 0;
-      const rotY = parseFloat( rotation.y ) || 0;
-      const rotZ = parseFloat( rotation.z ) || 0;
-      const rotW = parseFloat( rotation.w ) || 0;
-
-
-      // if (itemInfo.furnArg && anyTruthy( itemInfo.furnArg ) || itemInfo.egoID){
-      //
-      //   let mergedMesh = BABYLON.Mesh.MergeMeshes( meshes, true );
-      //   mergedMesh.material = material;
-      //   meshes = [ mergedMesh ];
-      //   //item.meshes = meshes;
-      // }
-
-      let uniqueMaterials = 0;
-      
-
-      for ( let i = 0; i < meshes.length; ++i ) {
-        let mesh = meshes[ i ];
-
-        let positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
-        if ( !positions ) {
-          //continue;
+      let positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
+      if ( !positions ) {
+        continue;
         // If the mesh isn't a mesh group then add it to meshes[]
-        } else {
-          item.meshes.push( mesh );
+      } else {
+        item.meshes.push( mesh );
+      }
 
-          mesh.receiveShadows = true;
-          mesh.collisionsEnabled = true;
-          // this.addToShadowGenerator( mesh );
+      mesh.__itemRef = item;
 
-          const bbInfo = mesh.getBoundingInfo();
-          // Set the bbInfo data for each mesh that has positions
-          if (bbInfo.minimum.x < minimum.x){
-            minimum.x = bbInfo.minimum.x;
-          }
-          if (bbInfo.minimum.y < minimum.y){
-            minimum.y = bbInfo.minimum.y;
-          }
-          if (bbInfo.minimum.z < minimum.z){
-            minimum.z = bbInfo.minimum.z;
-          }
-          if (bbInfo.maximum.x > maximum.x){
-            maximum.x = bbInfo.maximum.x;
-          }
-          if (bbInfo.maximum.y > maximum.y){
-            maximum.y = bbInfo.maximum.y;
-          }
-          if (bbInfo.maximum.z > maximum.z){
-            maximum.z = bbInfo.maximum.z;
-          }
+      mesh.name = itemInfo.furnName || mesh.name;
 
-          if (!mesh.rotationQuaternion){
-            mesh.rotationQuaternion = BABYLON.Quaternion.Identity();
-          }
-          // mesh.rotationQuaternion.x = rotX;
-          // mesh.rotationQuaternion.y = rotY;
-          // mesh.rotationQuaternion.z = rotZ;
-          // mesh.rotationQuaternion.w = rotW;
+      mesh.receiveShadows = true;
+      mesh.collisionsEnabled = true;
 
-          if ( parseInt( itemInfo.furnPhysics, 10 ) ) {
-            //vm.testSetPhysicsImpostor( mesh );
-          }
-        }
-
-        // this.addToShadowGenerator( mesh );
-
-        mesh.__itemRef = item;
-        mesh.name = itemInfo.furnName || mesh.name;
-
+      if ( itemInfo.egoID ) {
         let parent = mesh.parent || mesh;
         while ( parent.parent ) {
           parent = parent.parent;
         }
+        parent.position.x = parseFloat( itemInfo.roomInfo.position.x ) || 0;
+        parent.position.y = parseFloat( itemInfo.roomInfo.position.y ) || 0;
+        parent.position.z = parseFloat( itemInfo.roomInfo.position.z ) || 0;
+        mesh.rotationQuaternion.x = parseFloat( itemInfo.roomInfo.rotation.x ) || 0;
+        mesh.rotationQuaternion.y = parseFloat( itemInfo.roomInfo.rotation.y ) || 0;
+        mesh.rotationQuaternion.z = parseFloat( itemInfo.roomInfo.rotation.z ) || 0;
+        mesh.rotationQuaternion.w = parseFloat( itemInfo.roomInfo.rotation.w ) || 1;
 
-        // Should change this to
-        if (!parent.__hasPosition) {
-          this.addToShadowGenerator( parent );
-          rootParents.push(parent);
-          parent.__hasPosition = true;
-        }
-      } // End meshes.length
-
-      for (let i = 0; i < rootParents.length; ++i){
-        let rootParent = rootParents[i];
-
-        //this.addToShadowGenerator( mesh );
-
-        rootParent.position.x = posX;
-        rootParent.position.y = posY;
-        rootParent.position.z = posZ;
-
-        // This happens for environment.babylon
-        if (!rootParent.rotationQuaternion){
-          rootParent.rotationQuaternion = BABYLON.Quaternion.Identity();
-        }
-
-        rootParent.rotationQuaternion.x = rotX;
-        rootParent.rotationQuaternion.y = rotY;
-        rootParent.rotationQuaternion.z = rotZ;
-        rootParent.rotationQuaternion.w = rotW;
-
-        // if (itemInfo.egoID){
-        //   const rotQuat = BABYLON.Quaternion.RotationYawPitchRoll( 0, Math.PI * 0.5, 0 );
-        //   Rotate the paintings an additional degree
-        //   rootParent.rotationQuaternion = rootParent.rotationQuaternion.multiply( rotQuat );
-        // }
-
-        delete rootParent.__hasPosition;
+        parent.rotation.z = 0;
+        parent.rotation.y = 0;
+        parent.rotation.x = Math.PI / -2;
+      } else {
+        mesh.position.x = parseFloat( itemInfo.position.x ) || 0;
+        mesh.position.y = parseFloat( itemInfo.position.y ) || 0;
+        mesh.position.z = parseFloat( itemInfo.position.z ) || 0;
+        mesh.rotationQuaternion.x = parseFloat( itemInfo.rotation.x ) || 0;
+        mesh.rotationQuaternion.y = parseFloat( itemInfo.rotation.y ) || 0;
+        mesh.rotationQuaternion.z = parseFloat( itemInfo.rotation.z ) || 0;
+        mesh.rotationQuaternion.w = parseFloat( itemInfo.rotation.w ) || 1;
       }
 
-      // Add the position to boundingInfo
-      minimum.x += posX;
-      minimum.y += posY;
-      minimum.z += posZ;
+      this.addToShadowGenerator( mesh );
 
-      maximum.x += posX;
-      maximum.y += posY;
-      maximum.z += posZ;
-
-      item.boundingInfo = new BABYLON.BoundingInfo( minimum, maximum );
-
-      // This is to rotate the paintings with the nearest wall
-      if (itemInfo.egoID){
-        const nearestWall = this.findNearestwall(item);
-        if (nearestWall){
-          this.rotatePainting( item, nearestWall, null, 0 );
-        }
+      if ( parseInt( itemInfo.furnPhysics, 10 ) ) {
+        //vm.testSetPhysicsImpostor( mesh );
       }
-    }
-    catch(e){
-      console.log(e);
     }
   },
 
@@ -557,9 +455,9 @@ export const ViewModel = Map.extend({
 
     // Promise.all here just because loadTextures expects array of loaded assets
     return Promise.all( [ terrainProm ] ).then(
-      this.loadTextures.bind( this )
+        this.loadTextures.bind( this )
     ).then(
-      this.loadModels.bind( this )
+        this.loadModels.bind( this )
     );
   },
 
@@ -586,7 +484,7 @@ export const ViewModel = Map.extend({
     });
   },
 
-  //TODO: this may not be a thing we need if dependencies are properly defined somewhere we haven't located 
+  //TODO: this may not be a thing we need if dependencies are properly defined somewhere we haven't located
   alwaysLoadTheseMaterialConstants ( cacheUrls, neededMaterialsPromises ) {
     var ids = [ "87", "17" ];
     var materialConstants = this.attr( "materialConstants" );
@@ -664,7 +562,7 @@ export const ViewModel = Map.extend({
       }
       return loadedOnes;
     }).then(
-      this.loadTextures.bind( this )
+        this.loadTextures.bind( this )
     );
   },
 
@@ -718,8 +616,6 @@ export const ViewModel = Map.extend({
   bgMeshSetMaterial ( mesh, roomInfo ) {
     var materialConstants = this.attr( "materialConstants" );
 
-    this.attr( "bgMeshes" ).push( mesh );
-
     var meshID = mesh._tags ? Object.keys( mesh._tags )[ 0 ].replace( "meshId_", "" ) : "";
     var parentBabylonName = ( mesh.parent && mesh.parent.name || "" ).toLowerCase();
 
@@ -732,6 +628,8 @@ export const ViewModel = Map.extend({
       ajaxInfo: {},
       materialID: ""
     };
+
+    this.attr( "bgMeshes" ).push( mesh );
 
     if ( key && parentBabylonName && parentBabylonName.indexOf( key ) > -1 ) {
       //This mesh is in of the room
@@ -846,9 +744,9 @@ export const ViewModel = Map.extend({
       vm.attr( "bgMeshesAjaxInfo", meshes );
 
       var materialsLodedProm = vm.attr(
-        "materialConstantsPromise"
+          "materialConstantsPromise"
       ).then(
-        vm.loadAllNeededMaterialConstants.bind( vm, meshes )
+          vm.loadAllNeededMaterialConstants.bind( vm, meshes )
       );
 
       var roomAssetURL = vm.roomAssetURL( uroomID );
@@ -857,251 +755,58 @@ export const ViewModel = Map.extend({
       roomAssetURL = "https://cdn.testing.egowall.com/CDN_new/Game/Assetbundles/Home/LS_" + livingSpaceID + "_test.zip";
       var setDef = new Map({ assetID: roomAssetURL, assetURL: roomAssetURL });
       var roomMeshProm = Asset.get( setDef );
-      
+
       var materialsAndMeshProm = Promise.all( [ materialsLodedProm, roomMeshProm ] );
-      
+
       return materialsAndMeshProm.then(
-        // load the background mesh in babylon
-        vm.renderBackgroundMesh.bind( vm )
+          // load the background mesh in babylon
+          vm.renderBackgroundMesh.bind( vm )
       ).then(
-        // load and place the furniture
-        vm.roomLoad.bind( vm, uroomID )
+          // load and place the furniture
+          vm.roomLoad.bind( vm, uroomID )
       );
     });
   },
 
+  toggleBabylonDebugLayer ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
+    var scene = this.attr( "scene" );
+    var isDebugVisible = scene.debugLayer._enabled;
+
+    if ( isDebugVisible ) {
+      scene.debugLayer.hide();
+    } else {
+      scene.debugLayer.show();
+    }
+  },
 
   // TEMPORARY FUNCTIONS
 
-    findNearestwall( item ){
+  static3DAssetPath: "/src/static/3d/",
 
-      const boundingInfo = item.boundingInfo;
+  resourcePath ( fileName ) {
+    return this.attr( "static3DAssetPath" ) + "Resources/" + fileName;
+  },
+  skyboxPath ( skyboxName, fileNamePrefix ) {
+    return this.attr( "static3DAssetPath" ) + "skybox/" + skyboxName + "/" + fileNamePrefix;
+  }
 
-      const bgMeshes = this.attr( "bgMeshes" );
-      for (let i = 0; i < bgMeshes.length; ++i){
-        const bgMesh = bgMeshes[i];
-
-        const bbInfo = bgMesh.getBoundingInfo();
-
-        if (boundingInfo.intersects(bbInfo)){
-          return bgMesh;
-        }
-      }
-
-      return null;
-    },
-
-    rotatePainting( item, wall, rayDirection, fails ){
-
-      function lookRotation(forward, up){
-        forward = forward.normalize();
-
-        //const normForward = forward.copy();
-        const crossUp = BABYLON.Vector3.Cross( up, forward ).normalize();
-        const crossCross = BABYLON.Vector3.Cross( forward, crossUp );
-
-        const m00 = crossUp.x;
-        const m01 = crossUp.y;
-        const m02 = crossUp.z;
-        const m10 = crossCross.x;
-        const m11 = crossCross.y;
-        const m12 = crossCross.z;
-        const m20 = forward.x;
-        const m21 = forward.y;
-        const m22 = forward.z;
-
-        const num8 = (m00 + m11) + m22;
-        let quaternion = BABYLON.Quaternion.Identity();
-        if (num8 > 0)
-        {
-          let num = Math.sqrt(num8 + 1);
-          quaternion.w = num * 0.5;
-          num = 0.5 / num;
-          quaternion.x = (m12 - m21) * num;
-          quaternion.y = (m20 - m02) * num;
-          quaternion.z = (m01 - m10) * num;
-          return quaternion.normalize();
-        }
-        if ((m00 >= m11) && (m00 >= m22))
-        {
-          const num7 = Math.sqrt(((1 + m00) - m11) - m22);
-          const num4 = 0.5 / num7;
-          quaternion.x = 0.5 * num7;
-          quaternion.y = (m01 + m10) * num4;
-          quaternion.z = (m02 + m20) * num4;
-          quaternion.w = (m12 - m21) * num4;
-          return quaternion.normalize();
-        }
-        if (m11 > m22)
-        {
-          const num6 = Math.sqrt(((1 + m11) - m00) - m22);
-          const num3 = 0.5 / num6;
-          quaternion.x = (m10+ m01) * num3;
-          quaternion.y = 0.5 * num6;
-          quaternion.z = (m21 + m12) * num3;
-          quaternion.w = (m20 - m02) * num3;
-          return quaternion.normalize();
-        }
-        const num5 = Math.sqrt(((1 + m22) - m00) - m11);
-        const num2 = 0.5 / num5;
-        quaternion.x = (m20 + m02) * num2;
-        quaternion.y = (m21 + m12) * num2;
-        quaternion.z = 0.5 * num5;
-        quaternion.w = (m01 - m10) * num2;
-        return quaternion.normalize();
-      }
-      function multiplyVector3(quat, vec3, vec3Dest) {
-
-        quat = [ quat.x, quat.y, quat.z, quat.w ];
-        vec3 = [ vec3.x, vec3.y, vec3.z ];
-
-        vec3Dest || (vec3Dest = vec3);
-        var d = vec3[0],
-            e = vec3[1],
-            g = vec3[2],
-            b = quat[0],
-            f = quat[1],
-            h = quat[2],
-            a = quat[3],
-            i = a * d + f * g - h * e,
-            j = a * e + h * d - b * g,
-            k = a * g + b * e - f * d,
-            d = -b * d - f * e - h * g;
-        vec3Dest[0] = i * a + d * -b + j * -h - k * -f;
-        vec3Dest[1] = j * a + d * -f + k * -b - i * -h;
-        vec3Dest[2] = k * a + d * -h + i * -f - j * -b;
-        return new BABYLON.Vector3( vec3Dest[0], vec3Dest[1], vec3Dest[2] );
-      };
-
-      function rotateAxis( pickingInfo ){
-
-        const upVector = BABYLON.Vector3.Up();
-
-        const normal = pickingInfo.getNormal();
-        const direction = new BABYLON.Vector3( -normal.x, -normal.y, -normal.z);
-
-        const axis = BABYLON.Vector3.Cross(upVector, direction ).normalize();
-        const angle = Math.acos(BABYLON.Vector3.Dot(upVector, direction));
-
-        rootNode.rotationQuaternion = BABYLON.Quaternion.Identity();
-        rootNode.rotate(axis, angle , BABYLON.Space.LOCAL);
-      }
-
-      function rotateLookRot( pickingInfo ){
-
-      }
-
-      let scene = this.attr("scene");
-      let rootNode = item.meshes[0];
-      while (rootNode.parent){
-        rootNode = rootNode.parent;
-      }
-
-      // size = Max - Min
-      // Min + size / 2
-      //const rayDirection = multiplyVector3( rootNode.rotationQuaternion, new BABYLON.Vector3(0, -1, 0));
-      //const rayDirection = multiplyVector3( rootNode.rotationQuaternion, new BABYLON.Vector3(0, 0, -1));
-      rayDirection = rayDirection || multiplyVector3( rootNode.rotationQuaternion, new BABYLON.Vector3(0, 0, -1));
-
-      //const rayDirection = center.subtract(rootNode.position).normalize();
-      const ray = new BABYLON.Ray( rootNode.position, rayDirection );
-
-      DEBUG3D.drawPoint(scene, rootNode.position.add( rayDirection ) , {
-        time: 100000,
-        size: 0.3,
-        color: new BABYLON.Color3(1, 0, 1)
-      });
-
-      const pickingInfo = scene.pickWithRay(ray, function(mesh){
-        return mesh === wall;
-      });
-
-      if (pickingInfo.hit){
-
-        rotateAxis(pickingInfo);
-
-        // const upVector =  multiplyVector3(rootNode.rotationQuaternion, BABYLON.Vector3.Up());
-        // const normal = pickingInfo.getNormal();
-
-        // DEBUG3D.drawPoint(scene, rootNode.position.add( normal ) , {
-        //   time: 100000,
-        //   size: 0.3
-        // });
-
-        //const direction = new BABYLON.Vector3( -normal.x, -normal.y, -normal.z);
-        // let direction = BABYLON.Vector3.Cross(upVector, normal);
-        // direction.x = -direction.x;
-        // direction.y = -direction.y;
-        // direction.z = -direction.z;
-
-        // const rotQuat = lookRotation( direction, upVector);//BABYLON.Vector3.Up());
-
-        //console.log(rotQuat.subtract( rootNode.rotationQuaternion ));
-
-
-
-        //rootNode.rotationQuaternion = rootNode.rotationQuaternion.multiply(rotQuat);
-        // rootNode.rotationQuaternion = rotQuat;
-
-
-
-        const upvec = multiplyVector3( rootNode.rotationQuaternion, BABYLON.Vector3.Up() );
-        const forvec = multiplyVector3( rootNode.rotationQuaternion, new BABYLON.Vector3( 0, 0, 1 ));
-        const rightvec = multiplyVector3( rootNode.rotationQuaternion, new BABYLON.Vector3( 1, 0, 0 ));
-
-        DEBUG3D.drawPoint(scene, rootNode.position.add( upvec ) , {
-          time: 100000,
-          size: 0.3,
-          color: new BABYLON.Color3(0, 1, 0  )
-        });
-        DEBUG3D.drawPoint(scene, rootNode.position.add( forvec ) , {
-          time: 100000,
-          size: 0.3,
-          color: new BABYLON.Color3(0, 0, 1  )
-        });
-        DEBUG3D.drawPoint(scene, rootNode.position.add( rightvec ) , {
-          time: 100000,
-          size: 0.3,
-          color: new BABYLON.Color3(1, 0, 0  )
-        });
-
-        // console.log( "after: ", rootNode.rotationQuaternion );
-
-      }
-      else{
-        if (fails === 0) {
-          this.rotatePainting(item, wall, multiplyVector3(rootNode.rotationQuaternion, new BABYLON.Vector3(-1, 0, 0)), fails+ 1);
-        }
-        else if (fails === 1) {
-          this.rotatePainting(item, wall, multiplyVector3(rootNode.rotationQuaternion, new BABYLON.Vector3(0, 0, 1)), fails+ 1);
-        } else if (fails == 2){
-              this.rotatePainting( item, wall, multiplyVector3( rootNode.rotationQuaternion, new BABYLON.Vector3(0, 0, 1)), fails+ 1);
-        } else if (fails == 3){
-          this.rotatePainting( item, wall, multiplyVector3( rootNode.rotationQuaternion, new BABYLON.Vector3(0, -1, 0)), fails + 1);
-        }
-      }
-    },
-
-    static3DAssetPath: "/src/static/3d/",
-
-    resourcePath ( fileName ) {
-      return this.attr( "static3DAssetPath" ) + "Resources/" + fileName;
-    },
-    skyboxPath ( skyboxName, fileNamePrefix ) {
-      return this.attr( "static3DAssetPath" ) + "skybox/" + skyboxName + "/" + fileNamePrefix;
-    }
-    
   // END TEMP FUNCTIONS
 });
 
 export const controls = {
   "name": "game-canvas",
   "context": null,
-  //"keypress": {
-  //  "8": "changeColor",
-  //  "9": "changeTexture",
-  //  "0": "resetGround"
-  //},
+  "keypress": {
+    "`": "toggleBabylonDebugLayer"
+  },
+  "click": {
+    "Left" ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
+      if ( this.attr( "hoveredMesh" ) ) {
+        // don't execute camera click on ground
+        $ev.controlPropagationStopped = true;
+      }
+    }
+  },
   "mousemove": {
     "*": "pickingEvent"
   }
@@ -1122,7 +827,16 @@ export default Component.extend({
         requestType: "materialList",
         format: "json"
       }).then( ( materialConstantsResp ) => {
-        //TODO: handle the materialConstantsResp.statusInfo
+        var statusInfo = materialConstantsResp.statusInfo || {};
+        if ( statusInfo.isError ) {
+          if ( statusInfo.errorCat === 1 && !statusInfo.silentError ) {
+            // not logged in
+            alert( statusInfo.errorMessage + "\n\nPlease log in at https://testing.egowall.com/" );
+          } else {
+            alert( statusInfo.errorMessage );
+          }
+        }
+        //TODO: handle the rest of materialConstantsResp.statusInfo
         var materialConstants = materialConstantsResp.attr( "materials" );
         vm.attr( "materialConstants", materialConstants );
         return materialConstants;

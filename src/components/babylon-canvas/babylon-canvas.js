@@ -66,19 +66,40 @@ export const ViewModel = Map.extend({
   },
 
   hoveredMesh: null,
+
+  getPickingFn ( mesh, customizeMode ) {
+    var pickingFn = null;
+    var isBGMesh = customizeMode && ( mesh.__backgroundMeshInfo ? true : false );
+    var isFurnItem = !customizeMode && this.isMeshFurnitureItem( mesh );
+    var isEgoObj = !customizeMode && this.isMeshEgoObj( mesh );
+    
+    if ( isBGMesh ) {
+      pickingFn = "pickingBG";
+    } else if ( isFurnItem ) {
+      pickingFn = "pickingItem";
+    } else if ( isEgoObj ) {
+      pickingFn = "pickingEgoObj";
+    }
+
+    return pickingFn;
+  },
+
   pickingEvent ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     var scene = this.attr( "scene" );
-    var customizeMode = this.attr( "customizeMode" );
     var curMousePos = controlsVM.curMousePos();
+    var customizeMode = this.attr( "customizeMode" );
+
     var pickingInfo = scene.pick( curMousePos.x, curMousePos.y, ( hitMesh ) => {
-      return customizeMode ? hitMesh.__backgroundMeshInfo : this.isMeshFurnitureItem( hitMesh );
+      return this.getPickingFn( hitMesh, customizeMode ) ? true : false;
     });
+
     var hoveredMesh = this.attr( "hoveredMesh" );
 
     var allowPick = pickingInfo.hit && $ev.target.nodeName.toLowerCase() === "canvas";
 
     if ( allowPick ) {
-      this[ customizeMode ? "pickingBG" : "pickingItem" ]( hoveredMesh, pickingInfo, curMousePos );
+      let pickingFn = this.getPickingFn( pickingInfo.pickedMesh, customizeMode );
+      this[ pickingFn ]( hoveredMesh, pickingInfo, curMousePos );
     } else {
       if ( hoveredMesh ) {
         this.clearMeshOutline( hoveredMesh );
@@ -109,6 +130,18 @@ export const ViewModel = Map.extend({
     }
 
     getTooltip().set( "meshHover", name, "fa-archive", "Click to Manage", curMousePos.x, curMousePos.y );
+  },
+
+  pickingEgoObj ( hoveredMesh, pickingInfo, curMousePos ) {
+    var mesh = pickingInfo.pickedMesh;
+    var itemInfo = this.getItemOptionsFromMesh( mesh );
+    var name = itemInfo.egoName || mesh.name;
+
+    if ( hoveredMesh !== mesh ) {
+      this.setMeshOutline( mesh );
+    }
+
+    getTooltip().set( "meshHover", name, "fa-picture-o", "Click to Manage", curMousePos.x, curMousePos.y );
   },
 
   clearMeshOutline ( mesh ) {
@@ -306,26 +339,43 @@ export const ViewModel = Map.extend({
     return itemOptions && itemOptions.furnArg && anyTruthy( itemOptions.furnArg );
   },
 
+  isMeshEgoObj ( mesh ) {
+    var itemOptions = this.getItemOptionsFromMesh( mesh );
+    return itemOptions && ( itemOptions.egoID ? true : false );
+  },
+
+  setMeshLocationFromAjaxData ( mesh, info = {} ) {
+    var pos = info.position;
+    var rot = info.rotation;
+
+    if ( mesh.position && pos ) {
+      mesh.position.x = parseFloat( pos.x ) || 0;
+      mesh.position.y = parseFloat( pos.y ) || 0;
+      mesh.position.z = parseFloat( pos.z ) || 0;
+    }
+    if ( mesh.rotationQuaternion && rot ) {
+      mesh.rotationQuaternion.x = parseFloat( rot.x ) || 0;
+      mesh.rotationQuaternion.y = parseFloat( rot.y ) || 0;
+      mesh.rotationQuaternion.z = parseFloat( rot.z ) || 0;
+      mesh.rotationQuaternion.w = parseFloat( rot.w ) || 1;
+    }
+  },
+
   setEgoObjectDetails ( mesh ) {
-    var itemInfo = mesh.__itemRef.options;
+    var itemInfo = this.getItemOptionsFromMesh( mesh );
     var parent = mesh.parent || mesh;
     while ( parent.parent ) {
       parent = parent.parent;
     }
 
-    parent.position.x = parseFloat( itemInfo.roomInfo.position.x ) || 0;
-    parent.position.y = parseFloat( itemInfo.roomInfo.position.y ) || 0;
-    parent.position.z = parseFloat( itemInfo.roomInfo.position.z ) || 0;
-    parent.rotationQuaternion.x = parseFloat( itemInfo.roomInfo.rotation.x ) || 0;
-    parent.rotationQuaternion.y = parseFloat( itemInfo.roomInfo.rotation.y ) || 0;
-    parent.rotationQuaternion.z = parseFloat( itemInfo.roomInfo.rotation.z ) || 0;
-    parent.rotationQuaternion.w = parseFloat( itemInfo.roomInfo.rotation.w ) || 1;
+    this.setMeshLocationFromAjaxData( parent, itemInfo.roomInfo );
 
     var meshName = mesh.material && mesh.material.name || "";
 
     if ( meshName === "ImagePlane" ) {
       let mat = mesh.material.subMaterials[ 0 ];
-      mat.diffuseTexture = new BABYLON.Texture( itemInfo.egoAlbumURL, this.attr( "scene" ) );
+      mesh.material = mat.clone(); 
+      mesh.material.diffuseTexture = new BABYLON.Texture( itemInfo.egoAlbumURL, this.attr( "scene" ) );
     } else if ( meshName == "ImageBacker" ) {
       let mat = mesh.material.subMaterials[ 0 ];
       mat.diffuseTexture = null;
@@ -367,13 +417,7 @@ export const ViewModel = Map.extend({
       if ( itemInfo.egoID ) {
         this.setEgoObjectDetails( mesh );
       } else {
-        mesh.position.x = parseFloat( itemInfo.position.x ) || 0;
-        mesh.position.y = parseFloat( itemInfo.position.y ) || 0;
-        mesh.position.z = parseFloat( itemInfo.position.z ) || 0;
-        mesh.rotationQuaternion.x = parseFloat( itemInfo.rotation.x ) || 0;
-        mesh.rotationQuaternion.y = parseFloat( itemInfo.rotation.y ) || 0;
-        mesh.rotationQuaternion.z = parseFloat( itemInfo.rotation.z ) || 0;
-        mesh.rotationQuaternion.w = parseFloat( itemInfo.rotation.w ) || 1;
+        this.setMeshLocationFromAjaxData( mesh, itemInfo );
       }
 
       this.addToShadowGenerator( mesh );

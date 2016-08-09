@@ -383,34 +383,62 @@ export const ViewModel = Map.extend({
 
   loadFurnitures ( roomFurnitures ) {
     var furnPromises = [];
+    var matPromises = [];
+
     for ( let i = 0; i < roomFurnitures.length; i++ ) {
       let furn = roomFurnitures[ i ];
       furn.assetID = furn.assetID || furn.ufurnID;
+
       furn.furnURL = furn.furnURL.replace( ".unity3d", "_LOD0.zip" );
       furnPromises.push( Asset.get( furn ) );
+
+      furn.textureAsset = new can.Map({
+        assetURL: furn.furnMatURL.replace( "-mat.unity3d", "_Tex0.zip" )
+      });
+      matPromises.push( Asset.get( furn.textureAsset ) );
     }
 
-    return Promise.all( furnPromises ).then(
+    var furnitures = Promise.all( furnPromises );
+
+    var materials = Promise.all( matPromises ).then(
       this.loadTextures.bind( this )
-    ).then(
-      this.loadModels.bind( this )
     );
+
+    return materials.then(()=>{
+      return furnitures.then(
+        this.loadModels.bind( this )
+      );
+    });
   },
 
   loadEgoObjects ( egoObjects ) {
     var egoPromises = [];
+    var matPromises = [];
+
     for ( let i = 0; i < egoObjects.length; i++ ) {
       let egoObj = egoObjects[ i ];
       egoObj.assetID = egoObj.assetID || egoObj.egoID;
+
       egoObj.assetURL = egoObj.roomInfo.frameURL.replace( ".unity3d", "_LOD0.zip" );
       egoPromises.push( Asset.get( egoObj ) );
+
+      egoObj.textureAsset = new can.Map({
+        assetURL: egoObj.roomInfo.frameURL.replace( ".unity3d", "_Tex0.zip" )
+      });
+      matPromises.push( Asset.get( egoObj.textureAsset ) );
     }
 
-    return Promise.all( egoPromises ).then(
+    var egoObjectProms = Promise.all( egoPromises );
+
+    var materials = Promise.all( matPromises ).then(
       this.loadTextures.bind( this )
-    ).then(
-      this.loadModels.bind( this )
     );
+
+    return materials.then(()=>{
+      return egoObjectProms.then(
+        this.loadModels.bind( this )
+      );
+    });
   },
 
   loadTerrain ( terrainURL ) {

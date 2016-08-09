@@ -348,7 +348,7 @@ export const ViewModel = Map.extend({
 
         if ( mesh.material && mesh.material.name === "ImagePlane" ) {
           let mat = mesh.material.subMaterials[ 0 ];
-          mat.diffuseTexture = new BABYLON.Texture( item.options.egoFullURL, this.attr( "scene" ) );
+          mat.diffuseTexture = new BABYLON.Texture( item.options.egoAlbumURL, this.attr( "scene" ) );
         }
         //parent.rotation.z = 0;
         parent.rotation.y = Math.PI;

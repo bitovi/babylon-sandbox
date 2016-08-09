@@ -339,6 +339,18 @@ export const ViewModel = Map.extend({
       const rotZ = parseFloat( rotation.z ) || 0;
       const rotW = parseFloat( rotation.w ) || 0;
 
+
+      // if (itemInfo.furnArg && anyTruthy( itemInfo.furnArg ) || itemInfo.egoID){
+      //
+      //   let mergedMesh = BABYLON.Mesh.MergeMeshes( meshes, true );
+      //   mergedMesh.material = material;
+      //   meshes = [ mergedMesh ];
+      //   //item.meshes = meshes;
+      // }
+
+      let uniqueMaterials = 0;
+      
+
       for ( let i = 0; i < meshes.length; ++i ) {
         let mesh = meshes[ i ];
 
@@ -351,7 +363,7 @@ export const ViewModel = Map.extend({
 
           mesh.receiveShadows = true;
           mesh.collisionsEnabled = true;
-          this.addToShadowGenerator( mesh );
+          // this.addToShadowGenerator( mesh );
 
           const bbInfo = mesh.getBoundingInfo();
           // Set the bbInfo data for each mesh that has positions
@@ -387,7 +399,7 @@ export const ViewModel = Map.extend({
           }
         }
 
-        //this.addToShadowGenerator( mesh );
+        // this.addToShadowGenerator( mesh );
 
         mesh.__itemRef = item;
         mesh.name = itemInfo.furnName || mesh.name;
@@ -399,7 +411,7 @@ export const ViewModel = Map.extend({
 
         // Should change this to
         if (!parent.__hasPosition) {
-          // this.addToShadowGenerator( parent );
+          this.addToShadowGenerator( parent );
           rootParents.push(parent);
           parent.__hasPosition = true;
         }
@@ -415,20 +427,20 @@ export const ViewModel = Map.extend({
         rootParent.position.z = posZ;
 
         // This happens for environment.babylon
-        // if (!rootParent.rotationQuaternion){
-        //   rootParent.rotationQuaternion = BABYLON.Quaternion.Identity();
-        // }
-        //
+        if (!rootParent.rotationQuaternion){
+          rootParent.rotationQuaternion = BABYLON.Quaternion.Identity();
+        }
+
         rootParent.rotationQuaternion.x = rotX;
         rootParent.rotationQuaternion.y = rotY;
         rootParent.rotationQuaternion.z = rotZ;
         rootParent.rotationQuaternion.w = rotW;
 
-        if (itemInfo.egoID){
-          const rotQuat = BABYLON.Quaternion.RotationYawPitchRoll( 0, Math.PI * 0.5, 0 );
-          // Rotate the paintings an additional degree
-          // rootParent.rotationQuaternion = rootParent.rotationQuaternion.multiply( rotQuat );
-        }
+        // if (itemInfo.egoID){
+        //   const rotQuat = BABYLON.Quaternion.RotationYawPitchRoll( 0, Math.PI * 0.5, 0 );
+        //   Rotate the paintings an additional degree
+        //   rootParent.rotationQuaternion = rootParent.rotationQuaternion.multiply( rotQuat );
+        // }
 
         delete rootParent.__hasPosition;
       }
@@ -477,34 +489,62 @@ export const ViewModel = Map.extend({
 
   loadFurnitures ( roomFurnitures ) {
     var furnPromises = [];
+    var matPromises = [];
+
     for ( let i = 0; i < roomFurnitures.length; i++ ) {
       let furn = roomFurnitures[ i ];
       furn.assetID = furn.assetID || furn.ufurnID;
+
       furn.furnURL = furn.furnURL.replace( ".unity3d", "_LOD0.zip" );
       furnPromises.push( Asset.get( furn ) );
+
+      furn.textureAsset = new can.Map({
+        assetURL: furn.furnMatURL.replace( "-mat.unity3d", "_Tex0.zip" )
+      });
+      matPromises.push( Asset.get( furn.textureAsset ) );
     }
 
-    return Promise.all( furnPromises ).then(
-      this.loadTextures.bind( this )
-    ).then(
-      this.loadModels.bind( this )
+    var furnitures = Promise.all( furnPromises );
+
+    var materials = Promise.all( matPromises ).then(
+        this.loadTextures.bind( this )
     );
+
+    return materials.then(()=>{
+      return furnitures.then(
+          this.loadModels.bind( this )
+      );
+    });
   },
 
   loadEgoObjects ( egoObjects ) {
     var egoPromises = [];
+    var matPromises = [];
+
     for ( let i = 0; i < egoObjects.length; i++ ) {
       let egoObj = egoObjects[ i ];
       egoObj.assetID = egoObj.assetID || egoObj.egoID;
+
       egoObj.assetURL = egoObj.roomInfo.frameURL.replace( ".unity3d", "_LOD0.zip" );
       egoPromises.push( Asset.get( egoObj ) );
+
+      egoObj.textureAsset = new can.Map({
+        assetURL: egoObj.roomInfo.frameURL.replace( ".unity3d", "_Tex0.zip" )
+      });
+      matPromises.push( Asset.get( egoObj.textureAsset ) );
     }
 
-    return Promise.all( egoPromises ).then(
-      this.loadTextures.bind( this )
-    ).then(
-      this.loadModels.bind( this )
+    var egoObjectProms = Promise.all( egoPromises );
+
+    var materials = Promise.all( matPromises ).then(
+        this.loadTextures.bind( this )
     );
+
+    return materials.then(()=>{
+      return egoObjectProms.then(
+          this.loadModels.bind( this )
+      );
+    });
   },
 
   loadTerrain ( terrainURL ) {

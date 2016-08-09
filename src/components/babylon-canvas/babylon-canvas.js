@@ -341,15 +341,19 @@ export const ViewModel = Map.extend({
         parent.position.x = parseFloat( itemInfo.roomInfo.position.x ) || 0;
         parent.position.y = parseFloat( itemInfo.roomInfo.position.y ) || 0;
         parent.position.z = parseFloat( itemInfo.roomInfo.position.z ) || 0;
-        mesh.rotationQuaternion.x = parseFloat( itemInfo.roomInfo.rotation.x ) || 0;
-        mesh.rotationQuaternion.y = parseFloat( itemInfo.roomInfo.rotation.y ) || 0;
-        mesh.rotationQuaternion.z = parseFloat( itemInfo.roomInfo.rotation.z ) || 0;
-        mesh.rotationQuaternion.w = parseFloat( itemInfo.roomInfo.rotation.w ) || 1;
+        parent.rotationQuaternion.x = parseFloat( itemInfo.roomInfo.rotation.x ) || 0;
+        parent.rotationQuaternion.y = parseFloat( itemInfo.roomInfo.rotation.y ) || 0;
+        parent.rotationQuaternion.z = parseFloat( itemInfo.roomInfo.rotation.z ) || 0;
+        parent.rotationQuaternion.w = parseFloat( itemInfo.roomInfo.rotation.w ) || 1;
 
-        //parent.rotation.x = Math.PI / -2;
-        //parent.rotation.y = 0;
+        if ( mesh.material && mesh.material.name === "ImagePlane" ) {
+          let mat = mesh.material.subMaterials[ 0 ];
+          mat.diffuseTexture = new BABYLON.Texture( item.options.egoFullURL, this.attr( "scene" ) );
+        }
         //parent.rotation.z = 0;
-        parent.rotate( new BABYLON.Vector3( 1, 0, 0 ), Math.PI / 2 );
+        parent.rotation.y = Math.PI;
+        parent.rotation.x = Math.PI / -2;
+        
       } else {
         mesh.position.x = parseFloat( itemInfo.position.x ) || 0;
         mesh.position.y = parseFloat( itemInfo.position.y ) || 0;
@@ -629,6 +633,10 @@ export const ViewModel = Map.extend({
       ajaxInfo: {},
       materialID: ""
     };
+
+    if ( mesh.material ) {
+      mesh.material.dispose();
+    }
 
     this.attr( "bgMeshes" ).push( mesh );
 

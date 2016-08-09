@@ -346,9 +346,10 @@ export const ViewModel = Map.extend({
         mesh.rotationQuaternion.z = parseFloat( itemInfo.roomInfo.rotation.z ) || 0;
         mesh.rotationQuaternion.w = parseFloat( itemInfo.roomInfo.rotation.w ) || 1;
 
-        parent.rotation.z = 0;
-        parent.rotation.y = 0;
-        parent.rotation.x = Math.PI / -2;
+        //parent.rotation.x = Math.PI / -2;
+        //parent.rotation.y = 0;
+        //parent.rotation.z = 0;
+        parent.rotate( new BABYLON.Vector3( 1, 0, 0 ), Math.PI / 2 );
       } else {
         mesh.position.x = parseFloat( itemInfo.position.x ) || 0;
         mesh.position.y = parseFloat( itemInfo.position.y ) || 0;
@@ -651,7 +652,7 @@ export const ViewModel = Map.extend({
       let g = parseFloat( ajaxColor.g );
       let b = parseFloat( ajaxColor.b );
       let a = parseFloat( ajaxColor.a );
-      mesh.material.diffuseColor = new BABYLON.Color3( r, g, b );
+      mesh.material.diffuseColor = new BABYLON.Color4( r, g, b, a );
     }
 
     if ( false && mesh.material ) {

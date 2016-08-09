@@ -345,6 +345,10 @@ export const ViewModel = Map.extend({
         mesh.rotationQuaternion.y = parseFloat( itemInfo.roomInfo.rotation.y ) || 0;
         mesh.rotationQuaternion.z = parseFloat( itemInfo.roomInfo.rotation.z ) || 0;
         mesh.rotationQuaternion.w = parseFloat( itemInfo.roomInfo.rotation.w ) || 1;
+
+        parent.rotation.z = 0;
+        parent.rotation.y = 0;
+        parent.rotation.x = Math.PI / -2;
       } else {
         mesh.position.x = parseFloat( itemInfo.position.x ) || 0;
         mesh.position.y = parseFloat( itemInfo.position.y ) || 0;
@@ -475,7 +479,7 @@ export const ViewModel = Map.extend({
 
       if ( roomLoad.egoObjects && roomLoad.egoObjects.length ) {
         // TODO: figure out why on earth the coords/rotations for these are rotated +/- 90deg about z axis of the whole scene
-        // egoProm = vm.loadEgoObjects( roomLoad.egoObjects );
+        egoProm = vm.loadEgoObjects( roomLoad.egoObjects );
       }
     });
   },
@@ -764,6 +768,16 @@ export const ViewModel = Map.extend({
     });
   },
 
+  toggleBabylonDebugLayer ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
+    var scene = this.attr( "scene" );
+    var isDebugVisible = scene.debugLayer._enabled;
+
+    if ( isDebugVisible ) {
+      scene.debugLayer.hide();
+    } else {
+      scene.debugLayer.show();
+    }
+  },
 
   // TEMPORARY FUNCTIONS
 
@@ -783,16 +797,7 @@ export const controls = {
   "name": "game-canvas",
   "context": null,
   "keypress": {
-    "`" ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
-      var scene = this.attr( "scene" );
-      var isDebugVisible = scene.debugLayer._enabled;
-
-      if ( isDebugVisible ) {
-        scene.debugLayer.hide();
-      } else {
-        scene.debugLayer.show();
-      }
-    }
+    "`": "toggleBabylonDebugLayer"
   },
   "click": {
     "Left" ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {

@@ -306,6 +306,37 @@ export const ViewModel = Map.extend({
     return itemOptions && itemOptions.furnArg && anyTruthy( itemOptions.furnArg );
   },
 
+  setEgoObjectDetails ( mesh ) {
+    var itemInfo = mesh.__itemRef.options;
+    var parent = mesh.parent || mesh;
+    while ( parent.parent ) {
+      parent = parent.parent;
+    }
+
+    parent.position.x = parseFloat( itemInfo.roomInfo.position.x ) || 0;
+    parent.position.y = parseFloat( itemInfo.roomInfo.position.y ) || 0;
+    parent.position.z = parseFloat( itemInfo.roomInfo.position.z ) || 0;
+    parent.rotationQuaternion.x = parseFloat( itemInfo.roomInfo.rotation.x ) || 0;
+    parent.rotationQuaternion.y = parseFloat( itemInfo.roomInfo.rotation.y ) || 0;
+    parent.rotationQuaternion.z = parseFloat( itemInfo.roomInfo.rotation.z ) || 0;
+    parent.rotationQuaternion.w = parseFloat( itemInfo.roomInfo.rotation.w ) || 1;
+
+    var meshName = mesh.material && mesh.material.name || "";
+
+    if ( meshName === "ImagePlane" ) {
+      let mat = mesh.material.subMaterials[ 0 ];
+      mat.diffuseTexture = new BABYLON.Texture( itemInfo.egoAlbumURL, this.attr( "scene" ) );
+    } else if ( meshName == "ImageBacker" ) {
+      let mat = mesh.material.subMaterials[ 0 ];
+      mat.diffuseTexture = null;
+      mat.diffuseColor = new BABYLON.Color3( 1, 1, 1 );
+    }
+
+    //parent.rotation.z = 0;
+    parent.rotation.y = Math.PI;
+    parent.rotation.x = Math.PI / -2;
+  },
+
   meshesLoaded ( itemInfo, babylonName, meshes ) {
     var item = {
       name: babylonName,
@@ -334,26 +365,7 @@ export const ViewModel = Map.extend({
       mesh.collisionsEnabled = true;
 
       if ( itemInfo.egoID ) {
-        let parent = mesh.parent || mesh;
-        while ( parent.parent ) {
-          parent = parent.parent;
-        }
-        parent.position.x = parseFloat( itemInfo.roomInfo.position.x ) || 0;
-        parent.position.y = parseFloat( itemInfo.roomInfo.position.y ) || 0;
-        parent.position.z = parseFloat( itemInfo.roomInfo.position.z ) || 0;
-        parent.rotationQuaternion.x = parseFloat( itemInfo.roomInfo.rotation.x ) || 0;
-        parent.rotationQuaternion.y = parseFloat( itemInfo.roomInfo.rotation.y ) || 0;
-        parent.rotationQuaternion.z = parseFloat( itemInfo.roomInfo.rotation.z ) || 0;
-        parent.rotationQuaternion.w = parseFloat( itemInfo.roomInfo.rotation.w ) || 1;
-
-        if ( mesh.material && mesh.material.name === "ImagePlane" ) {
-          let mat = mesh.material.subMaterials[ 0 ];
-          mat.diffuseTexture = new BABYLON.Texture( item.options.egoAlbumURL, this.attr( "scene" ) );
-        }
-        //parent.rotation.z = 0;
-        parent.rotation.y = Math.PI;
-        parent.rotation.x = Math.PI / -2;
-        
+        this.setEgoObjectDetails( mesh );
       } else {
         mesh.position.x = parseFloat( itemInfo.position.x ) || 0;
         mesh.position.y = parseFloat( itemInfo.position.y ) || 0;
@@ -369,6 +381,10 @@ export const ViewModel = Map.extend({
       if ( parseInt( itemInfo.furnPhysics, 10 ) ) {
         //vm.testSetPhysicsImpostor( mesh );
       }
+    }
+
+    for ( let i = 0; i < meshes.length; ++i ) {
+      meshes[i].freezeWorldMatrix();
     }
   },
 

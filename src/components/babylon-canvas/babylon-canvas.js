@@ -199,6 +199,15 @@ export const ViewModel = Map.extend({
     shadowGenerator.usePoissonSampling = true;
     shadowGenerator.setDarkness( 0 );
 
+
+    // Terrain LIGHT
+    const terrainDirection = new BABYLON.Vector3(0, -1, -1);
+    let terrainLight = new BABYLON.DirectionalLight( "terrainLight", terrainDirection, scene);
+
+    // Light currently affects all meshes
+
+    this.attr("terrainLight", terrainLight);
+
     this.attr({
       hasPointlight: false,
       hemisphericLight,
@@ -212,6 +221,7 @@ export const ViewModel = Map.extend({
 
   initScene () {
     var scene = this.attr( "scene" );
+    window.scene = scene;
     scene.clearColor = new BABYLON.Color3( 1, 1, 1 );
 
     // Gravity & physics stuff
@@ -315,8 +325,17 @@ export const ViewModel = Map.extend({
 
     this.attr( "items" ).push( item );
 
+    let uniqueMatsCount = 0;
+    let uniqueMaterials = {};
+
+    console.log(itemInfo);
+
     for ( let i = 0; i < meshes.length; ++i ) {
       let mesh = meshes[ i ];
+
+      if (mesh.material){
+        mesh.material.freeze();
+      }
 
       let positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
       if ( !positions ) {
@@ -333,23 +352,41 @@ export const ViewModel = Map.extend({
       mesh.receiveShadows = true;
       mesh.collisionsEnabled = true;
 
+
+
       if ( itemInfo.egoID ) {
         let parent = mesh.parent || mesh;
         while ( parent.parent ) {
           parent = parent.parent;
         }
+
+        if (mesh.material && mesh.material.name == "ImagePlane"){
+          let mat = mesh.material.subMaterials[0];
+          mat.diffuseTexture = new BABYLON.Texture(item.options.egoFullURL, this.attr("scene"));
+          //mat.diffuseColor = new BABYLON.Color3(1,0,0);
+        }
+        else if (mesh.material && mesh.material.name == "ImageBacker"){
+          let mat = mesh.material.subMaterials[0];
+          mat.diffuseTexture = null;
+          mat.diffuseColor = new BABYLON.Color3( 1, 1, 1 );
+        }
+
         parent.position.x = parseFloat( itemInfo.roomInfo.position.x ) || 0;
         parent.position.y = parseFloat( itemInfo.roomInfo.position.y ) || 0;
         parent.position.z = parseFloat( itemInfo.roomInfo.position.z ) || 0;
-        mesh.rotationQuaternion.x = parseFloat( itemInfo.roomInfo.rotation.x ) || 0;
-        mesh.rotationQuaternion.y = parseFloat( itemInfo.roomInfo.rotation.y ) || 0;
-        mesh.rotationQuaternion.z = parseFloat( itemInfo.roomInfo.rotation.z ) || 0;
-        mesh.rotationQuaternion.w = parseFloat( itemInfo.roomInfo.rotation.w ) || 1;
 
-        parent.rotation.z = 0;
-        parent.rotation.y = 0;
+        parent.rotationQuaternion.x = parseFloat( itemInfo.roomInfo.rotation.x ) || 0;
+        parent.rotationQuaternion.y = parseFloat( itemInfo.roomInfo.rotation.y ) || 0;
+        parent.rotationQuaternion.z = parseFloat( itemInfo.roomInfo.rotation.z ) || 0;
+        parent.rotationQuaternion.w = parseFloat( itemInfo.roomInfo.rotation.w ) || 1;
+
+        //parent.rotation.z = 0;
+        parent.rotation.y = Math.PI;
         parent.rotation.x = Math.PI / -2;
+
+
       } else {
+
         mesh.position.x = parseFloat( itemInfo.position.x ) || 0;
         mesh.position.y = parseFloat( itemInfo.position.y ) || 0;
         mesh.position.z = parseFloat( itemInfo.position.z ) || 0;
@@ -359,12 +396,30 @@ export const ViewModel = Map.extend({
         mesh.rotationQuaternion.w = parseFloat( itemInfo.rotation.w ) || 1;
       }
 
+      if (itemInfo.terrain){
+        console.log("did I crash?");
+        this.attr("terrainLight").includedOnlyMeshes.push(mesh);
+        console.log("added mesh");
+      }
+
       this.addToShadowGenerator( mesh );
 
       if ( parseInt( itemInfo.furnPhysics, 10 ) ) {
         //vm.testSetPhysicsImpostor( mesh );
       }
     }
+
+    for ( let i = 0; i < meshes.length; ++i ) {
+      meshes[i].freezeWorldMatrix();
+    }
+
+    if (uniqueMatsCount > 4){
+      let test = true;
+      // console.log(uniqueMaterials);
+    }
+
+    // console.log("For mesh: ", item.name, " unique materials: ", uniqueMatsCount);
+
   },
 
   loadModels ( arrayOfLoadedAssets ) {
@@ -593,6 +648,10 @@ export const ViewModel = Map.extend({
     var name = mesh.name.replace( /[^a-z]/gi, "" ).toLowerCase();
     var parentName = mesh.parent && mesh.parent.name || "";
 
+    // if (mesh.material){
+    //   mesh.material.dispose();
+    // }
+
     if ( name === "glassin" || name === "glassout" ) {
       mesh.visibility = 0;
       mesh.__backgroundMeshInfo.materialID = "";
@@ -629,6 +688,10 @@ export const ViewModel = Map.extend({
       materialID: ""
     };
 
+    if (mesh.material){
+      mesh.material.dispose(true, true);
+    }
+
     this.attr( "bgMeshes" ).push( mesh );
 
     if ( key && parentBabylonName && parentBabylonName.indexOf( key ) > -1 ) {
@@ -652,6 +715,7 @@ export const ViewModel = Map.extend({
       let b = parseFloat( ajaxColor.b );
       let a = parseFloat( ajaxColor.a );
       mesh.material.diffuseColor = new BABYLON.Color3( r, g, b );
+
     }
 
     if ( false && mesh.material ) {
@@ -780,6 +844,8 @@ export const ViewModel = Map.extend({
   },
 
   // TEMPORARY FUNCTIONS
+
+  terrainLight: null,
 
   static3DAssetPath: "/src/static/3d/",
 

@@ -2,7 +2,7 @@
   <head>
     <title>{{title}}</title>
   </head>
-  <body>
+  <body style="overflow:hidden;">
     <can-import from="egospace/static/icons/fontawesome.css!" />
     <can-import from="egospace/styles.less!" />
     <can-import from="egospace/app" export-as="viewModel" />

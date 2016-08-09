@@ -782,11 +782,18 @@ export const ViewModel = Map.extend({
 export const controls = {
   "name": "game-canvas",
   "context": null,
-  //"keypress": {
-  //  "8": "changeColor",
-  //  "9": "changeTexture",
-  //  "0": "resetGround"
-  //},
+  "keypress": {
+    "`" ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
+      var scene = this.attr( "scene" );
+      var isDebugVisible = scene.debugLayer._enabled;
+
+      if ( isDebugVisible ) {
+        scene.debugLayer.hide();
+      } else {
+        scene.debugLayer.show();
+      }
+    }
+  },
   "click": {
     "Left" ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
       if ( this.attr( "hoveredMesh" ) ) {

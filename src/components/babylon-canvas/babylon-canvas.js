@@ -420,7 +420,9 @@ export const ViewModel = Map.extend({
         this.setMeshLocationFromAjaxData( mesh, itemInfo );
       }
 
-      this.addToShadowGenerator( mesh );
+      if ( !itemInfo.terrain ) {
+        this.addToShadowGenerator( mesh );
+      }
 
       if ( parseInt( itemInfo.furnPhysics, 10 ) ) {
         //vm.testSetPhysicsImpostor( mesh );

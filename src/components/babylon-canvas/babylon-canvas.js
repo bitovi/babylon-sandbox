@@ -28,6 +28,13 @@ export const ViewModel = Map.extend({
     },
     renderCount: {
       value: 0
+    },
+    homeLoadFinished: {
+      set ( newVal ) {
+        if ( newVal ) {
+          console.log( "home load finished!" );
+        }
+      }
     }
   },
 
@@ -548,6 +555,12 @@ export const ViewModel = Map.extend({
         // TODO: figure out why on earth the coords/rotations for these are rotated +/- 90deg about z axis of the whole scene
         egoProm = vm.loadEgoObjects( roomLoad.egoObjects );
       }
+
+      var proms = [ furnProm ];
+      if ( egoProm ) {
+        proms.push( egoProm );
+      }
+      return Promise.all( proms );
     });
   },
 
@@ -796,7 +809,10 @@ export const ViewModel = Map.extend({
       time: time
     });
 
-    vm.attr( "homesPromise", homesPromise );
+    vm.attr({
+      "homesPromise": homesPromise,
+      "homeLoadFinished": false
+    });
 
     return homesPromise.then( ( homeLoad ) => {
       //TODO: homeLoad.skyboxes.skyboxAssetURL
@@ -835,7 +851,12 @@ export const ViewModel = Map.extend({
       ).then(
         // load and place the furniture
         vm.roomLoad.bind( vm, uroomID )
-      );
+      ).then(( arrOfRoomLoadResults ) => {
+        return terrainProm.then(( terrainPromResults ) => {
+          vm.attr( "homeLoadFinished", true );
+          return { arrOfRoomLoadResults, terrainProm };
+        });
+      });
     });
   },
 

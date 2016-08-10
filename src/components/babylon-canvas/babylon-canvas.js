@@ -32,15 +32,11 @@ export const ViewModel = Map.extend({
     homeLoadFinished: {
       set ( newVal ) {
         if ( newVal ) {
-          console.log( "home load finished!" );
+          this.freezeShadowCalculations();
         }
+        return newVal;
       }
     }
-  },
-
-  getAssetsManager () {
-    var scene = this.attr( "scene" );
-    return new BABYLON.AssetsManager( scene );
   },
 
   // This creates and positions a free camera
@@ -204,9 +200,16 @@ export const ViewModel = Map.extend({
     return skybox;
   },
 
-  addToShadowGenerator ( mesh ) {
-    this.attr( "shadowGenerator" ).getShadowMap().renderList.push( mesh );
-    this.attr( "hemisShadowGen" ).getShadowMap().renderList.push( mesh );
+  addToObjDirLightShadowGenerator ( mesh ) {
+    this.attr( "objDirLightShadowGen" ).getShadowMap().renderList.push( mesh );
+  },
+
+  freezeShadowCalculations () {
+    this.attr( "objDirLightShadowGen" ).getShadowMap().refreshRate = 0;
+  },
+
+  unfreezeShadowCalculations () {
+    this.attr( "objDirLightShadowGen" ).getShadowMap().refreshRate = 1;
   },
 
   initLights () {
@@ -214,39 +217,19 @@ export const ViewModel = Map.extend({
 
     //This creates a light, aiming 0,1,0 - to the sky.
     var hemisphericLight = new BABYLON.HemisphericLight( "light1", new BABYLON.Vector3( 0, 1, 0 ), scene );
-
     hemisphericLight.groundColor = new BABYLON.Color3( 1, 1, 1 );
     hemisphericLight.intensity = 0.85;
 
-    var normalDirLight = new BABYLON.DirectionalLight( "dirlight1", new BABYLON.Vector3( 0, -1, 0 ), scene );
+    var mainObjectDirLight = new BABYLON.DirectionalLight( "dirlight1", new BABYLON.Vector3( 0, -1, 0 ), scene );
 
-    var hemisShadowGen = new BABYLON.ShadowGenerator( 1024, normalDirLight );
-    hemisShadowGen.setDarkness( 0 );
-    //hemisShadowGen.usePoissonSampling = true; //PointLight
-    //hemisShadowGen.useBlurVarianceShadowMap = true;
-    hemisShadowGen.bias *= 0.05;
-
-    var pointLight = new BABYLON.PointLight( "pointlight", new BABYLON.Vector3( 0, 3, 0 ), scene );
-
-    var hemisphericPointLight = new BABYLON.HemisphericLight( "hemispoint", new BABYLON.Vector3( 0, 1, 0 ), scene );
-    hemisphericPointLight.intensity = 0.8;
-
-    scene.removeLight( pointLight );
-    scene.removeLight( hemisphericPointLight );
-
-    // Shadows
-    var shadowGenerator = new BABYLON.ShadowGenerator( 1024, pointLight );
-    shadowGenerator.usePoissonSampling = true;
-    shadowGenerator.setDarkness( 0 );
+    var objDirLightShadowGen = new BABYLON.ShadowGenerator( 1024, mainObjectDirLight );
+    objDirLightShadowGen.setDarkness( 0 );
+    objDirLightShadowGen.bias *= 0.05;
 
     this.attr({
-      hasPointlight: false,
       hemisphericLight,
-      normalDirLight,
-      hemisShadowGen,
-      pointLight,
-      hemisphericPointLight,
-      shadowGenerator
+      mainObjectDirLight,
+      objDirLightShadowGen
     });
   },
 
@@ -428,7 +411,7 @@ export const ViewModel = Map.extend({
       }
 
       if ( !itemInfo.terrain ) {
-        this.addToShadowGenerator( mesh );
+        this.addToObjDirLightShadowGenerator( mesh );
       }
 
       if ( parseInt( itemInfo.furnPhysics, 10 ) ) {
@@ -738,6 +721,7 @@ export const ViewModel = Map.extend({
       mesh.material.diffuseColor = new BABYLON.Color4( r, g, b, a );
     }
 
+    // TODO: make our own .mtl info and bundle it with the textures to set uv scales
     if ( false && mesh.material ) {
       const uScale = 0.19995;
       const vScale = 0.225;

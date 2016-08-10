@@ -28,6 +28,14 @@ export const ViewModel = Map.extend({
     },
     renderCount: {
       value: 0
+    },
+    homeLoadFinished: {
+      set (newVal) {
+        if (newVal) {
+          this.attr("hemisShadowGen").getShadowMap().refreshRate = 0;
+          this.attr("scene").addLight(this.attr("terrainLight"));
+        }
+      }
     }
   },
 
@@ -165,11 +173,56 @@ export const ViewModel = Map.extend({
   },
 
   addToShadowGenerator ( mesh ) {
-    this.attr( "shadowGenerator" ).getShadowMap().renderList.push( mesh );
     this.attr( "hemisShadowGen" ).getShadowMap().renderList.push( mesh );
   },
 
   initLights () {
+
+//Had to make this function myself as glMatrix doesn't have it :(
+//     function Vector3ToQuaternion(a_vec3)
+//     {
+//       ///<summary>It assumes the values are in radians</summary>
+//       var f_x =  a_vec3[0] * 0.5;
+//       var f_y = a_vec3[1] * 0.5;
+//       var f_z = a_vec3[2] * 0.5;
+//       var sx, cx, sy, cy, sz, cz;
+//
+//       sx = Math.sin( f_x ); cx = Math.cos( f_x );
+//       sy = Math.sin( f_y ); cy = Math.cos( f_y );
+//       sz = Math.sin( f_z ); cz = Math.cos( f_z );
+//
+//       var q = new Float32Array(4);
+//
+//       q[0] = ( sx * cy * cz ) - ( cx * sy * sz );
+//       q[1] = ( cx * sy * cz ) + ( sx * cy * sz );
+//       q[2] = ( cx * cy * sz ) - ( sx * sy * cz );
+//       q[3] = ( cx * cy * cz ) + ( sx * sy * sz );
+//
+//       return new BABYLON.Quaternion(q[0], q[1], q[2], q[3]);
+//     }
+//     function multiplyVector3(quat, vec3, vec3Dest) {
+//
+//       quat = [ quat.x, quat.y, quat.z, quat.w ];
+//       vec3 = [ vec3.x, vec3.y, vec3.z ];
+//
+//       vec3Dest || (vec3Dest = vec3);
+//       var d = vec3[0],
+//           e = vec3[1],
+//           g = vec3[2],
+//           b = quat[0],
+//           f = quat[1],
+//           h = quat[2],
+//           a = quat[3],
+//           i = a * d + f * g - h * e,
+//           j = a * e + h * d - b * g,
+//           k = a * g + b * e - f * d,
+//           d = -b * d - f * e - h * g;
+//       vec3Dest[0] = i * a + d * -b + j * -h - k * -f;
+//       vec3Dest[1] = j * a + d * -f + k * -b - i * -h;
+//       vec3Dest[2] = k * a + d * -h + i * -f - j * -b;
+//       return new BABYLON.Vector3( vec3Dest[0], vec3Dest[1], vec3Dest[2] );
+//     };
+
     var scene = this.attr( "scene" );
 
     //This creates a light, aiming 0,1,0 - to the sky.
@@ -179,43 +232,43 @@ export const ViewModel = Map.extend({
     hemisphericLight.intensity = 0.85;
 
     var normalDirLight = new BABYLON.DirectionalLight( "dirlight1", new BABYLON.Vector3( 0, -1, 0 ), scene );
+    normalDirLight.intensity = 0.5;
 
-    var hemisShadowGen = new BABYLON.ShadowGenerator( 1024, normalDirLight );
+    var hemisShadowGen = new BABYLON.ShadowGenerator( 512, normalDirLight );
     hemisShadowGen.setDarkness( 0 );
     //hemisShadowGen.usePoissonSampling = true; //PointLight
     //hemisShadowGen.useBlurVarianceShadowMap = true;
     hemisShadowGen.bias *= 0.05;
 
-    var pointLight = new BABYLON.PointLight( "pointlight", new BABYLON.Vector3( 0, 3, 0 ), scene );
-
-    var hemisphericPointLight = new BABYLON.HemisphericLight( "hemispoint", new BABYLON.Vector3( 0, 1, 0 ), scene );
-    hemisphericPointLight.intensity = 0.8;
-
-    scene.removeLight( pointLight );
-    scene.removeLight( hemisphericPointLight );
-
-    // Shadows
-    var shadowGenerator = new BABYLON.ShadowGenerator( 1024, pointLight );
-    shadowGenerator.usePoissonSampling = true;
-    shadowGenerator.setDarkness( 0 );
-
+    // const rotQuat = Vector3ToQuaternion( [Math.PI * 135 / 180, Math.PI * -90 / 180, 0] );
+    //
+    // console.log(rotQuat);
 
     // Terrain LIGHT
-    const terrainDirection = new BABYLON.Vector3(0, -1, -1);
+    // const terrainDirection = multiplyVector3( rotQuat, new BABYLON.Vector3(0, 0, 1) );
+    // const terrainDirection = new BABYLON.Vector3(0.7071068487086123, -0.7071068209695852, 0);
+    const terrainDirection = new BABYLON.Vector3(1, 0, 0);
+
     let terrainLight = new BABYLON.DirectionalLight( "terrainLight", terrainDirection, scene);
+    terrainLight.intensity = 0.425;
+    terrainLight.specular = BABYLON.Color3.Black();
+  // Add it back when the scene finished loading
+    scene.removeLight( terrainLight );
 
-    // Light currently affects all meshes
-
+    //
+    // // Light currently affects all meshes
     this.attr("terrainLight", terrainLight);
+
+    // this.attr("homesPromise").then(function(){
+    //   hemisShadowGen.getShadowMap().refreshRate = 0;
+    // });
+
 
     this.attr({
       hasPointlight: false,
       hemisphericLight,
       normalDirLight,
-      hemisShadowGen,
-      pointLight,
-      hemisphericPointLight,
-      shadowGenerator
+      hemisShadowGen
     });
   },
 
@@ -316,6 +369,37 @@ export const ViewModel = Map.extend({
     return itemOptions && itemOptions.furnArg && anyTruthy( itemOptions.furnArg );
   },
 
+  setEgoObjectDetails ( mesh ) {
+    var itemInfo = mesh.__itemRef.options;
+    var parent = mesh.parent || mesh;
+    while ( parent.parent ) {
+      parent = parent.parent;
+    }
+
+    parent.position.x = parseFloat( itemInfo.roomInfo.position.x ) || 0;
+    parent.position.y = parseFloat( itemInfo.roomInfo.position.y ) || 0;
+    parent.position.z = parseFloat( itemInfo.roomInfo.position.z ) || 0;
+    parent.rotationQuaternion.x = parseFloat( itemInfo.roomInfo.rotation.x ) || 0;
+    parent.rotationQuaternion.y = parseFloat( itemInfo.roomInfo.rotation.y ) || 0;
+    parent.rotationQuaternion.z = parseFloat( itemInfo.roomInfo.rotation.z ) || 0;
+    parent.rotationQuaternion.w = parseFloat( itemInfo.roomInfo.rotation.w ) || 1;
+
+    var meshName = mesh.material && mesh.material.name || "";
+
+    if ( meshName === "ImagePlane" ) {
+      let mat = mesh.material.subMaterials[ 0 ];
+      mat.diffuseTexture = new BABYLON.Texture( itemInfo.egoAlbumURL, this.attr( "scene" ) );
+    } else if ( meshName == "ImageBacker" ) {
+      let mat = mesh.material.subMaterials[ 0 ];
+      mat.diffuseTexture = null;
+      mat.diffuseColor = new BABYLON.Color3( 1, 1, 1 );
+    }
+
+    //parent.rotation.z = 0;
+    parent.rotation.y = Math.PI;
+    parent.rotation.x = Math.PI / -2;
+  },
+
   meshesLoaded ( itemInfo, babylonName, meshes ) {
     var item = {
       name: babylonName,
@@ -324,11 +408,6 @@ export const ViewModel = Map.extend({
     };
 
     this.attr( "items" ).push( item );
-
-    let uniqueMatsCount = 0;
-    let uniqueMaterials = {};
-
-    console.log(itemInfo);
 
     for ( let i = 0; i < meshes.length; ++i ) {
       let mesh = meshes[ i ];
@@ -352,57 +431,34 @@ export const ViewModel = Map.extend({
       mesh.receiveShadows = true;
       mesh.collisionsEnabled = true;
 
+      if (itemInfo.terrain ){
+        let terrainLight = this.attr("terrainLight");
+        terrainLight.includedOnlyMeshes.push(mesh);
+        // this.attr("normalDirLight").excludedMeshes.push(mesh);
+        this.attr("hemisphericLight").excludedMeshes.push(mesh);
 
-
-      if ( itemInfo.egoID ) {
-        let parent = mesh.parent || mesh;
-        while ( parent.parent ) {
-          parent = parent.parent;
+        if (mesh.material){
+          const emissiveColor = 0.225;
+          mesh.material.emissiveColor = new BABYLON.Color3(emissiveColor, emissiveColor, emissiveColor);
         }
 
-        if (mesh.material && mesh.material.name == "ImagePlane"){
-          let mat = mesh.material.subMaterials[0];
-          mat.diffuseTexture = new BABYLON.Texture(item.options.egoFullURL, this.attr("scene"));
-          //mat.diffuseColor = new BABYLON.Color3(1,0,0);
-        }
-        else if (mesh.material && mesh.material.name == "ImageBacker"){
-          let mat = mesh.material.subMaterials[0];
-          mat.diffuseTexture = null;
-          mat.diffuseColor = new BABYLON.Color3( 1, 1, 1 );
-        }
 
-        parent.position.x = parseFloat( itemInfo.roomInfo.position.x ) || 0;
-        parent.position.y = parseFloat( itemInfo.roomInfo.position.y ) || 0;
-        parent.position.z = parseFloat( itemInfo.roomInfo.position.z ) || 0;
-
-        parent.rotationQuaternion.x = parseFloat( itemInfo.roomInfo.rotation.x ) || 0;
-        parent.rotationQuaternion.y = parseFloat( itemInfo.roomInfo.rotation.y ) || 0;
-        parent.rotationQuaternion.z = parseFloat( itemInfo.roomInfo.rotation.z ) || 0;
-        parent.rotationQuaternion.w = parseFloat( itemInfo.roomInfo.rotation.w ) || 1;
-
-        //parent.rotation.z = 0;
-        parent.rotation.y = Math.PI;
-        parent.rotation.x = Math.PI / -2;
-
-
+      } else if ( itemInfo.egoID ) {
+        this.setEgoObjectDetails( mesh );
       } else {
-
         mesh.position.x = parseFloat( itemInfo.position.x ) || 0;
         mesh.position.y = parseFloat( itemInfo.position.y ) || 0;
         mesh.position.z = parseFloat( itemInfo.position.z ) || 0;
+
         mesh.rotationQuaternion.x = parseFloat( itemInfo.rotation.x ) || 0;
         mesh.rotationQuaternion.y = parseFloat( itemInfo.rotation.y ) || 0;
         mesh.rotationQuaternion.z = parseFloat( itemInfo.rotation.z ) || 0;
         mesh.rotationQuaternion.w = parseFloat( itemInfo.rotation.w ) || 1;
       }
 
-      if (itemInfo.terrain){
-        console.log("did I crash?");
-        this.attr("terrainLight").includedOnlyMeshes.push(mesh);
-        console.log("added mesh");
+      if (!itemInfo.terrain){
+        this.addToShadowGenerator( mesh );
       }
-
-      this.addToShadowGenerator( mesh );
 
       if ( parseInt( itemInfo.furnPhysics, 10 ) ) {
         //vm.testSetPhysicsImpostor( mesh );
@@ -412,13 +468,6 @@ export const ViewModel = Map.extend({
     for ( let i = 0; i < meshes.length; ++i ) {
       meshes[i].freezeWorldMatrix();
     }
-
-    if (uniqueMatsCount > 4){
-      let test = true;
-      // console.log(uniqueMaterials);
-    }
-
-    // console.log("For mesh: ", item.name, " unique materials: ", uniqueMatsCount);
 
   },
 
@@ -536,6 +585,12 @@ export const ViewModel = Map.extend({
         // TODO: figure out why on earth the coords/rotations for these are rotated +/- 90deg about z axis of the whole scene
         egoProm = vm.loadEgoObjects( roomLoad.egoObjects );
       }
+
+      var proms = [ furnProm ];
+      if ( egoProm ) {
+        proms.push( egoProm );
+      }
+      return Promise.all( proms );
     });
   },
 
@@ -704,6 +759,11 @@ export const ViewModel = Map.extend({
       mesh.__backgroundMeshInfo.materialID = materialID;
 
       mesh.material = matConst.instance.clone();
+
+      if (mesh.name === "ShellOut_002"){
+        mesh.material.backFaceCulling = false;
+      }
+
     } else {
       this.testHardcodedMaterials( mesh );
     }
@@ -742,6 +802,10 @@ export const ViewModel = Map.extend({
       let mesh = meshes[ i ];
       mesh.collisionsEnabled = true;
       mesh.receiveShadows = true;
+
+      if (mesh.name == "ShellOut_002"){
+        this.addToShadowGenerator(mesh);
+      }
 
       //mesh.position = new BABYLON.Vector3( 0, 0, 0 );
       //mesh.rotation = BABYLON.Quaternion.RotationYawPitchRoll( 0, 0, 0 );
@@ -789,7 +853,10 @@ export const ViewModel = Map.extend({
       time: time
     });
 
-    vm.attr( "homesPromise", homesPromise );
+    vm.attr({
+      "homesPromise": homesPromise,
+      "homeLoadFinished": false
+    });
 
     return homesPromise.then( ( homeLoad ) => {
       //TODO: homeLoad.skyboxes.skyboxAssetURL
@@ -828,7 +895,12 @@ export const ViewModel = Map.extend({
       ).then(
           // load and place the furniture
           vm.roomLoad.bind( vm, uroomID )
-      );
+      ).then(( arrOfRoomLoadResults ) => {
+        return terrainProm.then((terrainPromResults) => {
+          vm.attr("homeLoadFinished", true);
+          return {arrOfRoomLoadResults, terrainProm};
+        });
+      });
     });
   },
 

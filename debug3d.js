@@ -62,7 +62,7 @@
          * @returns {BABYLON.ShaderMaterial}
          */
         getDebugMaterial: function(a_scene){
-            var material = new BABYLON.ShaderMaterial("debugmaterial", a_scene, "/shaders/outline",
+            var material = new BABYLON.ShaderMaterial("debugmaterial", a_scene, "/shaders/debug",
                 {
                     attributes: ["position", "uv", "normal"],
                     uniforms: ["worldViewProjection", "world", "cameraPosition"]

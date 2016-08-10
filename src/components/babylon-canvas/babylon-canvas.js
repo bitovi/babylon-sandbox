@@ -33,6 +33,8 @@ export const ViewModel = Map.extend({
       set ( newVal ) {
         if ( newVal ) {
           this.freezeShadowCalculations();
+          // The light naturally affects furniture & background so it's removed until scene fully loaded
+          this.attr("scene").addLight(this.attr("terrainLight"));
         }
         return newVal;
       }
@@ -221,15 +223,24 @@ export const ViewModel = Map.extend({
     hemisphericLight.intensity = 0.85;
 
     var mainObjectDirLight = new BABYLON.DirectionalLight( "dirlight1", new BABYLON.Vector3( 0, -1, 0 ), scene );
+    mainObjectDirLight.intensity = 0.5;
 
     var objDirLightShadowGen = new BABYLON.ShadowGenerator( 1024, mainObjectDirLight );
     objDirLightShadowGen.setDarkness( 0 );
     objDirLightShadowGen.bias *= 0.05;
 
+    // For the terrain only
+    let terrainLight = new BABYLON.DirectionalLight( "terrainLight", new BABYLON.Vector3( 1, 0 ,0 ), scene);
+    terrainLight.intensity = 0.425;
+    terrainLight.specular = BABYLON.Color3.Black();
+    // Add it back when the scene finished loading
+    scene.removeLight( terrainLight );
+
     this.attr({
       hemisphericLight,
       mainObjectDirLight,
-      objDirLightShadowGen
+      objDirLightShadowGen,
+      terrainLight
     });
   },
 
@@ -404,7 +415,16 @@ export const ViewModel = Map.extend({
       mesh.receiveShadows = true;
       mesh.collisionsEnabled = true;
 
-      if ( itemInfo.egoID ) {
+      if (itemInfo.terrain ){
+        // This forces the terrainLight to only work on the terrain
+        this.attr("terrainLight").includedOnlyMeshes.push(mesh);
+        // Don't use hemispheric light for the terrain because it needs to have a different emissive color
+        this.attr("hemisphericLight").excludedMeshes.push(mesh);
+        // Instead of the global ambient light (hemispheric) set the emissive color of the material
+        if (mesh.material){
+          mesh.material.emissiveColor = new BABYLON.Color3( 0.225, 0.225, 0.225 );
+        }
+      } else if ( itemInfo.egoID ) {
         this.setEgoObjectDetails( mesh );
       } else {
         this.setMeshLocationFromAjaxData( mesh, itemInfo );
@@ -419,6 +439,7 @@ export const ViewModel = Map.extend({
       }
     }
 
+    // Need to do this after the meshes loop because for the paintings it doesn't work inside the loop.
     for ( let i = 0; i < meshes.length; ++i ) {
       meshes[i].freezeWorldMatrix();
     }
@@ -708,6 +729,12 @@ export const ViewModel = Map.extend({
       mesh.__backgroundMeshInfo.materialID = materialID;
 
       mesh.material = matConst.instance.clone();
+
+      // Need to disable backfaceCulling or the shadow generator can't see the roof
+      if (mesh.name === "ShellOut_002"){
+        mesh.material.backFaceCulling = false;
+      }
+
     } else {
       this.testHardcodedMaterials( mesh );
     }
@@ -746,6 +773,11 @@ export const ViewModel = Map.extend({
       let mesh = meshes[ i ];
       mesh.collisionsEnabled = true;
       mesh.receiveShadows = true;
+
+      // Add only the ceiling mesh to cast shadow
+      if (mesh.name === "ShellOut_002"){
+        this.addToObjDirLightShadowGenerator(mesh);
+      }
 
       //mesh.position = new BABYLON.Vector3( 0, 0, 0 );
       //mesh.rotation = BABYLON.Quaternion.RotationYawPitchRoll( 0, 0, 0 );

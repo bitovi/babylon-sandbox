@@ -7,7 +7,7 @@ import _find from 'lodash/find.js';
 
 import 'cannon';
 import BABYLON from 'babylonjs/babylon.max';
-import '../../static/3d/js/babylon.objFileLoader.js';
+// import '../../static/3d/js/babylon.objFileLoader.js';
 
 import { getControls, getTooltip, anyTruthy } from '../../util/util.js';
 
@@ -232,13 +232,6 @@ export const ViewModel = Map.extend({
     scene.workerCollisions = true;
 
     var camera = this.initCamera();
-
-    // Z axis is above/below
-    // var dirLight = new BABYLON.DirectionalLight("dirlight1", new BABYLON.Vector3(1, 0, 0), scene);
-    BABYLON.StandardMaterial.AmbientTextureEnabled = false;
-
-    BABYLON.OBJFileLoader.OPTIMIZE_WITH_UV = true;
-    //scene.debugLayer.show();
   },
 
   roomInfo ( uroomID ) {
@@ -771,11 +764,18 @@ export const ViewModel = Map.extend({
     var roomMeshSetDef = data[ 1 ];
     var unzippedMeshFiles = roomMeshSetDef.unzippedFiles;
 
+    var lightmapLivingspace = this.attr( "lightmapLivingspace" );
+
     this.attr( "bgMeshes", [] );
 
     for ( let i = 0; i < arrayOfLoadedMaterials.length; i++ ) {
       let curMaterial = arrayOfLoadedMaterials[ i ];
-      curMaterial.attr( "instance", this.createMaterial( curMaterial.internalName, curMaterial.unzippedFiles ) );
+      let mat = this.createMaterial( curMaterial.internalName, curMaterial.unzippedFiles );
+
+      mat.ambientTexture = lightmapLivingspace;
+      mat.ambientTexture.coordinatesIndex = 1; // Use UV channel 2
+
+      curMaterial.attr( "instance", mat );
       //curMaterial.removeAttr( "unzippedFiles" );
     }
 
@@ -787,6 +787,43 @@ export const ViewModel = Map.extend({
         BABYLON.SceneLoader.ImportMesh( "", "", "data:" + assetInfo.data, scene, bgMeshLoadedBound );
       }
     }
+  },
+
+  loadLightmaps ( lightmapBundleURL, debug ) {
+    if ( debug ) {
+      lightmapBundleURL = "https://cdn.testing.egowall.com/CDN_new/Game/Assetbundles/Lightmaps/debug.zip";
+    }
+    var lightmapReq = new can.Map({
+      lightmap: true,
+      assetID: -333,
+      assetURL: lightmapBundleURL
+    });
+    var lightmapProm = Asset.get( lightmapReq );
+
+    return lightmapProm.then(( assetData ) => {
+      var scene = this.attr( "scene" );
+      var unzippedAssets = assetData.unzippedFiles;
+
+      for ( let x = 0; x < unzippedAssets.length; x++ ) {
+        let asset = unzippedAssets[ x ];
+        if ( asset.type === "texture" ) {
+          if ( asset.name === "livingspace.png" ) {
+            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapLivingspace", scene );
+            this.attr( "lightmapLivingspace", lm );
+
+          } else if ( asset.name === "terrain.png" ) {
+            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapTerrain", scene );
+            this.attr( "lightmapTerrain",  lm );
+
+          } else if ( debug && asset.name === "debug.png" ) {
+            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapLivingspace", scene );
+            this.attr( "lightmapLivingspace", lm );
+            lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapTerrain", scene );
+            this.attr( "lightmapTerrain",  lm );
+          }
+        }
+      }
+    });
   },
 
   loadSkybox ( skyboxBundleURL ) {
@@ -874,6 +911,8 @@ export const ViewModel = Map.extend({
         vm.loadAllNeededMaterialConstants.bind( vm, meshes )
       );
 
+      var lightmapsProm = vm.loadLightmaps( homeLoad.lightmaps.lightmapAssetURL, false );
+
       var roomAssetURL = vm.roomAssetURL( uroomID );
       //TODO: use real roomAssetURL to load the backgroundMesh or change service
       let livingSpaceID = homeLoad.livingSpaceID;
@@ -881,9 +920,9 @@ export const ViewModel = Map.extend({
       var setDef = new Map({ assetID: roomAssetURL, assetURL: roomAssetURL });
       var roomMeshProm = Asset.get( setDef );
       
-      var materialsAndMeshProm = Promise.all( [ materialsLodedProm, roomMeshProm ] );
+      var beforeBGMeshRenderProms = Promise.all( [ materialsLodedProm, roomMeshProm, lightmapsProm ] );
       
-      return materialsAndMeshProm.then(
+      return beforeBGMeshRenderProms.then(
         // load the background mesh in babylon
         vm.renderBackgroundMesh.bind( vm )
       ).then(

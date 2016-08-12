@@ -89,16 +89,26 @@ var babylonResolution = function ( zipFileName, data ) {
   };
 };
 
+var jsonResolution = function ( zipFileName, data ) {
+  return {
+    type: "json",
+    name: zipFileName,
+    data: JSON.parse( data )
+  };
+};
+
 var unzipPromise = function ( zipbuffer ) {
   var jszip = new JSZip();
 
   return jszip.loadAsync( zipbuffer ).then( function ( zip ) {
-    var babylonFile;
+    var babylonFile, jsonFile;
     var textures = [];
 
     for ( var key in zip.files ) {
       if ( key.endsWith( ".babylon" ) ) {
         babylonFile = zip.files[ key ];
+      } else if ( key.endsWith( ".json" ) ) {
+        jsonFile = zip.files[ key ];
       } else {
         textures.push( zip.files[ key ] );
       }
@@ -118,6 +128,11 @@ var unzipPromise = function ( zipbuffer ) {
     if ( babylonFile ) {
       let babylonResolutionBound = babylonResolution.bind( null, babylonFile.name )
       newFiles.push( babylonFile.async( "string" ).then( babylonResolutionBound ) );
+    }
+
+    if ( jsonFile ) {
+      let jsonResolutionBound = jsonResolution.bind( null, jsonFile.name )
+      newFiles.push( jsonFile.async( "string" ).then( jsonResolutionBound ) );
     }
 
     return Promise.all( newFiles );

@@ -176,32 +176,6 @@ export const ViewModel = Map.extend({
     this.attr( "hoveredMesh", mesh );
   },
 
-  setSkyboxMaterial ( skyboxName, fileNamePrefix ) {
-    var scene = this.attr( "scene" );
-    var skybox = this.attr( "skybox" );
-    var skyboxImgs = this.skyboxPath( skyboxName, fileNamePrefix );
-    var skyboxMaterial = new BABYLON.StandardMaterial( "skyBox", scene );
-
-    skyboxMaterial.backFaceCulling = false;
-    skyboxMaterial.reflectionTexture = new BABYLON.CubeTexture( skyboxImgs, scene );
-    skyboxMaterial.reflectionTexture.coordinatesMode = BABYLON.Texture.SKYBOX_MODE;
-
-    skyboxMaterial.diffuseColor = new BABYLON.Color3( 0, 0, 0 );
-    skyboxMaterial.specularColor = new BABYLON.Color3( 0, 0, 0 );
-
-    skybox.material = skyboxMaterial;
-
-    return skyboxMaterial;
-  },
-
-  initSkybox () {
-    var scene = this.attr( "scene" );
-    var skybox = BABYLON.Mesh.CreateBox( "skyBox", 1000, scene );
-    this.attr( "skybox", skybox );
-
-    return skybox;
-  },
-
   addToObjDirLightShadowGenerator ( mesh ) {
     this.attr( "objDirLightShadowGen" ).getShadowMap().renderList.push( mesh );
   },
@@ -815,6 +789,53 @@ export const ViewModel = Map.extend({
     }
   },
 
+  loadSkybox ( skyboxBundleURL ) {
+    var skyboxReq = new can.Map({
+      skybox: true,
+      assetID: -444,
+      assetURL: skyboxBundleURL
+    });
+    var skyboxProm = Asset.get( skyboxReq );
+
+    return skyboxProm.then(( assetData ) => {
+      var scene = this.attr( "scene" );
+      var unzippedAssets = assetData.unzippedFiles;
+      var skybox = BABYLON.Mesh.CreateBox( "skyBox", 1000, scene );
+      this.attr( "skybox", skybox );
+
+      var allURLs = []; // [_px.jpg, _py.jpg, _pz.jpg, _nx.jpg, _ny.jpg, _nz.jpg];
+      var skyboxTextures = {};
+      var skyboxJSON = null;
+
+      for ( let x = 0; x < unzippedAssets.length; x++ ) {
+        let asset = unzippedAssets[ x ];
+        if ( asset.type === "texture" ) {
+          skyboxTextures[ asset.name ] = asset.data;
+        } else if ( asset.type === "json" ) {
+          skyboxJSON = asset.data;
+        }
+      }
+
+      allURLs[ 0 ] = skyboxTextures[ skyboxJSON.px ];
+      allURLs[ 1 ] = skyboxTextures[ skyboxJSON.py ];
+      allURLs[ 2 ] = skyboxTextures[ skyboxJSON.pz ];
+      allURLs[ 3 ] = skyboxTextures[ skyboxJSON.nx ];
+      allURLs[ 4 ] = skyboxTextures[ skyboxJSON.ny ];
+      allURLs[ 5 ] = skyboxTextures[ skyboxJSON.nz ];
+
+      var skyboxMaterial = new BABYLON.StandardMaterial( "skyBox", scene );
+      skyboxMaterial.backFaceCulling = false;
+      skyboxMaterial.reflectionTexture = new BABYLON.CubeTexture( "data:image/png;base64,", scene, allURLs );
+      skyboxMaterial.reflectionTexture.coordinatesMode = BABYLON.Texture.SKYBOX_MODE;
+      skyboxMaterial.diffuseColor = new BABYLON.Color3( 0, 0, 0 );
+      skyboxMaterial.specularColor = new BABYLON.Color3( 0, 0, 0 );
+
+      skybox.material = skyboxMaterial;
+
+      return assetData;
+    });
+  },
+
   homeLoad ( homeID, time ) {
     var vm = this;
 
@@ -831,9 +852,10 @@ export const ViewModel = Map.extend({
     });
 
     return homesPromise.then( ( homeLoad ) => {
-      //TODO: homeLoad.skyboxes.skyboxAssetURL
-      vm.initSkybox();
-      vm.setSkyboxMaterial( "ely_lakes", "lakes" );
+
+      if ( homeLoad.skyboxes && homeLoad.skyboxes.skyboxAssetURL ) {
+        vm.loadSkybox( homeLoad.skyboxes.skyboxAssetURL );
+      }
 
       var uroomID = homeLoad.defaultRoomID; //"659"
       vm.attr({
@@ -885,20 +907,7 @@ export const ViewModel = Map.extend({
     } else {
       scene.debugLayer.show();
     }
-  },
-
-  // TEMPORARY FUNCTIONS
-
-    static3DAssetPath: "/src/static/3d/",
-
-    resourcePath ( fileName ) {
-      return this.attr( "static3DAssetPath" ) + "Resources/" + fileName;
-    },
-    skyboxPath ( skyboxName, fileNamePrefix ) {
-      return this.attr( "static3DAssetPath" ) + "skybox/" + skyboxName + "/" + fileNamePrefix;
-    }
-    
-  // END TEMP FUNCTIONS
+  }
 });
 
 export const controls = {

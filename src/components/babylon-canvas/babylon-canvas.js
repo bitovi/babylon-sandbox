@@ -33,8 +33,6 @@ export const ViewModel = Map.extend({
       set ( newVal ) {
         if ( newVal ) {
           this.freezeShadowCalculations();
-          // The light naturally affects furniture & background so it's removed until scene fully loaded
-          this.attr("scene").addLight(this.attr("terrainLight"));
         }
         return newVal;
       }
@@ -203,18 +201,10 @@ export const ViewModel = Map.extend({
     objDirLightShadowGen.setDarkness( 0 );
     objDirLightShadowGen.bias *= 0.05;
 
-    // For the terrain only
-    let terrainLight = new BABYLON.DirectionalLight( "terrainLight", new BABYLON.Vector3( 1, 0 ,0 ), scene);
-    terrainLight.intensity = 0.425;
-    terrainLight.specular = BABYLON.Color3.Black();
-    // Add it back when the scene finished loading
-    scene.removeLight( terrainLight );
-
     this.attr({
       hemisphericLight,
       mainObjectDirLight,
-      objDirLightShadowGen,
-      terrainLight
+      objDirLightShadowGen
     });
   },
 
@@ -382,14 +372,15 @@ export const ViewModel = Map.extend({
       mesh.receiveShadows = true;
       mesh.collisionsEnabled = true;
 
-      if (itemInfo.terrain ){
-        // This forces the terrainLight to only work on the terrain
-        this.attr("terrainLight").includedOnlyMeshes.push(mesh);
+      if ( itemInfo.terrain ) {
         // Don't use hemispheric light for the terrain because it needs to have a different emissive color
-        this.attr("hemisphericLight").excludedMeshes.push(mesh);
+        //this.attr( "hemisphericLight" ).excludedMeshes.push( mesh );
+
         // Instead of the global ambient light (hemispheric) set the emissive color of the material
-        if (mesh.material){
-          mesh.material.emissiveColor = new BABYLON.Color3( 0.225, 0.225, 0.225 );
+        if ( mesh.material ) {
+          console.log( mesh );
+          //mesh.material.emissiveColor = new BABYLON.Color3( 0.225, 0.225, 0.225 );
+          mesh.material.ambientTexture = this.attr( "lightmapTerrain" );
         }
       } else if ( itemInfo.egoID ) {
         this.setEgoObjectDetails( mesh );
@@ -763,7 +754,6 @@ export const ViewModel = Map.extend({
     var arrayOfLoadedMaterials = data[ 0 ];
     var roomMeshSetDef = data[ 1 ];
     var unzippedMeshFiles = roomMeshSetDef.unzippedFiles;
-
     var lightmapLivingspace = this.attr( "lightmapLivingspace" );
 
     this.attr( "bgMeshes", [] );
@@ -771,9 +761,7 @@ export const ViewModel = Map.extend({
     for ( let i = 0; i < arrayOfLoadedMaterials.length; i++ ) {
       let curMaterial = arrayOfLoadedMaterials[ i ];
       let mat = this.createMaterial( curMaterial.internalName, curMaterial.unzippedFiles );
-
       mat.ambientTexture = lightmapLivingspace;
-      mat.ambientTexture.coordinatesIndex = 1; // Use UV channel 2
 
       curMaterial.attr( "instance", mat );
       //curMaterial.removeAttr( "unzippedFiles" );
@@ -787,6 +775,11 @@ export const ViewModel = Map.extend({
         BABYLON.SceneLoader.ImportMesh( "", "", "data:" + assetInfo.data, scene, bgMeshLoadedBound );
       }
     }
+  },
+
+  applyTerrainLightmaps () {
+    console.log( arguments );
+    this.attr( "lightmapTerrain" );
   },
 
   loadLightmaps ( lightmapBundleURL, debug ) {
@@ -809,16 +802,20 @@ export const ViewModel = Map.extend({
         if ( asset.type === "texture" ) {
           if ( asset.name === "livingspace.png" ) {
             let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapLivingspace", scene );
+            lm.coordinatesIndex = 1; // Use UV channel 2
             this.attr( "lightmapLivingspace", lm );
 
           } else if ( asset.name === "terrain.png" ) {
             let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapTerrain", scene );
+            lm.coordinatesIndex = 1; // Use UV channel 2
             this.attr( "lightmapTerrain",  lm );
 
           } else if ( debug && asset.name === "debug.png" ) {
             let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapLivingspace", scene );
+            lm.coordinatesIndex = 1; // Use UV channel 2
             this.attr( "lightmapLivingspace", lm );
             lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapTerrain", scene );
+            lm.coordinatesIndex = 1; // Use UV channel 2
             this.attr( "lightmapTerrain",  lm );
           }
         }
@@ -930,8 +927,9 @@ export const ViewModel = Map.extend({
         vm.roomLoad.bind( vm, uroomID )
       ).then(( arrOfRoomLoadResults ) => {
         return terrainProm.then(( terrainPromResults ) => {
+          vm.applyTerrainLightmaps( terrainPromResults );
           vm.attr( "homeLoadFinished", true );
-          return { arrOfRoomLoadResults, terrainProm };
+          return { arrOfRoomLoadResults, terrainPromResults };
         });
       });
     });

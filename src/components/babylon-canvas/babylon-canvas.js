@@ -33,11 +33,14 @@ export const ViewModel = Map.extend({
       set ( newVal ) {
         if ( newVal ) {
           this.freezeShadowCalculations();
+          this.freezeMaterials();
         }
         return newVal;
       }
     }
   },
+
+  skydomeMaterial: null,
 
   // This creates and positions a free camera
   initCamera () {
@@ -176,6 +179,30 @@ export const ViewModel = Map.extend({
 
   addToObjDirLightShadowGenerator ( mesh ) {
     this.attr( "objDirLightShadowGen" ).getShadowMap().renderList.push( mesh );
+  },
+
+  freezeMaterials(){
+    let materials = this.attr("scene").materials;
+    let skydomeMaterial = this.attr("skydomeMaterial");
+
+    for (let i = 0; i < materials.length; ++i){
+      let material = materials[i];
+      if (material !== skydomeMaterial){
+        material.freeze();
+      }
+    }
+  },
+
+  unfreezeMaterials(){
+    let materials = this.attr("scene").materials;
+    let skydomeMaterial = this.attr("skydomeMaterial");
+
+    for (let i = 0; i < materials.length; ++i){
+      let material = materials[i];
+      if (material !== skydomeMaterial){
+        material.unfreeze();
+      }
+    }
   },
 
   freezeShadowCalculations () {
@@ -334,6 +361,7 @@ export const ViewModel = Map.extend({
       let mat = mesh.material.subMaterials[ 0 ];
       mesh.material = mat.clone(); 
       mesh.material.diffuseTexture = new BABYLON.Texture( itemInfo.egoAlbumURL, this.attr( "scene" ) );
+      mesh.material.emissiveColor = new BABYLON.Color3( 0.2, 0.2, 0.2);
     } else if ( meshName == "ImageBacker" ) {
       let mat = mesh.material.subMaterials[ 0 ];
       mat.diffuseTexture = null;
@@ -353,6 +381,9 @@ export const ViewModel = Map.extend({
     };
 
     this.attr( "items" ).push( item );
+
+    let matMap = {};
+    let matMapCount = 0;
 
     for ( let i = 0; i < meshes.length; ++i ) {
       let mesh = meshes[ i ];
@@ -378,9 +409,53 @@ export const ViewModel = Map.extend({
 
         // Instead of the global ambient light (hemispheric) set the emissive color of the material
         if ( mesh.material ) {
-          console.log( mesh );
-          //mesh.material.emissiveColor = new BABYLON.Color3( 0.225, 0.225, 0.225 );
-          mesh.material.ambientTexture = this.attr( "lightmapTerrain" );
+
+          const uvcoords2 = mesh.getVertexBuffer( BABYLON.VertexBuffer.UV2Kind );
+
+
+
+          if (uvcoords2){
+            //console.log(mesh.parent.name);
+
+            if (!matMap[ mesh.material.name ]){
+              matMap[mesh.material.name] = true;
+              matMapCount++;
+            }
+
+            if (mesh.parent.name === "LS_27_Complex_001" && mesh.material.name === "LS_27_Shop_001_Mat0" ){
+              console.log( "SETTING SHOPS1: ", mesh.name);
+              //console.log(mesh.material.name);
+              mesh.material = mesh.material.clone();
+              mesh.material.ambientTexture = this.attr( "lightmapTerrain" )["shops1"];
+            }
+            else if (mesh.parent.name === "LS_27_Complex_002" || mesh.parent.name === "LS_27_Complex_003"){
+              //console.log( "SETTING SHOPS __ 2: ", mesh.name);
+              // mesh.material.ambientTexture = this.attr( "lightmapTerrain" )["shops2"];
+              //console.log(mesh.material.name);
+            }
+            else if (mesh.parent.name === "LS_27_GroundPlane"){
+              mesh.material.ambientTexture = this.attr( "lightmapTerrain")["floor"];
+            }
+            else if (mesh.material.name === "clouds_1000"){
+              //mesh.material.emissiveC
+              mesh.material.emissiveTexture = mesh.material.diffuseTexture;
+              mesh.material.hasAlpha = true;
+              // mesh.material.uOffset = 0;
+              // mesh.material.vOffset = 0;
+              // mesh.material.unfreeze();
+              this.attr("skydomeMaterial", mesh.material);
+              // console.log(mesh.material);
+              // mesh.material.uOffset += 0.5;
+              // mesh.material.vOffset += 0.5;
+
+
+            }
+            // else{
+            //   console.log( "NOT SETTING : " , mesh.name);
+            // }
+          }
+
+
         }
       } else if ( itemInfo.egoID ) {
         this.setEgoObjectDetails( mesh );
@@ -396,6 +471,11 @@ export const ViewModel = Map.extend({
         //vm.testSetPhysicsImpostor( mesh );
       }
     }
+
+    if (matMapCount > 0){
+      console.log(matMap);
+    }
+
 
     // Need to do this after the meshes loop because for the paintings it doesn't work inside the loop.
     for ( let i = 0; i < meshes.length; ++i ) {
@@ -732,10 +812,6 @@ export const ViewModel = Map.extend({
       mesh.collisionsEnabled = true;
       mesh.receiveShadows = true;
 
-      // Add only the ceiling mesh to cast shadow
-      if (mesh.name === "ShellOut_002"){
-        this.addToObjDirLightShadowGenerator(mesh);
-      }
 
       //mesh.position = new BABYLON.Vector3( 0, 0, 0 );
       //mesh.rotation = BABYLON.Quaternion.RotationYawPitchRoll( 0, 0, 0 );
@@ -783,9 +859,11 @@ export const ViewModel = Map.extend({
   },
 
   loadLightmaps ( lightmapBundleURL, debug ) {
-    if ( debug ) {
-      lightmapBundleURL = "https://cdn.testing.egowall.com/CDN_new/Game/Assetbundles/Lightmaps/debug.zip";
-    }
+    // if ( debug ) {
+      //lightmapBundleURL = "https://cdn.testing.egowall.com/CDN_new/Game/Assetbundles/Lightmaps/debug.zip";
+      lightmapBundleURL = "/src/static/3d/debug.zip";
+
+    // }
     var lightmapReq = new can.Map({
       lightmap: true,
       assetID: -333,
@@ -797,6 +875,9 @@ export const ViewModel = Map.extend({
       var scene = this.attr( "scene" );
       var unzippedAssets = assetData.unzippedFiles;
 
+      this.attr("lightmapTerrain", {});
+
+
       for ( let x = 0; x < unzippedAssets.length; x++ ) {
         let asset = unzippedAssets[ x ];
         if ( asset.type === "texture" ) {
@@ -805,10 +886,29 @@ export const ViewModel = Map.extend({
             lm.coordinatesIndex = 1; // Use UV channel 2
             this.attr( "lightmapLivingspace", lm );
 
-          } else if ( asset.name === "terrain.png" ) {
-            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapTerrain", scene );
+            setTimeout(() => {
+              const size = lm.getBaseSize();
+
+              lm.uOffset = -1.5 / (size.width * 2);
+              lm.vOffset = -1.5 / (size.height * 2);
+
+            }, 20);
+
+
+          } else if ( asset.name === "shops1.png" ) {
+            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapTerrainShops1", scene );
             lm.coordinatesIndex = 1; // Use UV channel 2
-            this.attr( "lightmapTerrain",  lm );
+            this.attr( "lightmapTerrain")[ "shops1" ] = lm;
+
+          } else if ( asset.name === "floor.png" ) {
+            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapTerrainShops2", scene );
+            lm.coordinatesIndex = 1; // Use UV channel 2
+            this.attr( "lightmapTerrain")[ "floor" ] = lm;
+
+          } else if ( asset.name === "shops2.png" ) {
+            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapTerrainFloor", scene );
+            lm.coordinatesIndex = 1; // Use UV channel 2
+            this.attr( "lightmapTerrain")[ "shops2" ] = lm;
 
           } else if ( debug && asset.name === "debug.png" ) {
             let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapLivingspace", scene );
@@ -1017,11 +1117,18 @@ export default Component.extend({
 
       var renderCount = 0;
       engine.runRenderLoop(function () {
+        // Convert deltaTime from milliseconds to seconds
+        const deltaTime = engine.deltaTime / 1000;
+
         vm.attr({
-          // Convert deltaTime from milliseconds to seconds
-          "deltaTime": engine.deltaTime / 1000,
+          "deltaTime": deltaTime,
           "renderCount": renderCount
         });
+
+        let skydomeMaterial = vm.attr("skydomeMaterial");
+        if ( skydomeMaterial ){
+          skydomeMaterial.diffuseTexture.uOffset += deltaTime * 0.0025;
+        }
 
         scene.render();
         renderCount = ( renderCount + 1 ) % 100;

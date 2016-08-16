@@ -782,13 +782,13 @@ export const ViewModel = Map.extend({
   },
 
   applyTerrainLightmaps () {
-    const meshes = this.attr("terrainMeshes");
+    let meshes = this.attr("terrainMeshes");
     const lightmapTerrain = this.attr("lightmapTerrain");
 
     let materialGroups = {};
 
     for (let i = 0; i < meshes.length; ++i){
-      const mesh = meshes[i];
+      let mesh = meshes[i];
 
       // 1. Check if material exists
       // 2. Check the tags

@@ -33,15 +33,21 @@ export const ViewModel = Map.extend({
       set ( newVal ) {
         if ( newVal ) {
           this.freezeShadowCalculations();
-          this.freezeMaterials();
+          // Do a setTimeour because applyTerrainMaterials doesn't work correctly if freezing materials before all the changes has gone through.
+          setTimeout( () => {
+            this.freezeMaterials();
+          }, 1);
         }
         return newVal;
       }
     }
   },
-
+  /**
+   * The skydome material to animate in the renderloop
+   */
   skydomeMaterial: null,
-
+  // A temporary array to gather all the terrain meshes for the applyTerrainLightmap function
+  terrainMeshes: [],
   // This creates and positions a free camera
   initCamera () {
     var scene = this.attr( "scene" );
@@ -187,7 +193,7 @@ export const ViewModel = Map.extend({
    */
   freezeMaterials(){
     let materials = this.attr("scene").materials;
-    let skydomeMaterial = this.attr("skydomeMaterial");
+    const skydomeMaterial = this.attr("skydomeMaterial");
 
     for (let i = 0; i < materials.length; ++i){
       let material = materials[i];
@@ -394,32 +400,8 @@ export const ViewModel = Map.extend({
       mesh.collisionsEnabled = true;
 
       if ( itemInfo.terrain ) {
-        // Don't use hemispheric light for the terrain because it needs to have a different emissive color
-        //this.attr( "hemisphericLight" ).excludedMeshes.push( mesh );
-
-        // Instead of the global ambient light (hemispheric) set the emissive color of the material
-        if ( mesh.material ) {
-          // Check for frontal building & materials with Shop_001_Mat0
-          // Because LS_27_Complex_001 also contains shopglass, shopsigns e.t.c.
-          if (mesh.parent.name === "LS_27_Complex_001" && mesh.material.name === "LS_27_Shop_001_Mat0" ){
-            // Because the buildings infront, left & right of window shares the same material it needs to be cloned.
-            mesh.material = mesh.material.clone();
-            mesh.material.ambientTexture = this.attr( "lightmapTerrain" )["shops1"];
-          }
-          // else if (mesh.parent.name === "LS_27_Complex_002" || mesh.parent.name === "LS_27_Complex_003"){
-          //   // mesh.material.ambientTexture = this.attr( "lightmapTerrain" )["shops2"];
-          // }
-          else if (mesh.parent.name === "LS_27_GroundPlane"){
-            mesh.material.ambientTexture = this.attr( "lightmapTerrain")["floor"];
-          } else if (mesh.material.name === "clouds_1000"){
-            // Unlit texture also don't set diffuseTexture to null because the boolean:
-            // "useDiffuseAsAlpha" = true
-            // Could possibly refactor and use opacity texture instead
-            mesh.material.emissiveTexture = mesh.material.diffuseTexture;
-            // Set the skydomeMaterial variable so it can be animated
-            this.attr("skydomeMaterial", mesh.material);
-          }
-        }
+        // Add the mesh to terrainMeshes to later in applyTerrainLightmap() foreach to setup the lightmap materials
+        this.attr("terrainMeshes").push(mesh);
       } else if ( itemInfo.egoID ) {
         this.setEgoObjectDetails( mesh );
       } else {
@@ -519,6 +501,9 @@ export const ViewModel = Map.extend({
   },
 
   loadTerrain ( terrainURL ) {
+
+    // terrainURL = "/src/static/3d/terraintest.zip";
+
     var terrain = new can.Map({
       terrain: true,
       assetID: -222,
@@ -725,11 +710,6 @@ export const ViewModel = Map.extend({
 
       mesh.material = matConst.instance.clone();
 
-      // Need to disable backfaceCulling or the shadow generator can't see the roof
-      if (mesh.name === "ShellOut_002"){
-        mesh.material.backFaceCulling = false;
-      }
-
     } else {
       this.testHardcodedMaterials( mesh );
     }
@@ -769,15 +749,6 @@ export const ViewModel = Map.extend({
       mesh.collisionsEnabled = true;
       mesh.receiveShadows = true;
 
-
-      //mesh.position = new BABYLON.Vector3( 0, 0, 0 );
-      //mesh.rotation = BABYLON.Quaternion.RotationYawPitchRoll( 0, 0, 0 );
-      //let positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
-      //let normals = mesh.getVerticesData( BABYLON.VertexBuffer.NormalKind );
-
-      //BABYLON.VertexData.ComputeNormals( positions, mesh.getIndices(), normals );
-      //mesh.setVerticesData(BABYLON.VertexBuffer.NormalKind, normals);
-
       this.bgMeshSetMaterial ( mesh, roomInfo );
     }
   },
@@ -811,8 +782,98 @@ export const ViewModel = Map.extend({
   },
 
   applyTerrainLightmaps () {
-    console.log( arguments );
-    this.attr( "lightmapTerrain" );
+    const meshes = this.attr("terrainMeshes");
+    const lightmapTerrain = this.attr("lightmapTerrain");
+
+    let materialGroups = {};
+
+    for (let i = 0; i < meshes.length; ++i){
+      const mesh = meshes[i];
+
+      // 1. Check if material exists
+      // 2. Check the tags
+      // 3. Check if the texture for that lightmap tag exists
+      // 4. Check materialId + lightmapId already exists ( If parentId is null then use meshId )
+      //    4a. If exists then add mesh to meshes
+      //    4b. If not then create new group
+      if (mesh.material){
+        const lightmapId = mesh._tags ? Object.keys( mesh._tags )[ 0 ].replace( "lightmap_", "" ) : "";
+
+        if (lightmapId != ""){
+          // Check if the lightmap exists as a file
+          if (lightmapTerrain[ lightmapId ]){
+            // Creates a key like "xxxx-xxxx-xxxx-xxxxxxterrainfloor (GUID + lmId)
+            const key = mesh.material.id + lightmapId;
+            // If the group already exists then just add the mesh
+            if (materialGroups[ key ]){
+              materialGroups[ key ].meshes.push( mesh );
+            } else {
+              // Otherwise create the group
+              materialGroups[ key ] = {
+                meshes: [ mesh ],
+                material: mesh.material,
+                // LightmapId is important since the key is materialId + lightmapId
+                lightmapId: lightmapId
+              };
+            }
+          }
+        }
+        // If no lightmap id then check for clouds material
+        else if (mesh.material.name === "clouds_1000" ){
+          // Unlit texture also don't set diffuseTexture to null because the boolean:
+          mesh.material.emissiveTexture = mesh.material.diffuseTexture;
+          // Set the skydomeMaterial variable so it can be animated
+          this.attr("skydomeMaterial", mesh.material);
+        }
+      }
+    }
+
+    // 1. Check if the material's binded meshes all exist
+    // 2. If one binded mesh doesn't exist then the material needs to be cloned
+    // 3. If the binded meshes are all in group.meshes then set the lightmap directly without cloning material
+    for (const key in materialGroups){
+      let group = materialGroups[ key ];
+      // The lightmap texture to use
+      const lm = lightmapTerrain[ group.lightmapId ];
+
+      let meshes = group.meshes;
+      let material = group.material;
+      const bindedMeshes = material.getBindedMeshes();
+
+      let needClone = false;
+      // Go over all the bindedMeshes and see if they are part of the meshes for this material
+      for (let i = 0; i < bindedMeshes.length; ++i){
+        let found = false;
+        const bindedMesh = bindedMeshes[i];
+        // Check if the bindedMesh isn't part of groups.meshes
+        // If it's not part of the groups.meshes then the material needs to be cloned as a different lightmap or no lightmap atall is expected
+        for (let j = 0; j < meshes.length; ++j){
+          if (bindedMesh === meshes[j]){
+            found = true;
+            break;
+          }
+        }
+        // If no mesh was found then we need to copy the material
+        if (!found){
+          needClone = true;
+          break;
+        }
+      }
+      // Clone the material if needed and set it for all the meshes
+      if (needClone){
+        material = material.clone();
+        material.ambientTexture = lm;
+        for (let i = 0; i < meshes.length; ++i){
+          meshes[i].material = material;
+        }
+      // If no cloning use the lightmap directly
+      } else {
+        material.ambientTexture = lm;
+      }
+    }
+
+    // Finally remove the array:
+    this.attr("terrainMeshes", null);
   },
 
   loadLightmaps ( lightmapBundleURL, debug ) {
@@ -834,7 +895,6 @@ export const ViewModel = Map.extend({
 
       this.attr("lightmapTerrain", {});
 
-
       for ( let x = 0; x < unzippedAssets.length; x++ ) {
         let asset = unzippedAssets[ x ];
         if ( asset.type === "texture" ) {
@@ -852,29 +912,24 @@ export const ViewModel = Map.extend({
               lm.vOffset = -1.5 / (size.height * 2);
             }, 1);
           // Create the lightmapTerrain entries for shops1.png, shops2.png and floor.png
-          } else if ( asset.name === "shops1.png" ) {
-            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapTerrainShops1", scene );
-            lm.coordinatesIndex = 1; // Use UV channel 2
-            this.attr( "lightmapTerrain")[ "shops1" ] = lm;
+          } else {
+            // length -4 should cover our usecase but if we change to .jpeg for some reason we need to check the actual extensions length!
+            // Example: terrainfloor.png => terrainfloor as key name
+            const terrainLmName = asset.name.substring( 0, asset.name.length - 4 );
 
-          } else if ( asset.name === "floor.png" ) {
-            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapTerrainShops2", scene );
-            lm.coordinatesIndex = 1; // Use UV channel 2
-            this.attr( "lightmapTerrain")[ "floor" ] = lm;
-
-          } else if ( asset.name === "shops2.png" ) {
-            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapTerrainFloor", scene );
-            lm.coordinatesIndex = 1; // Use UV channel 2
-            this.attr( "lightmapTerrain")[ "shops2" ] = lm;
-
-          } else if ( debug && asset.name === "debug.png" ) {
-            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapLivingspace", scene );
-            lm.coordinatesIndex = 1; // Use UV channel 2
-            this.attr( "lightmapLivingspace", lm );
-            lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapTerrain", scene );
-            lm.coordinatesIndex = 1; // Use UV channel 2
-            this.attr( "lightmapTerrain",  lm );
+            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, terrainLmName, scene );
+            lm.coordinatesIndex = 1;
+            this.attr( "lightmapTerrain" )[ terrainLmName ] = lm;
           }
+
+          // if ( debug && asset.name === "debug.png" ) {
+          //   let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapLivingspace", scene );
+          //   lm.coordinatesIndex = 1; // Use UV channel 2
+          //   this.attr( "lightmapLivingspace", lm );
+          //   lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapTerrain", scene );
+          //   lm.coordinatesIndex = 1; // Use UV channel 2
+          //   this.attr( "lightmapTerrain",  lm );
+          // }
         }
       }
     });

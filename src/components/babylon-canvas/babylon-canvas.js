@@ -181,6 +181,10 @@ export const ViewModel = Map.extend({
     this.attr( "objDirLightShadowGen" ).getShadowMap().renderList.push( mesh );
   },
 
+  // Note: If more materials are needed to be unfrozen then a list / flag should be used
+  /**
+   * Freeze all materials except the skydome material
+   */
   freezeMaterials(){
     let materials = this.attr("scene").materials;
     let skydomeMaterial = this.attr("skydomeMaterial");
@@ -189,18 +193,6 @@ export const ViewModel = Map.extend({
       let material = materials[i];
       if (material !== skydomeMaterial){
         material.freeze();
-      }
-    }
-  },
-
-  unfreezeMaterials(){
-    let materials = this.attr("scene").materials;
-    let skydomeMaterial = this.attr("skydomeMaterial");
-
-    for (let i = 0; i < materials.length; ++i){
-      let material = materials[i];
-      if (material !== skydomeMaterial){
-        material.unfreeze();
       }
     }
   },
@@ -361,6 +353,7 @@ export const ViewModel = Map.extend({
       let mat = mesh.material.subMaterials[ 0 ];
       mesh.material = mat.clone(); 
       mesh.material.diffuseTexture = new BABYLON.Texture( itemInfo.egoAlbumURL, this.attr( "scene" ) );
+      // Make the imageplane a bit backlit. Numbers need tweaking for desired backlitness
       mesh.material.emissiveColor = new BABYLON.Color3( 0.2, 0.2, 0.2);
     } else if ( meshName == "ImageBacker" ) {
       let mat = mesh.material.subMaterials[ 0 ];
@@ -381,9 +374,6 @@ export const ViewModel = Map.extend({
     };
 
     this.attr( "items" ).push( item );
-
-    let matMap = {};
-    let matMapCount = 0;
 
     for ( let i = 0; i < meshes.length; ++i ) {
       let mesh = meshes[ i ];
@@ -409,53 +399,26 @@ export const ViewModel = Map.extend({
 
         // Instead of the global ambient light (hemispheric) set the emissive color of the material
         if ( mesh.material ) {
-
-          const uvcoords2 = mesh.getVertexBuffer( BABYLON.VertexBuffer.UV2Kind );
-
-
-
-          if (uvcoords2){
-            //console.log(mesh.parent.name);
-
-            if (!matMap[ mesh.material.name ]){
-              matMap[mesh.material.name] = true;
-              matMapCount++;
-            }
-
-            if (mesh.parent.name === "LS_27_Complex_001" && mesh.material.name === "LS_27_Shop_001_Mat0" ){
-              console.log( "SETTING SHOPS1: ", mesh.name);
-              //console.log(mesh.material.name);
-              mesh.material = mesh.material.clone();
-              mesh.material.ambientTexture = this.attr( "lightmapTerrain" )["shops1"];
-            }
-            else if (mesh.parent.name === "LS_27_Complex_002" || mesh.parent.name === "LS_27_Complex_003"){
-              //console.log( "SETTING SHOPS __ 2: ", mesh.name);
-              // mesh.material.ambientTexture = this.attr( "lightmapTerrain" )["shops2"];
-              //console.log(mesh.material.name);
-            }
-            else if (mesh.parent.name === "LS_27_GroundPlane"){
-              mesh.material.ambientTexture = this.attr( "lightmapTerrain")["floor"];
-            }
-            else if (mesh.material.name === "clouds_1000"){
-              //mesh.material.emissiveC
-              mesh.material.emissiveTexture = mesh.material.diffuseTexture;
-              mesh.material.hasAlpha = true;
-              // mesh.material.uOffset = 0;
-              // mesh.material.vOffset = 0;
-              // mesh.material.unfreeze();
-              this.attr("skydomeMaterial", mesh.material);
-              // console.log(mesh.material);
-              // mesh.material.uOffset += 0.5;
-              // mesh.material.vOffset += 0.5;
-
-
-            }
-            // else{
-            //   console.log( "NOT SETTING : " , mesh.name);
-            // }
+          // Check for frontal building & materials with Shop_001_Mat0
+          // Because LS_27_Complex_001 also contains shopglass, shopsigns e.t.c.
+          if (mesh.parent.name === "LS_27_Complex_001" && mesh.material.name === "LS_27_Shop_001_Mat0" ){
+            // Because the buildings infront, left & right of window shares the same material it needs to be cloned.
+            mesh.material = mesh.material.clone();
+            mesh.material.ambientTexture = this.attr( "lightmapTerrain" )["shops1"];
           }
-
-
+          // else if (mesh.parent.name === "LS_27_Complex_002" || mesh.parent.name === "LS_27_Complex_003"){
+          //   // mesh.material.ambientTexture = this.attr( "lightmapTerrain" )["shops2"];
+          // }
+          else if (mesh.parent.name === "LS_27_GroundPlane"){
+            mesh.material.ambientTexture = this.attr( "lightmapTerrain")["floor"];
+          } else if (mesh.material.name === "clouds_1000"){
+            // Unlit texture also don't set diffuseTexture to null because the boolean:
+            // "useDiffuseAsAlpha" = true
+            // Could possibly refactor and use opacity texture instead
+            mesh.material.emissiveTexture = mesh.material.diffuseTexture;
+            // Set the skydomeMaterial variable so it can be animated
+            this.attr("skydomeMaterial", mesh.material);
+          }
         }
       } else if ( itemInfo.egoID ) {
         this.setEgoObjectDetails( mesh );
@@ -471,12 +434,6 @@ export const ViewModel = Map.extend({
         //vm.testSetPhysicsImpostor( mesh );
       }
     }
-
-    if (matMapCount > 0){
-      console.log(matMap);
-    }
-
-
     // Need to do this after the meshes loop because for the paintings it doesn't work inside the loop.
     for ( let i = 0; i < meshes.length; ++i ) {
       meshes[i].freezeWorldMatrix();
@@ -886,15 +843,15 @@ export const ViewModel = Map.extend({
             lm.coordinatesIndex = 1; // Use UV channel 2
             this.attr( "lightmapLivingspace", lm );
 
+            // Use settimeout because getBaseSize() is 0 if used right away
             setTimeout(() => {
+              // Move the texture 0.75 of a pixel to properly position them.
+              // This fixes the wrong corners for the livingspace lightmap
               const size = lm.getBaseSize();
-
               lm.uOffset = -1.5 / (size.width * 2);
               lm.vOffset = -1.5 / (size.height * 2);
-
-            }, 20);
-
-
+            }, 1);
+          // Create the lightmapTerrain entries for shops1.png, shops2.png and floor.png
           } else if ( asset.name === "shops1.png" ) {
             let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapTerrainShops1", scene );
             lm.coordinatesIndex = 1; // Use UV channel 2
@@ -1125,8 +1082,10 @@ export default Component.extend({
           "renderCount": renderCount
         });
 
+        // Animate the skydome by moving the clouds slowly
         let skydomeMaterial = vm.attr("skydomeMaterial");
         if ( skydomeMaterial ){
+          // Moving the cloud 1 cycle over 400 seconds
           skydomeMaterial.diffuseTexture.uOffset += deltaTime * 0.0025;
         }
 

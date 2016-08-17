@@ -33,6 +33,10 @@ export const ViewModel = Map.extend({
       set ( newVal ) {
         if ( newVal ) {
           this.freezeShadowCalculations();
+          // Fixes unity's lightmap displacement
+          // Need to do this here because ambientTexture.getBaseSize()  is 0 if done too early.
+          this.bgUpdateLightmapsOffset();
+
           // Do a setTimeour because applyTerrainMaterials doesn't work correctly if freezing materials before all the changes has gone through.
           setTimeout( () => {
             this.freezeMaterials();
@@ -220,7 +224,6 @@ export const ViewModel = Map.extend({
     hemisphericLight.intensity = 0.85;
 
     var mainObjectDirLight = new BABYLON.DirectionalLight( "dirlight1", new BABYLON.Vector3( 0, -1, 0 ), scene );
-    mainObjectDirLight.intensity = 0.5;
 
     var objDirLightShadowGen = new BABYLON.ShadowGenerator( 1024, mainObjectDirLight );
     objDirLightShadowGen.setDarkness( 0 );
@@ -502,8 +505,6 @@ export const ViewModel = Map.extend({
 
   loadTerrain ( terrainURL ) {
 
-    // terrainURL = "/src/static/3d/terraintest.zip";
-
     var terrain = new can.Map({
       terrain: true,
       assetID: -222,
@@ -740,6 +741,26 @@ export const ViewModel = Map.extend({
     }
   },
 
+  /**
+   * The function fixes the UV offset that unity has added in its lightmap.exr file.
+   * Unity uses a displacement of 0.5 pixels and I tried 0.5 pixels first but it still had tiny hard surface
+   * The magic number for this was 0.75 pixel displacement to fix the livingspace's corners
+   */
+  bgUpdateLightmapsOffset(){
+    let bgMeshes = this.attr("bgMeshes");
+
+    for (let i = 0; i < bgMeshes.length; ++i){
+       let material = bgMeshes[i].material;
+      if (material && material.ambientTexture){
+        // Move the texture 0.75 of a pixel to properly position them.
+        // This fixes the wrong corners for the livingspace lightmap
+        const size = material.ambientTexture.getBaseSize();
+        material.ambientTexture.uOffset = -0.75 / (size.width);
+        material.ambientTexture.vOffset = -0.75 / (size.height);
+      }
+    }
+  },
+
   bgMeshLoaded ( itemInfo, babylonName, meshes ) {
     var uroomID = this.attr( "uroomID" );
     var roomInfo = this.roomInfo( uroomID );
@@ -765,8 +786,8 @@ export const ViewModel = Map.extend({
     for ( let i = 0; i < arrayOfLoadedMaterials.length; i++ ) {
       let curMaterial = arrayOfLoadedMaterials[ i ];
       let mat = this.createMaterial( curMaterial.internalName, curMaterial.unzippedFiles );
-      mat.ambientTexture = lightmapLivingspace;
 
+      mat.ambientTexture = lightmapLivingspace;
       curMaterial.attr( "instance", mat );
       //curMaterial.removeAttr( "unzippedFiles" );
     }
@@ -876,12 +897,7 @@ export const ViewModel = Map.extend({
     this.attr("terrainMeshes", null);
   },
 
-  loadLightmaps ( lightmapBundleURL, debug ) {
-    // if ( debug ) {
-      //lightmapBundleURL = "https://cdn.testing.egowall.com/CDN_new/Game/Assetbundles/Lightmaps/debug.zip";
-      lightmapBundleURL = "/src/static/3d/debug.zip";
-
-    // }
+  loadLightmaps ( lightmapBundleURL ) {
     var lightmapReq = new can.Map({
       lightmap: true,
       assetID: -333,
@@ -902,16 +918,7 @@ export const ViewModel = Map.extend({
             let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapLivingspace", scene );
             lm.coordinatesIndex = 1; // Use UV channel 2
             this.attr( "lightmapLivingspace", lm );
-
-            // Use settimeout because getBaseSize() is 0 if used right away
-            setTimeout(() => {
-              // Move the texture 0.75 of a pixel to properly position them.
-              // This fixes the wrong corners for the livingspace lightmap
-              const size = lm.getBaseSize();
-              lm.uOffset = -1.5 / (size.width * 2);
-              lm.vOffset = -1.5 / (size.height * 2);
-            }, 1);
-          // Create the lightmapTerrain entries for shops1.png, shops2.png and floor.png
+          // Create the lightmapTerrain entries for terrainshops1.png, terrainshops2.png and terrainfloor.png
           } else {
             // length -4 should cover our usecase but if we change to .jpeg for some reason we need to check the actual extensions length!
             // Example: terrainfloor.png => terrainfloor as key name
@@ -921,15 +928,6 @@ export const ViewModel = Map.extend({
             lm.coordinatesIndex = 1;
             this.attr( "lightmapTerrain" )[ terrainLmName ] = lm;
           }
-
-          // if ( debug && asset.name === "debug.png" ) {
-          //   let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapLivingspace", scene );
-          //   lm.coordinatesIndex = 1; // Use UV channel 2
-          //   this.attr( "lightmapLivingspace", lm );
-          //   lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapTerrain", scene );
-          //   lm.coordinatesIndex = 1; // Use UV channel 2
-          //   this.attr( "lightmapTerrain",  lm );
-          // }
         }
       }
     });
@@ -1020,7 +1018,7 @@ export const ViewModel = Map.extend({
         vm.loadAllNeededMaterialConstants.bind( vm, meshes )
       );
 
-      var lightmapsProm = vm.loadLightmaps( homeLoad.lightmaps.lightmapAssetURL, false );
+      var lightmapsProm = vm.loadLightmaps( homeLoad.lightmaps.lightmapAssetURL );
 
       var roomAssetURL = vm.roomAssetURL( uroomID );
       //TODO: use real roomAssetURL to load the backgroundMesh or change service

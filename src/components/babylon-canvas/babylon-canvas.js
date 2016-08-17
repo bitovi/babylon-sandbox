@@ -33,12 +33,25 @@ export const ViewModel = Map.extend({
       set ( newVal ) {
         if ( newVal ) {
           this.freezeShadowCalculations();
+          // Fixes unity's lightmap displacement
+          // Need to do this here because ambientTexture.getBaseSize()  is 0 if done too early.
+          this.bgUpdateLightmapsOffset();
+
+          // Do a setTimeour because applyTerrainMaterials doesn't work correctly if freezing materials before all the changes has gone through.
+          setTimeout( () => {
+            this.freezeMaterials();
+          }, 1);
         }
         return newVal;
       }
     }
   },
-
+  /**
+   * The skydome material to animate in the renderloop
+   */
+  skydomeMaterial: null,
+  // A temporary array to gather all the terrain meshes for the applyTerrainLightmap function
+  terrainMeshes: [],
   // This creates and positions a free camera
   initCamera () {
     var scene = this.attr( "scene" );
@@ -178,6 +191,22 @@ export const ViewModel = Map.extend({
     this.attr( "objDirLightShadowGen" ).getShadowMap().renderList.push( mesh );
   },
 
+  // Note: If more materials are needed to be unfrozen then a list / flag should be used
+  /**
+   * Freeze all materials except the skydome material
+   */
+  freezeMaterials(){
+    let materials = this.attr("scene").materials;
+    const skydomeMaterial = this.attr("skydomeMaterial");
+
+    for (let i = 0; i < materials.length; ++i){
+      let material = materials[i];
+      if (material !== skydomeMaterial){
+        material.freeze();
+      }
+    }
+  },
+
   freezeShadowCalculations () {
     this.attr( "objDirLightShadowGen" ).getShadowMap().refreshRate = 0;
   },
@@ -195,7 +224,6 @@ export const ViewModel = Map.extend({
     hemisphericLight.intensity = 0.85;
 
     var mainObjectDirLight = new BABYLON.DirectionalLight( "dirlight1", new BABYLON.Vector3( 0, -1, 0 ), scene );
-    mainObjectDirLight.intensity = 0.5;
 
     var objDirLightShadowGen = new BABYLON.ShadowGenerator( 1024, mainObjectDirLight );
     objDirLightShadowGen.setDarkness( 0 );
@@ -334,6 +362,8 @@ export const ViewModel = Map.extend({
       let mat = mesh.material.subMaterials[ 0 ];
       mesh.material = mat.clone(); 
       mesh.material.diffuseTexture = new BABYLON.Texture( itemInfo.egoAlbumURL, this.attr( "scene" ) );
+      // Make the imageplane a bit backlit. Numbers need tweaking for desired backlitness
+      mesh.material.emissiveColor = new BABYLON.Color3( 0.2, 0.2, 0.2);
     } else if ( meshName == "ImageBacker" ) {
       let mat = mesh.material.subMaterials[ 0 ];
       mat.diffuseTexture = null;
@@ -373,15 +403,8 @@ export const ViewModel = Map.extend({
       mesh.collisionsEnabled = true;
 
       if ( itemInfo.terrain ) {
-        // Don't use hemispheric light for the terrain because it needs to have a different emissive color
-        //this.attr( "hemisphericLight" ).excludedMeshes.push( mesh );
-
-        // Instead of the global ambient light (hemispheric) set the emissive color of the material
-        if ( mesh.material ) {
-          console.log( mesh );
-          //mesh.material.emissiveColor = new BABYLON.Color3( 0.225, 0.225, 0.225 );
-          mesh.material.ambientTexture = this.attr( "lightmapTerrain" );
-        }
+        // Add the mesh to terrainMeshes to later in applyTerrainLightmap() foreach to setup the lightmap materials
+        this.attr("terrainMeshes").push(mesh);
       } else if ( itemInfo.egoID ) {
         this.setEgoObjectDetails( mesh );
       } else {
@@ -396,7 +419,6 @@ export const ViewModel = Map.extend({
         //vm.testSetPhysicsImpostor( mesh );
       }
     }
-
     // Need to do this after the meshes loop because for the paintings it doesn't work inside the loop.
     for ( let i = 0; i < meshes.length; ++i ) {
       meshes[i].freezeWorldMatrix();
@@ -482,6 +504,7 @@ export const ViewModel = Map.extend({
   },
 
   loadTerrain ( terrainURL ) {
+
     var terrain = new can.Map({
       terrain: true,
       assetID: -222,
@@ -688,11 +711,6 @@ export const ViewModel = Map.extend({
 
       mesh.material = matConst.instance.clone();
 
-      // Need to disable backfaceCulling or the shadow generator can't see the roof
-      if (mesh.name === "ShellOut_002"){
-        mesh.material.backFaceCulling = false;
-      }
-
     } else {
       this.testHardcodedMaterials( mesh );
     }
@@ -723,6 +741,26 @@ export const ViewModel = Map.extend({
     }
   },
 
+  /**
+   * The function fixes the UV offset that unity has added in its lightmap.exr file.
+   * Unity uses a displacement of 0.5 pixels and I tried 0.5 pixels first but it still had tiny hard surface
+   * The magic number for this was 0.75 pixel displacement to fix the livingspace's corners
+   */
+  bgUpdateLightmapsOffset(){
+    let bgMeshes = this.attr("bgMeshes");
+
+    for (let i = 0; i < bgMeshes.length; ++i){
+       let material = bgMeshes[i].material;
+      if (material && material.ambientTexture){
+        // Move the texture 0.75 of a pixel to properly position them.
+        // This fixes the wrong corners for the livingspace lightmap
+        const size = material.ambientTexture.getBaseSize();
+        material.ambientTexture.uOffset = -0.75 / (size.width);
+        material.ambientTexture.vOffset = -0.75 / (size.height);
+      }
+    }
+  },
+
   bgMeshLoaded ( itemInfo, babylonName, meshes ) {
     var uroomID = this.attr( "uroomID" );
     var roomInfo = this.roomInfo( uroomID );
@@ -731,19 +769,6 @@ export const ViewModel = Map.extend({
       let mesh = meshes[ i ];
       mesh.collisionsEnabled = true;
       mesh.receiveShadows = true;
-
-      // Add only the ceiling mesh to cast shadow
-      if (mesh.name === "ShellOut_002"){
-        this.addToObjDirLightShadowGenerator(mesh);
-      }
-
-      //mesh.position = new BABYLON.Vector3( 0, 0, 0 );
-      //mesh.rotation = BABYLON.Quaternion.RotationYawPitchRoll( 0, 0, 0 );
-      //let positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
-      //let normals = mesh.getVerticesData( BABYLON.VertexBuffer.NormalKind );
-
-      //BABYLON.VertexData.ComputeNormals( positions, mesh.getIndices(), normals );
-      //mesh.setVerticesData(BABYLON.VertexBuffer.NormalKind, normals);
 
       this.bgMeshSetMaterial ( mesh, roomInfo );
     }
@@ -761,8 +786,8 @@ export const ViewModel = Map.extend({
     for ( let i = 0; i < arrayOfLoadedMaterials.length; i++ ) {
       let curMaterial = arrayOfLoadedMaterials[ i ];
       let mat = this.createMaterial( curMaterial.internalName, curMaterial.unzippedFiles );
-      mat.ambientTexture = lightmapLivingspace;
 
+      mat.ambientTexture = lightmapLivingspace;
       curMaterial.attr( "instance", mat );
       //curMaterial.removeAttr( "unzippedFiles" );
     }
@@ -778,14 +803,101 @@ export const ViewModel = Map.extend({
   },
 
   applyTerrainLightmaps () {
-    console.log( arguments );
-    this.attr( "lightmapTerrain" );
+    let meshes = this.attr("terrainMeshes");
+    const lightmapTerrain = this.attr("lightmapTerrain");
+
+    let materialGroups = {};
+
+    for (let i = 0; i < meshes.length; ++i){
+      let mesh = meshes[i];
+
+      // 1. Check if material exists
+      // 2. Check the tags
+      // 3. Check if the texture for that lightmap tag exists
+      // 4. Check materialId + lightmapId already exists ( If parentId is null then use meshId )
+      //    4a. If exists then add mesh to meshes
+      //    4b. If not then create new group
+      if (mesh.material){
+        const lightmapId = mesh._tags ? Object.keys( mesh._tags )[ 0 ].replace( "lightmap_", "" ) : "";
+
+        if (lightmapId != ""){
+          // Check if the lightmap exists as a file
+          if (lightmapTerrain[ lightmapId ]){
+            // Creates a key like "xxxx-xxxx-xxxx-xxxxxxterrainfloor (GUID + lmId)
+            const key = mesh.material.id + lightmapId;
+            // If the group already exists then just add the mesh
+            if (materialGroups[ key ]){
+              materialGroups[ key ].meshes.push( mesh );
+            } else {
+              // Otherwise create the group
+              materialGroups[ key ] = {
+                meshes: [ mesh ],
+                material: mesh.material,
+                // LightmapId is important since the key is materialId + lightmapId
+                lightmapId: lightmapId
+              };
+            }
+          }
+        }
+        // If no lightmap id then check for clouds material
+        else if (mesh.material.name === "clouds_1000" ){
+          // Unlit texture also don't set diffuseTexture to null because the boolean:
+          mesh.material.emissiveTexture = mesh.material.diffuseTexture;
+          // Set the skydomeMaterial variable so it can be animated
+          this.attr("skydomeMaterial", mesh.material);
+        }
+      }
+    }
+
+    // 1. Check if the material's binded meshes all exist
+    // 2. If one binded mesh doesn't exist then the material needs to be cloned
+    // 3. If the binded meshes are all in group.meshes then set the lightmap directly without cloning material
+    for (const key in materialGroups){
+      let group = materialGroups[ key ];
+      // The lightmap texture to use
+      const lm = lightmapTerrain[ group.lightmapId ];
+
+      let meshes = group.meshes;
+      let material = group.material;
+      const bindedMeshes = material.getBindedMeshes();
+
+      let needClone = false;
+      // Go over all the bindedMeshes and see if they are part of the meshes for this material
+      for (let i = 0; i < bindedMeshes.length; ++i){
+        let found = false;
+        const bindedMesh = bindedMeshes[i];
+        // Check if the bindedMesh isn't part of groups.meshes
+        // If it's not part of the groups.meshes then the material needs to be cloned as a different lightmap or no lightmap atall is expected
+        for (let j = 0; j < meshes.length; ++j){
+          if (bindedMesh === meshes[j]){
+            found = true;
+            break;
+          }
+        }
+        // If no mesh was found then we need to copy the material
+        if (!found){
+          needClone = true;
+          break;
+        }
+      }
+      // Clone the material if needed and set it for all the meshes
+      if (needClone){
+        material = material.clone();
+        material.ambientTexture = lm;
+        for (let i = 0; i < meshes.length; ++i){
+          meshes[i].material = material;
+        }
+      // If no cloning use the lightmap directly
+      } else {
+        material.ambientTexture = lm;
+      }
+    }
+
+    // Finally remove the array:
+    this.attr("terrainMeshes", null);
   },
 
-  loadLightmaps ( lightmapBundleURL, debug ) {
-    if ( debug ) {
-      lightmapBundleURL = "https://cdn.testing.egowall.com/CDN_new/Game/Assetbundles/Lightmaps/debug.zip";
-    }
+  loadLightmaps ( lightmapBundleURL ) {
     var lightmapReq = new can.Map({
       lightmap: true,
       assetID: -333,
@@ -797,6 +909,8 @@ export const ViewModel = Map.extend({
       var scene = this.attr( "scene" );
       var unzippedAssets = assetData.unzippedFiles;
 
+      this.attr("lightmapTerrain", {});
+
       for ( let x = 0; x < unzippedAssets.length; x++ ) {
         let asset = unzippedAssets[ x ];
         if ( asset.type === "texture" ) {
@@ -804,19 +918,15 @@ export const ViewModel = Map.extend({
             let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapLivingspace", scene );
             lm.coordinatesIndex = 1; // Use UV channel 2
             this.attr( "lightmapLivingspace", lm );
+          // Create the lightmapTerrain entries for terrainshops1.png, terrainshops2.png and terrainfloor.png
+          } else {
+            // length -4 should cover our usecase but if we change to .jpeg for some reason we need to check the actual extensions length!
+            // Example: terrainfloor.png => terrainfloor as key name
+            const terrainLmName = asset.name.substring( 0, asset.name.length - 4 );
 
-          } else if ( asset.name === "terrain.png" ) {
-            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapTerrain", scene );
-            lm.coordinatesIndex = 1; // Use UV channel 2
-            this.attr( "lightmapTerrain",  lm );
-
-          } else if ( debug && asset.name === "debug.png" ) {
-            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapLivingspace", scene );
-            lm.coordinatesIndex = 1; // Use UV channel 2
-            this.attr( "lightmapLivingspace", lm );
-            lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapTerrain", scene );
-            lm.coordinatesIndex = 1; // Use UV channel 2
-            this.attr( "lightmapTerrain",  lm );
+            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, terrainLmName, scene );
+            lm.coordinatesIndex = 1;
+            this.attr( "lightmapTerrain" )[ terrainLmName ] = lm;
           }
         }
       }
@@ -908,7 +1018,7 @@ export const ViewModel = Map.extend({
         vm.loadAllNeededMaterialConstants.bind( vm, meshes )
       );
 
-      var lightmapsProm = vm.loadLightmaps( homeLoad.lightmaps.lightmapAssetURL, false );
+      var lightmapsProm = vm.loadLightmaps( homeLoad.lightmaps.lightmapAssetURL );
 
       var roomAssetURL = vm.roomAssetURL( uroomID );
       //TODO: use real roomAssetURL to load the backgroundMesh or change service
@@ -1017,11 +1127,20 @@ export default Component.extend({
 
       var renderCount = 0;
       engine.runRenderLoop(function () {
+        // Convert deltaTime from milliseconds to seconds
+        const deltaTime = engine.deltaTime / 1000;
+
         vm.attr({
-          // Convert deltaTime from milliseconds to seconds
-          "deltaTime": engine.deltaTime / 1000,
+          "deltaTime": deltaTime,
           "renderCount": renderCount
         });
+
+        // Animate the skydome by moving the clouds slowly
+        let skydomeMaterial = vm.attr("skydomeMaterial");
+        if ( skydomeMaterial ){
+          // Moving the cloud 1 cycle over 400 seconds
+          skydomeMaterial.diffuseTexture.uOffset += deltaTime * 0.0025;
+        }
 
         scene.render();
         renderCount = ( renderCount + 1 ) % 100;

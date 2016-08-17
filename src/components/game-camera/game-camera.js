@@ -7,6 +7,10 @@ import BABYLON from 'babylonjs/babylon.max';
 import { getControls } from '../../util/util.js';
 import $ from 'jquery';
 
+function fixedDecimals ( x ) {
+  return parseFloat( ( x || 0 ).toFixed( 4 ) );
+};
+
 export const ViewModel = Map.extend({
   define: {
     message: {
@@ -14,10 +18,49 @@ export const ViewModel = Map.extend({
     }
   },
 
-  validCameraPos ( newCoords ) {
-    //TODO: collsion/bounds check here
+  validCameraPos ( newCoords, noFall ) {
+    var cameraHeadRadius = 0.25;
 
-    return true;
+    var topOfNewPos = newCoords.clone();
+    topOfNewPos.y += cameraHeadRadius;
+
+    var defaultHeight = this.attr( "defaultHeight" );
+    var playerHeight = defaultHeight + cameraHeadRadius;
+
+    var camera = this.attr( "camera" );
+    var scene = camera._scene;
+    var curX = camera.position.x;
+    var curY = camera.position.y;
+    var curZ = camera.position.z;
+
+    var vectorDown = new BABYLON.Vector3( 0, -1, 0 );
+    var rayTopDown = new BABYLON.Ray( topOfNewPos, vectorDown );
+    var rayTopDownPickingInfo = scene.pickWithRay( rayTopDown, ( hitMesh ) => {
+      return true; //hit anything
+    });
+
+    var pickedPoint = rayTopDownPickingInfo && rayTopDownPickingInfo.pickedPoint || {};
+    var newX = fixedDecimals( pickedPoint.x );
+    var newY = fixedDecimals( pickedPoint.y );
+    var newZ = fixedDecimals( pickedPoint.z );
+
+    var stepDiff = fixedDecimals( newY - ( curY - defaultHeight ) );
+    var maxStepUp = this.attr( "maxStepUp" );
+    var maxStepDown = this.attr( "maxStepDown" );
+
+    if ( stepDiff >= 0 && stepDiff < maxStepUp ) {
+      pickedPoint.y += defaultHeight;
+      return pickedPoint;
+    } else if ( stepDiff < 0 && ( stepDiff > maxStepDown || noFall ) ) {
+      if ( noFall ) {
+        pickedPoint.y = curY;
+      } else {
+        pickedPoint.y += defaultHeight;
+      }
+      return pickedPoint;
+    }
+
+    return camera.position;
   },
 
   moveCamera ( newCoords, duration, lookAtTargetVector3 ) {
@@ -112,6 +155,8 @@ export const ViewModel = Map.extend({
   rotationSpeed: 2,
   // The default height when toggling to/from flyMode.
   defaultHeight: 1.5,
+  maxStepUp: 0.6,
+  maxStepDown: -5.5,
 
   moveUp ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     if ( this.attr( "movementDisabled" ) || !this.attr( "flyMode" ) ) {
@@ -148,8 +193,12 @@ export const ViewModel = Map.extend({
     var camera = this.attr( "camera" );
     var rad = camera.rotation.y;
 
-    camera.position.x += Math.sin( rad ) * dist;
-    camera.position.z += Math.cos( rad ) * dist;
+    var x = camera.position.x + Math.sin( rad ) * dist;
+    var y = camera.position.y;
+    var z = camera.position.z + Math.cos( rad ) * dist;
+    var newPos = new BABYLON.Vector3( x, y, z )
+
+    camera.position.copyFrom( this.validCameraPos( newPos, this.attr( "flyMode" ) ) );
   },
 
   rotateLeft ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
@@ -182,8 +231,12 @@ export const ViewModel = Map.extend({
     var camera = this.attr( "camera" );
     var rad = camera.rotation.y - Math.PI / 2;
 
-    camera.position.x += Math.sin( rad ) * dist;
-    camera.position.z += Math.cos( rad ) * dist;
+    var x = camera.position.x + Math.sin( rad ) * dist;
+    var y = camera.position.y;
+    var z = camera.position.z + Math.cos( rad ) * dist;
+    var newPos = new BABYLON.Vector3( x, y, z )
+
+    camera.position.copyFrom( this.validCameraPos( newPos, this.attr( "flyMode" ) ) );
   },
 
   moveBackward ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
@@ -196,8 +249,12 @@ export const ViewModel = Map.extend({
     var camera = this.attr( "camera" );
     var rad = camera.rotation.y;
 
-    camera.position.x -= Math.sin( rad ) * dist;
-    camera.position.z -= Math.cos( rad ) * dist;
+    var x = camera.position.x - Math.sin( rad ) * dist;
+    var y = camera.position.y;
+    var z = camera.position.z - Math.cos( rad ) * dist;
+    var newPos = new BABYLON.Vector3( x, y, z )
+
+    camera.position.copyFrom( this.validCameraPos( newPos, this.attr( "flyMode" ) ) );
   },
 
   rotateRight ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
@@ -230,8 +287,12 @@ export const ViewModel = Map.extend({
     var camera = this.attr( "camera" );
     var rad = camera.rotation.y + Math.PI / 2;
 
-    camera.position.x += Math.sin( rad ) * dist;
-    camera.position.z += Math.cos( rad ) * dist;
+    var x = camera.position.x + Math.sin( rad ) * dist;
+    var y = camera.position.y;
+    var z = camera.position.z + Math.cos( rad ) * dist;
+    var newPos = new BABYLON.Vector3( x, y, z )
+
+    camera.position.copyFrom( this.validCameraPos( newPos, this.attr( "flyMode" ) ) );
   },
 
   rotateMouseDelta ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {

@@ -43,7 +43,7 @@ var behaviors = [
 
 var options = {
   ajax: $.ajax,
-  url: { 
+  url: {
     getData: function ( set ) {
       var postData = {
         requestType: set.requestType || "homeLoad",

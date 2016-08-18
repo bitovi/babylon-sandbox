@@ -187,6 +187,22 @@ export const ViewModel = Map.extend({
     this.attr( "hoveredMesh", mesh );
   },
 
+  getTagValue ( mesh, tag ) {
+    var tags = Object.keys( mesh._tags || {} );
+    var lookFor = tag.toLowerCase() + "_";
+    var value = "";
+
+    for ( let i = 0; i < tags.length; i++ ) {
+      let curTag = tags[ i ];
+      if ( curTag.toLowerCase().indexOf( lookFor ) === 0 ) {
+        value = curTag.replace( new RegExp( "^" + lookFor, "i" ), "" );
+        break;
+      }
+    }
+
+    return value;
+  },
+
   addToObjDirLightShadowGenerator ( mesh ) {
     this.attr( "objDirLightShadowGen" ).getShadowMap().renderList.push( mesh );
   },
@@ -681,7 +697,7 @@ export const ViewModel = Map.extend({
   bgMeshSetMaterial ( mesh, roomInfo ) {
     var materialConstants = this.attr( "materialConstants" );
 
-    var meshID = mesh._tags ? Object.keys( mesh._tags )[ 0 ].replace( "meshId_", "" ) : "";
+    var meshID = this.getTagValue( mesh, "meshID" );
     var parentBabylonName = ( mesh.parent && mesh.parent.name || "" ).toLowerCase();
 
     var rs = roomInfo.roomStatus || {};
@@ -818,7 +834,7 @@ export const ViewModel = Map.extend({
       //    4a. If exists then add mesh to meshes
       //    4b. If not then create new group
       if (mesh.material){
-        const lightmapId = mesh._tags ? Object.keys( mesh._tags )[ 0 ].replace( "lightmap_", "" ) : "";
+        const lightmapId = this.getTagValue( mesh, "lightmap" );
 
         if (lightmapId != ""){
           // Check if the lightmap exists as a file

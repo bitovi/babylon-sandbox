@@ -13,51 +13,196 @@ function fixedDecimals ( x ) {
 
 export const ViewModel = Map.extend({
   define: {
-    message: {
-      value: 'This is the game-camera component'
+    // 7.5 units / second
+    movementSpeed: {
+      value: 7.5
+    },
+    // 2 radians / second
+    rotationSpeed: {
+      value: 2
+    },
+    // The default height when toggling to/from flyMode.
+    defaultHeight: {
+      value: 1.5
+    },
+    maxStepUp: {
+      value: 0.6
+    },
+    maxStepDown: {
+      value: -5.5
+    },
+
+    collisionBodyCenterOffsetFromCam: {
+      get () {
+        var cameraHeadRadius = 0.25;
+        var defaultHeight = this.attr( "defaultHeight" );
+        var playerHeight = defaultHeight + cameraHeadRadius;
+        return cameraHeadRadius - ( playerHeight / 2 );
+      }
+    },
+
+    curGroundMesh: {
+      set ( newVal, oldVal ) {
+        if ( !this.meshIsValidForCollision( newVal, true ) ) {
+          // do not let invalid collision meshes ( like terrain ) become the current ground/floor
+          newVal.checkCollisions = false;
+          return oldVal;
+        }
+        oldVal.checkCollisions = true;
+        newVal.checkCollisions = false;
+        return newVal;
+      }
     }
   },
 
-  validCameraPos ( newCoords, noFall ) {
-    var cameraHeadRadius = 0.25;
+  meshIsValidForCollision ( mesh, floorIsValidCollision ) {
+    var camera = this.attr( "camera" );
+    var collisionBody = camera.collisionBody;
+    var meshName = ( mesh.name || mesh.id || "" ).toLowerCase().replace( /[^a-z]/g, "" );
+    var isValid = true;
 
-    var topOfNewPos = newCoords.clone();
-    topOfNewPos.y += cameraHeadRadius;
+    if ( mesh === collisionBody ) { // || !mesh.material
+      isValid = false;
+    } else if ( mesh.__itemRef && mesh.__itemRef.options && mesh.__itemRef.options.terrain ) {
+      isValid = false;
+    } else if ( meshName === "skybox" || meshName === "skydome" ) {
+      isValid = false;
+    } else if ( !floorIsValidCollision && ( meshName === "floor" || meshName === "ground" ) ) {
+      isValid = false;
+    }
 
-    var defaultHeight = this.attr( "defaultHeight" );
-    var playerHeight = defaultHeight + cameraHeadRadius;
+    return isValid;
+  },
 
+  collisionBodyCollidingWith () {
+    var camera = this.attr( "camera" );
+    var collisionBody = camera.collisionBody;
+    var scene = camera._scene;
+    var allMeshes = scene.meshes;
+    var collidingMeshes = [];
+
+    for ( let i = 0; i < allMeshes.length; i++ ) {
+      let mesh = allMeshes[ i ];
+      let meshName = ( mesh.name || mehs.id || "" ).toLowerCase().replace( /[^a-z]/g, "" );
+
+      if ( !this.meshIsValidForCollision( mesh ) ) {
+        continue;
+      }
+      if ( collisionBody.intersectsMesh( mesh, false ) ) {
+        if ( collisionBody.intersectsMesh( mesh, true ) ) {
+          collidingMeshes.push( mesh );
+        }
+      }
+    }
+
+    return collidingMeshes;
+  },
+
+  placeCollisionBodyAtCamera () {
+    var camera = this.attr( "camera" );
+    var collisionBody = camera.collisionBody;
+    collisionBody.position = camera.position.clone();
+    collisionBody.position.y += this.attr( "collisionBodyCenterOffsetFromCam" );
+  },
+
+  placeCameraAtCollisionBody () {
+    var camera = this.attr( "camera" );
+    var collisionBody = camera.collisionBody;
+    var pos = collisionBody.position.clone();
+    pos.y -= this.attr( "collisionBodyCenterOffsetFromCam" );
+    camera.position = pos;
+  },
+
+  newGroundYCamPos ( requestedPos, noFall ) {
     var camera = this.attr( "camera" );
     var scene = camera._scene;
-    var curX = camera.position.x;
-    var curY = camera.position.y;
-    var curZ = camera.position.z;
-
+    var collisionBody = camera.collisionBody;
+    var cameraHeadRadius = 0.25;
+    var defaultHeight = this.attr( "defaultHeight" );
     var vectorDown = new BABYLON.Vector3( 0, -1, 0 );
+    var topOfNewPos = new BABYLON.Vector3( requestedPos.x, requestedPos.y + cameraHeadRadius, requestedPos.z );
     var rayTopDown = new BABYLON.Ray( topOfNewPos, vectorDown );
     var rayTopDownPickingInfo = scene.pickWithRay( rayTopDown, ( hitMesh ) => {
-      return true; //hit anything
+      return hitMesh !== collisionBody; //hit anything
     });
 
+    var curY = collisionBody.position.y - this.attr( "collisionBodyCenterOffsetFromCam" );
     var pickedPoint = rayTopDownPickingInfo && rayTopDownPickingInfo.pickedPoint || {};
-    var newX = fixedDecimals( pickedPoint.x );
     var newY = fixedDecimals( pickedPoint.y );
-    var newZ = fixedDecimals( pickedPoint.z );
 
     var stepDiff = fixedDecimals( newY - ( curY - defaultHeight ) );
     var maxStepUp = this.attr( "maxStepUp" );
     var maxStepDown = this.attr( "maxStepDown" );
 
+    var newCamY = curY;
     if ( stepDiff >= 0 && stepDiff < maxStepUp ) {
-      pickedPoint.y += defaultHeight;
-      return pickedPoint;
-    } else if ( stepDiff < 0 && ( stepDiff > maxStepDown || noFall ) ) {
-      if ( noFall ) {
-        pickedPoint.y = curY;
-      } else {
-        pickedPoint.y += defaultHeight;
+      newCamY = newY + defaultHeight;
+      this.attr( "curGroundMesh", rayTopDownPickingInfo.pickedMesh );
+    } else if ( stepDiff < 0 && stepDiff > maxStepDown ) {
+      if ( !noFall ) {
+        newCamY = newY + defaultHeight;
+        this.attr( "curGroundMesh", rayTopDownPickingInfo.pickedMesh );
       }
-      return pickedPoint;
+    }
+
+    return newCamY;
+  },
+
+  projectMovement ( moveDistances, fixedYPos ) {
+    var camera = this.attr( "camera" );
+    var collisionBody = camera.collisionBody;
+
+    this.placeCollisionBodyAtCamera();
+
+    collisionBody.moveWithCollisions( moveDistances );
+    collisionBody.position.y = fixedYPos + this.attr( "collisionBodyCenterOffsetFromCam" );
+  },
+
+  verifyNewPosition ( projectedCamPos ) {
+    var camera = this.attr( "camera" );
+    var collisionBody = camera.collisionBody;
+    var scene = camera._scene;
+    var direction = projectedCamPos.subtract( camera.position ).normalize();
+    var distance = BABYLON.Vector3.Distance( camera.position, projectedCamPos ) + ( 1.25 / 2 );
+    var rayToPoint = new BABYLON.Ray( camera.position, direction, distance );
+    var rayPickingInfo = scene.pickWithRay( rayToPoint, ( hitMesh ) => {
+      return hitMesh !== collisionBody; // hit anything else
+    });
+
+    if ( rayPickingInfo.hit ) {
+      // there is an object directly ahead that moveWithCollisions passed through
+      return false;
+    }
+
+    direction = new BABYLON.Vector3( 0, -1, 0 ); // straight down
+    distance = this.attr( "defaultHeight" ) - 0.1; // give a little play room for the distance down
+    rayToPoint = new BABYLON.Ray( projectedCamPos, direction, distance );
+    rayPickingInfo = scene.pickWithRay( rayToPoint, ( hitMesh ) => {
+      return hitMesh !== collisionBody; // hit anything else
+    });
+
+    if ( rayPickingInfo.hit ) {
+      // there is an object under the new position within the height of the player
+      return false;
+    }
+
+    return true;
+  },
+
+  validCameraPos ( newCameraPos, noFall ) {
+    var camera = this.attr( "camera" );
+    var collisionBody = camera.collisionBody;
+    var distances = newCameraPos.subtract( camera.position );
+    var fixedYPos = this.newGroundYCamPos( newCameraPos, noFall );
+    distances.y = fixedYPos - camera.position.y;
+    //console.log( fixedYPos, distances.y );
+    this.projectMovement( distances, fixedYPos );
+
+    var projectedCamPos = collisionBody.position.clone();
+    projectedCamPos.y -= this.attr( "collisionBodyCenterOffsetFromCam" );
+
+    if ( this.verifyNewPosition( projectedCamPos ) ) {
+      this.placeCameraAtCollisionBody();
     }
 
     return camera.position;
@@ -148,15 +293,6 @@ export const ViewModel = Map.extend({
     // Convert duration from seconds -> millisecond space.
     return this.moveCamera( newCoords, duration * 1000, lookAtTargetVector3 );
   },
-
-  // 10 units / second
-  movementSpeed: 10,
-  // 2 radians / second
-  rotationSpeed: 2,
-  // The default height when toggling to/from flyMode.
-  defaultHeight: 1.5,
-  maxStepUp: 0.6,
-  maxStepDown: -5.5,
 
   moveUp ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     if ( this.attr( "movementDisabled" ) || !this.attr( "flyMode" ) ) {
@@ -393,8 +529,31 @@ export default Component.extend({
   template,
   events: {
     "inserted": function () {
-      controls[ "context" ] = this.viewModel;
+      var vm = this.viewModel;
+      controls[ "context" ] = vm;
       getControls().registerControls( controls.name, controls );
+
+      var cam = vm.attr( "camera" );
+      cam.minZ = 0.5;
+      cam.fov = 1;
+      cam.ellipsoid = new BABYLON.Vector3( 1, 1.5, 1 );
+      cam.checkCollisions = true;
+
+      var defaultHeight = vm.attr( "defaultHeight" );
+      var playerHeight = defaultHeight + 0.25;
+
+      var collisionBody = BABYLON.Mesh.CreateCylinder( "cameraCollisionMesh", playerHeight, 1.25, 1.25, 6, 0, cam._scene );
+      //collisionBody.isVisible = false;
+      collisionBody.applyGravity = true;
+      collisionBody.checkCollisions = true;
+      collisionBody.onCollide = function ( mesh, ev ) {
+        //if ( mesh && mesh.name && mesh.name !== "Floor_001" )
+        //console.log( mesh.name ); //, mesh, ev );
+      };
+
+      cam.collisionBody = collisionBody;
+
+      vm.placeCollisionBodyAtCamera();
     },
     "removed": function () {
       getControls().removeControls( controls.name );

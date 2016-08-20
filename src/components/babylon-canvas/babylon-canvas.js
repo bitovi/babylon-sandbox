@@ -55,27 +55,10 @@ export const ViewModel = Map.extend({
   // This creates and positions a free camera
   initCamera () {
     var scene = this.attr( "scene" );
-    //var camera = new BABYLON.FreeCamera( "camera1", new BABYLON.Vector3(0, 5, -10), scene );
     var camera = new BABYLON.TargetCamera( "camera1", new BABYLON.Vector3( -3, 1.5, -4 ), scene );
-    //var camera = new BABYLON.Camera( "camera1", new BABYLON.Vector3(0, 5, -10), scene );
-    camera.fov = 1;
+    this.attr( "camera", camera );
 
-    this.attr( "camera", camera );
-
-    //setTimeout( ()=> {
-    //  camera.position.z = -7;
-    //}, 4000);
-    //setTimeout( ()=> {
-    //  camera.setTarget( BABYLON.Vector3.Zero() );
-    //}, 7000);
-
-    camera.speed *= 0.25;
-
-    // This targets the camera to scene origin
-    //camera.setTarget( BABYLON.Vector3.Zero() );
     camera.setTarget( new BABYLON.Vector3( 0, 1.25, 0 ) );
-
-    // This attaches the camera to the canvas
     camera.attachControl( this.attr( "canvas" ), false );
 
     return camera;
@@ -261,9 +244,9 @@ export const ViewModel = Map.extend({
     var gravityVector = new BABYLON.Vector3( 0, -9.81, 0 );
 
     scene.enablePhysics( gravityVector, physicsPlugin );
-
+    scene.gravity = gravityVector;
     scene.collisionsEnabled = true;
-    scene.workerCollisions = true;
+    scene.workerCollisions = false;
 
     var camera = this.initCamera();
   },
@@ -379,7 +362,7 @@ export const ViewModel = Map.extend({
       mesh.material = mat.clone(); 
       mesh.material.diffuseTexture = new BABYLON.Texture( itemInfo.egoAlbumURL, this.attr( "scene" ) );
       // Make the imageplane a bit backlit. Numbers need tweaking for desired backlitness
-      mesh.material.emissiveColor = new BABYLON.Color3( 0.2, 0.2, 0.2);
+      mesh.material.emissiveColor = new BABYLON.Color3( 0.2, 0.2, 0.2 );
     } else if ( meshName == "ImageBacker" ) {
       let mat = mesh.material.subMaterials[ 0 ];
       mat.diffuseTexture = null;
@@ -416,15 +399,16 @@ export const ViewModel = Map.extend({
       mesh.name = itemInfo.furnName || mesh.name;
 
       mesh.receiveShadows = true;
-      mesh.collisionsEnabled = true;
 
       if ( itemInfo.terrain ) {
         // Add the mesh to terrainMeshes to later in applyTerrainLightmap() foreach to setup the lightmap materials
         this.attr("terrainMeshes").push(mesh);
       } else if ( itemInfo.egoID ) {
         this.setEgoObjectDetails( mesh );
+        mesh.checkCollisions = true;
       } else {
         this.setMeshLocationFromAjaxData( mesh, itemInfo );
+        mesh.checkCollisions = true;
       }
 
       if ( !itemInfo.terrain ) {
@@ -783,7 +767,7 @@ export const ViewModel = Map.extend({
 
     for ( let i = 0; i < meshes.length; ++i ) {
       let mesh = meshes[ i ];
-      mesh.collisionsEnabled = true;
+      mesh.checkCollisions = true;
       mesh.receiveShadows = true;
 
       this.bgMeshSetMaterial ( mesh, roomInfo );

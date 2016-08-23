@@ -18,7 +18,7 @@ import Asset from '../../models/asset.js';
 
 
 /**
- * @typedef {{children: EgowallItem[], name: string, options: *, meshes: BABYLON.Mesh[], rootMeshes: BABYLON.Mesh[], parent: EgowallItem|null}} EgowallItem
+ * @typedef {{baseRotation:undefined|BABYLON.Quaternion,  children: EgowallItem[], name: string, options: *, meshes: BABYLON.Mesh[], rootMeshes: BABYLON.Mesh[], parent: EgowallItem|null}} EgowallItem
  */
 /**
  * @typedef {{ hit: BABYLON.Mesh, furniture: BABYLON.Mesh }} CollisionResult
@@ -100,9 +100,11 @@ export const ViewModel = Map.extend({
 
 
     if ($ev.target.nodeName.toLowerCase() === "canvas") {
-      // Micro optimization it's more likely selectedItem is false than true
-      if (!this.selectedItem){
-
+      if (this.selectedItem){
+        this.selectedItemMovePicking( controlsVM.curMousePos() );
+      }
+      // If selectedItem is set
+      else {
         var curMousePos = controlsVM.curMousePos();
         var customizeMode = this.attr( "customizeMode" );
         let hoveredMesh = this.attr( "hoveredMesh" );
@@ -117,10 +119,6 @@ export const ViewModel = Map.extend({
         } else {
           this.unsetHoveredMesh();
         }
-      }
-      // If selectedItem is set
-      else {
-        this.selectedItemMovePicking( controlsVM.curMousePos() );
       }
     } else {
       // If outside canvas and selectedItem is false then unset the hoveredMesh
@@ -453,7 +451,7 @@ export const ViewModel = Map.extend({
     return itemOptions && ( itemOptions.egoID ? true : false );
   },
 
-  setMeshLocationFromAjaxData ( rootMeshes, info ) {
+  setMeshLocationFromAjaxData ( rootMeshes, info, isPainting ) {
     const pos = info.position || {};
     const rot = info.rotation || {};
 
@@ -482,6 +480,11 @@ export const ViewModel = Map.extend({
       rootMesh.rotationQuaternion.z = rotZ;
       rootMesh.rotationQuaternion.w = rotW;
 
+      if (isPainting){
+        // rootMesh.rotation.y = Math.PI;
+        // rootMesh.rotation.x = Math.PI / -2;
+        rootMesh.rotationQuaternion.multiplyInPlace( BABYLON.Quaternion.RotationYawPitchRoll(0, Math.PI * 1.5, Math.PI ) );
+      }
     }
   },
 
@@ -508,8 +511,11 @@ export const ViewModel = Map.extend({
 
     // Temporary code to rotate paintings so they are correct
     // parent.rotation.z = 0;
-    parent.rotation.y = Math.PI;
-    parent.rotation.x = Math.PI / -2;
+    // parent.rotation.y = Math.PI;
+    // parent.rotation.x = Math.PI / -2;
+
+
+
   },
 
   meshesLoaded ( itemInfo, babylonName, meshes ) {
@@ -594,7 +600,7 @@ export const ViewModel = Map.extend({
       // For furniture just itemInf is fine
       const info = itemInfo.egoID ? itemInfo.roomInfo : itemInfo;
       // Set the position for all rootMeshes and rotation
-      this.setMeshLocationFromAjaxData( item.rootMeshes, info );
+      this.setMeshLocationFromAjaxData( item.rootMeshes, info, !!itemInfo.egoID );
     }
 
     // Need to do this after the meshes loop because for the paintings it doesn't work inside the loop.
@@ -1544,7 +1550,7 @@ export const ViewModel = Map.extend({
    * Update rotation of an item
    * @param {EgowallItem} a_item
    */
-  updateRotation(a_item){
+  updateRotation(a_item, a_rotation){
     for ( let i = 0; i < a_item.rootMeshes.length; ++i){
       let rootMesh = a_item.rootMeshes[i];
       // Should get all children even from different meshes that still are parents
@@ -1570,96 +1576,52 @@ export const ViewModel = Map.extend({
     // An item has moved need new shadow map generated
     this.updateShadowmap = true;
   },
+  /**
+   * Update position and rotation of an item
+   * @param {EgowallItem} a_item
+   * @param {BABYLON.Vector3} a_positionDelta
+   * @param {BABYLON.Quaternion}a_rotation
+   */
+  updatePositionRotation(a_item, a_positionDelta, a_rotation ){
+
+    // a_rotation = a_rotation.add( a_item.baseRotation ).normalize();
+
+
+
+    for ( let i = 0; i < a_item.rootMeshes.length; ++i){
+      let rootMesh = a_item.rootMeshes[i];
+      // rootMesh.rotation.x = 0;
+      // rootMesh.rotation.y = 0;
+      // rootMesh.rotation.z = 0;
+      // Should get all children even from different meshes that still are parents
+      let children = rootMesh.getChildMeshes();
+
+      rootMesh.position.addInPlace( a_positionDelta );
+      // TODO: Use base rotation or the mesh loses its rotation
+      // rootMesh.rotationQuaternion.copyFrom( a_rotation );
+      //  a_rotation, rootMesh.rotationQuaternion);
+      a_rotation.multiplyToRef( a_item.baseRotation, rootMesh.rotationQuaternion );
+
+      rootMesh.freezeWorldMatrix();
+
+      for (let i = 0; i < children.length; ++i){
+        children[i].freezeWorldMatrix();
+      }
+    }
+
+    for (let i = 0; i < a_item.children.length; ++i){
+      this.updatePositionRotation( a_item.children[i], a_positionDelta, a_rotation );
+    }
+    // An item has moved need new shadow map generated
+    this.updateShadowmap = true;
+  },
 
   /* Mesh movement code */
   selectedItem: null,
   selectedItemPos: null,
 
   selectedItemMovePicking(a_mousePos){
-    function lookRotation(forward, up){
-      forward = forward.normalize();
-
-      //const normForward = forward.copy();
-      const crossUp = BABYLON.Vector3.Cross( up, forward ).normalize();
-      const crossCross = BABYLON.Vector3.Cross( forward, crossUp );
-
-      const m00 = crossUp.x;
-      const m01 = crossUp.y;
-      const m02 = crossUp.z;
-      const m10 = crossCross.x;
-      const m11 = crossCross.y;
-      const m12 = crossCross.z;
-      const m20 = forward.x;
-      const m21 = forward.y;
-      const m22 = forward.z;
-
-      const num8 = (m00 + m11) + m22;
-      let quaternion = BABYLON.Quaternion.Identity();
-      if (num8 > 0)
-      {
-        let num = Math.sqrt(num8 + 1);
-        quaternion.w = num * 0.5;
-        num = 0.5 / num;
-        quaternion.x = (m12 - m21) * num;
-        quaternion.y = (m20 - m02) * num;
-        quaternion.z = (m01 - m10) * num;
-        return quaternion.normalize();
-      }
-      if ((m00 >= m11) && (m00 >= m22))
-      {
-        const num7 = Math.sqrt(((1 + m00) - m11) - m22);
-        const num4 = 0.5 / num7;
-        quaternion.x = 0.5 * num7;
-        quaternion.y = (m01 + m10) * num4;
-        quaternion.z = (m02 + m20) * num4;
-        quaternion.w = (m12 - m21) * num4;
-        return quaternion.normalize();
-      }
-      if (m11 > m22)
-      {
-        const num6 = Math.sqrt(((1 + m11) - m00) - m22);
-        const num3 = 0.5 / num6;
-        quaternion.x = (m10+ m01) * num3;
-        quaternion.y = 0.5 * num6;
-        quaternion.z = (m21 + m12) * num3;
-        quaternion.w = (m20 - m02) * num3;
-        return quaternion.normalize();
-      }
-      const num5 = Math.sqrt(((1 + m22) - m00) - m11);
-      const num2 = 0.5 / num5;
-      quaternion.x = (m20 + m02) * num2;
-      quaternion.y = (m21 + m12) * num2;
-      quaternion.z = 0.5 * num5;
-      quaternion.w = (m01 - m10) * num2;
-      return quaternion.normalize();
-    }
-    function multiplyVector3(quat, vec3, vec3Dest) {
-      if (!quat) quat = BABYLON.Quaternion.Identity();
-
-      quat = [ quat.x, quat.y, quat.z, quat.w ];
-      vec3 = [ vec3.x, vec3.y, vec3.z ];
-
-      vec3Dest = [];
-      var d = vec3[0],
-        e = vec3[1],
-        g = vec3[2],
-        b = quat[0],
-        f = quat[1],
-        h = quat[2],
-        a = quat[3],
-        i = a * d + f * g - h * e,
-        j = a * e + h * d - b * g,
-        k = a * g + b * e - f * d,
-        d = -b * d - f * e - h * g;
-      vec3Dest[0] = i * a + d * -b + j * -h - k * -f;
-      vec3Dest[1] = j * a + d * -f + k * -b - i * -h;
-      vec3Dest[2] = k * a + d * -h + i * -f - j * -b;
-      return new BABYLON.Vector3( vec3Dest[0], vec3Dest[1], vec3Dest[2] );
-    };
-
-
     let selectedItem = this.selectedItem;
-    let vm = this;
 
     const pickingResult = this.getPickingFromMouse( a_mousePos, ( hitMesh ) => {
       let itemRef = hitMesh.__itemRef;
@@ -1681,41 +1643,61 @@ export const ViewModel = Map.extend({
     });
 
     if (pickingResult.hit){
-      let rootMesh = selectedItem.rootMeshes[0];
-      // Calculate correct position
-      pickingResult.pickedPoint.subtractToRef(rootMesh.position, BABYLON.Tmp.Vector3[8] );
-      this.updatePositions( selectedItem, BABYLON.Tmp.Vector3[8] );
-
-      const upVector = BABYLON.Vector3.Up();
-
-      const normal = pickingResult.getNormal(true);
-      const direction = new BABYLON.Vector3( normal.x, normal.y, normal.z);
-
-      const axis = BABYLON.Vector3.Cross(upVector, direction ).normalize();
-
-      if (axis.length() === 0){
-        // debugger;
-      }
-      const angle = Math.acos(BABYLON.Vector3.Dot(upVector, direction));
-
-      let rotQuat;
-      if (direction.y === 1){
-        // If direction is up then use identity quaternion
-        rotQuat = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 0, 1);
-      }
-      else if (direction.y === -1){
-        rotQuat = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 1, 0);
-      }
-      else{
-        rotQuat = BABYLON.Quaternion.RotationAxis( axis, angle );
-      }
-
-      rootMesh.rotationQuaternion.copyFrom( rotQuat );
+      this.moveRotateSelectedItem( selectedItem, pickingResult );
     }
   },
+
+  /**
+   * Calculate the new position and rotation for a selectedItem based off the pickingResult
+   * @param {EgowallItem} selectedItem
+   * @param {BABYLON.PickingInfo}pickingResult
+   */
+  moveRotateSelectedItem( selectedItem, pickingResult){
+    /*
+     BABYLON.Tmp.Vector indices:
+     8: deltaPosition
+     7: Axis for rotation
+     */
+    // Can use the first rootMesh to calculate how much the object has to move
+    // TODO: Evaluate if center between two rootMeshes would be neccesary for proper position
+    let rootMesh = selectedItem.rootMeshes[0];
+    // Calculate correct position delta
+    pickingResult.pickedPoint.subtractToRef(rootMesh.position, BABYLON.Tmp.Vector3[8] );
+
+    const upVector = this.upVector3;
+    // Using worldNormals is important or it gets weird normals!
+    const normal = pickingResult.getNormal(true);
+
+    BABYLON.Vector3.CrossToRef(upVector, normal, BABYLON.Tmp.Vector3[7] );
+    // Axis is [ 0, 0, 0 ] for y == 1 and y == -1
+    const axis = BABYLON.Tmp.Vector3[7].normalize();
+
+    const angle = Math.acos(BABYLON.Vector3.Dot(upVector, normal));
+
+    let rotQuat;
+    if (normal.y === 1){
+      // If direction is up then use identity quaternion
+      rotQuat = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 0, 1);
+    }
+    else if (normal.y === -1){
+      rotQuat = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 1, 0);
+    }
+    else{
+      // TODO: in Babylon 2.5 change to use RotationAxisToRef
+      rotQuat = BABYLON.Quaternion.RotationAxis( axis, angle);
+    }
+
+    // rootMesh.rotationQuaternion.copyFrom( rotQuat );
+    this.updatePositionRotation( selectedItem, BABYLON.Tmp.Vector3[8], rotQuat );
+  },
+  /**
+   * Unselect the selected item and do cleanup
+   */
   unselectItem(){
     this.selectedItem = null;
-  }
+  },
+  // Constant stored for the upVector
+  upVector3: BABYLON.Vector3.Up()
 
 });
 
@@ -1732,6 +1714,8 @@ export const controls = {
         // don't execute camera click on ground
         $ev.controlPropagationStopped = true;
         this.selectedItem = this.attr("hoveredMesh").__itemRef;
+        // Clone the reference because otherwise it'd get updated when changes are done to the selectedItem
+        this.selectedItem.baseRotation = this.selectedItem.rootMeshes[0].rotationQuaternion.clone();
       }
     }
   },

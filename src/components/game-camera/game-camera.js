@@ -190,6 +190,7 @@ export const ViewModel = Map.extend({
   },
 
   validCameraPos ( newCameraPos, noFall ) {
+    return newCameraPos;
     var camera = this.attr( "camera" );
     var collisionBody = camera.collisionBody;
     var distances = newCameraPos.subtract( camera.position );
@@ -312,9 +313,9 @@ export const ViewModel = Map.extend({
     var dist = this.attr( "movementSpeed" ) * deltaTime;
 
     var newPos = this.attr( "camera" ).position.y - dist;
-    if ( newPos < 0.6 ) {
-      newPos = 0.6;
-    }
+    // if ( newPos < 0.6 ) {
+    //   newPos = 0.6;
+    // }
 
     this.attr( "camera" ).position.y = newPos;
   },
@@ -537,7 +538,7 @@ export default Component.extend({
       cam.minZ = 0.5;
       cam.fov = 1;
       cam.ellipsoid = new BABYLON.Vector3( 1, 1.5, 1 );
-      cam.checkCollisions = true;
+      // cam.checkCollisions = true;
 
       var defaultHeight = vm.attr( "defaultHeight" );
       var playerHeight = defaultHeight + 0.25;
@@ -545,7 +546,7 @@ export default Component.extend({
       var collisionBody = BABYLON.Mesh.CreateCylinder( "cameraCollisionMesh", playerHeight, 1.25, 1.25, 6, 0, cam._scene );
       //collisionBody.isVisible = false;
       collisionBody.applyGravity = true;
-      collisionBody.checkCollisions = true;
+      //collisionBody.checkCollisions = true;
       collisionBody.onCollide = function ( mesh, ev ) {
         //if ( mesh && mesh.name && mesh.name !== "Floor_001" )
         //console.log( mesh.name ); //, mesh, ev );

@@ -16,13 +16,24 @@ import Homes from '../../models/homes.js';
 import Rooms from '../../models/rooms.js';
 import Asset from '../../models/asset.js';
 
+
+/**
+ * @typedef {{children: EgowallItem[], name: string, options: *, meshes: BABYLON.Mesh[], rootMeshes: BABYLON.Mesh[], parent: EgowallItem|null}} EgowallItem
+ */
+/**
+ * @typedef {{ hit: BABYLON.Mesh, furniture: BABYLON.Mesh }} CollisionResult
+ */
+
 export const ViewModel = Map.extend({
   define: {
-    items: {
+    items:{
+      value: []
+    },
+    /*items: {
       get ( last ) {
         return last || [];
       }
-    },
+    },*/
     deltaTime: {
       value: 0
     },
@@ -52,6 +63,8 @@ export const ViewModel = Map.extend({
   skydomeMaterial: null,
   // A temporary array to gather all the terrain meshes for the applyTerrainLightmap function
   terrainMeshes: [],
+  // Meshes to do collision checks against
+  collisionMeshes: [],
   // This creates and positions a free camera
   initCamera () {
     var scene = this.attr( "scene" );
@@ -208,10 +221,26 @@ export const ViewModel = Map.extend({
 
   freezeShadowCalculations () {
     this.attr( "objDirLightShadowGen" ).getShadowMap().refreshRate = 0;
+    this.updateShadowmap = false;
   },
 
   unfreezeShadowCalculations () {
-    this.attr( "objDirLightShadowGen" ).getShadowMap().refreshRate = 1;
+    let shadowmap =  this.attr( "objDirLightShadowGen" ).getShadowMap();
+
+    // Only do this once
+    if (shadowmap.refreshRate === 0){
+      shadowmap.refreshRate = 1;
+
+      // After the shadowmap as updated then freeze it again
+      let onAfterRender = () => {
+        shadowmap.onAfterRenderObservable.remove( observer );
+        this.freezeShadowCalculations();
+      };
+
+      let observer = shadowmap.onAfterRenderObservable.add( onAfterRender );
+    }
+
+
   },
 
   initLights () {
@@ -237,15 +266,17 @@ export const ViewModel = Map.extend({
 
   initScene () {
     var scene = this.attr( "scene" );
-    scene.clearColor = new BABYLON.Color3( 1, 1, 1 );
+    // Needs to be black for the outline or the renderTarget gets false positives.
+    scene.clearColor = new BABYLON.Color3( 0, 0, 0 );
 
     // Gravity & physics stuff
-    var physicsPlugin = new BABYLON.CannonJSPlugin();
+    // var physicsPlugin = new BABYLON.CannonJSPlugin();
     var gravityVector = new BABYLON.Vector3( 0, -9.81, 0 );
 
-    scene.enablePhysics( gravityVector, physicsPlugin );
+    //scene.enablePhysics( gravityVector, physicsPlugin );
     scene.gravity = gravityVector;
     scene.collisionsEnabled = true;
+    // Disable workerCollisions as we only have 1 moving camera doing collisions
     scene.workerCollisions = false;
 
     var camera = this.initCamera();
@@ -329,20 +360,35 @@ export const ViewModel = Map.extend({
     return itemOptions && ( itemOptions.egoID ? true : false );
   },
 
-  setMeshLocationFromAjaxData ( mesh, info = {} ) {
-    var pos = info.position;
-    var rot = info.rotation;
+  setMeshLocationFromAjaxData ( rootMeshes, info ) {
+    const pos = info.position || {};
+    const rot = info.rotation || {};
 
-    if ( mesh.position && pos ) {
-      mesh.position.x = parseFloat( pos.x ) || 0;
-      mesh.position.y = parseFloat( pos.y ) || 0;
-      mesh.position.z = parseFloat( pos.z ) || 0;
-    }
-    if ( mesh.rotationQuaternion && rot ) {
-      mesh.rotationQuaternion.x = parseFloat( rot.x ) || 0;
-      mesh.rotationQuaternion.y = parseFloat( rot.y ) || 0;
-      mesh.rotationQuaternion.z = parseFloat( rot.z ) || 0;
-      mesh.rotationQuaternion.w = parseFloat( rot.w ) || 1;
+    const posX = parseFloat( pos.x ) || 0;
+    const posY = parseFloat( pos.y ) || 0;
+    const posZ = parseFloat( pos.z ) || 0;
+
+    const rotX = parseFloat( rot.x ) || 0;
+    const rotY = parseFloat( rot.y ) || 0;
+    const rotZ = parseFloat( rot.z ) || 0;
+    const rotW = parseFloat( rot.w ) || 0;
+
+    for (let i = 0; i < rootMeshes.length; ++i){
+      let rootMesh = rootMeshes[i];
+      rootMesh.position.x = posX;
+      rootMesh.position.y = posY;
+      rootMesh.position.z = posZ;
+
+      // If no rotationQuaternion exists then create an identity quaternion
+      if (!rootMesh.rotationQuaternion){
+        rootMesh.rotationQuaternion = BABYLON.Quaternion.Identity();
+      }
+
+      rootMesh.rotationQuaternion.x = rotX;
+      rootMesh.rotationQuaternion.y = rotY;
+      rootMesh.rotationQuaternion.z = rotZ;
+      rootMesh.rotationQuaternion.w = rotW;
+
     }
   },
 
@@ -352,8 +398,6 @@ export const ViewModel = Map.extend({
     while ( parent.parent ) {
       parent = parent.parent;
     }
-
-    this.setMeshLocationFromAjaxData( parent, itemInfo.roomInfo );
 
     var meshName = mesh.material && mesh.material.name || "";
 
@@ -369,19 +413,32 @@ export const ViewModel = Map.extend({
       mat.diffuseColor = new BABYLON.Color3( 1, 1, 1 );
     }
 
-    //parent.rotation.z = 0;
+    // Temporary code to rotate paintings so they are correct
+    // parent.rotation.z = 0;
     parent.rotation.y = Math.PI;
     parent.rotation.x = Math.PI / -2;
   },
 
   meshesLoaded ( itemInfo, babylonName, meshes ) {
+    /**
+     * @type EgowallItem
+     */
     var item = {
+      // Children items, what items should have same changes done as this item
+      children: [],
       name: babylonName,
       options: itemInfo,
-      meshes: []
+      meshes: [],
+      // RootMeshes to easily update all positions when moving an item
+      rootMeshes: [],
+      // The parent item of this item.
+      parent:null
     };
 
-    this.attr( "items" ).push( item );
+    // rootMeshes hashmap to check if already added
+    let rootMeshes = {};
+
+    window.items = this.attr("items");
 
     for ( let i = 0; i < meshes.length; ++i ) {
       let mesh = meshes[ i ];
@@ -398,28 +455,57 @@ export const ViewModel = Map.extend({
 
       mesh.name = itemInfo.furnName || mesh.name;
 
-      mesh.receiveShadows = true;
+
 
       if ( itemInfo.terrain ) {
         // Add the mesh to terrainMeshes to later in applyTerrainLightmap() foreach to setup the lightmap materials
         this.attr("terrainMeshes").push(mesh);
       } else if ( itemInfo.egoID ) {
         this.setEgoObjectDetails( mesh );
-        mesh.checkCollisions = true;
-      } else {
-        this.setMeshLocationFromAjaxData( mesh, itemInfo );
-        mesh.checkCollisions = true;
       }
 
       if ( !itemInfo.terrain ) {
+        mesh.checkCollisions = true;
+        mesh.receiveShadows = true;
+        this.collisionMeshes.push( mesh);
         this.addToObjDirLightShadowGenerator( mesh );
+        // Get rootMesh
+        let parent = mesh.parent ||mesh;
+        while (parent.parent){
+          parent = parent.parent;
+        }
+        // Check if rootMesh has already been added
+        if (!rootMeshes[ parent ]){
+          rootMeshes[ parent ] = true;
+          item.rootMeshes.push( parent );
+        }
+
+        if ( item !== this.attr("items")[0]){
+          // item.parent
+        }
+      }
+      else{
+        mesh.checkCollisions = false;
+        mesh.receiveShadows = false;
       }
 
       if ( parseInt( itemInfo.furnPhysics, 10 ) ) {
         //vm.testSetPhysicsImpostor( mesh );
       }
     }
+
+    // Check if rootMeshes.length > 0 to remove terrain
+    if (item.rootMeshes.length > 0){
+      this.attr("items").push( item );
+      // For paintings get itemInfo.roomInfo
+      // For furniture just itemInf is fine
+      const info = itemInfo.egoID ? itemInfo.roomInfo : itemInfo;
+      // Set the position for all rootMeshes and rotation
+      this.setMeshLocationFromAjaxData( item.rootMeshes, info );
+    }
+
     // Need to do this after the meshes loop because for the paintings it doesn't work inside the loop.
+    // Also not using item.meshes because item.meshes only adds meshes with vertices
     for ( let i = 0; i < meshes.length; ++i ) {
       meshes[i].freezeWorldMatrix();
     }
@@ -504,6 +590,8 @@ export const ViewModel = Map.extend({
   },
 
   loadTerrain ( terrainURL ) {
+
+    terrainURL = "/src/static/3d/terrain.zip";
 
     var terrain = new can.Map({
       terrain: true,
@@ -715,13 +803,26 @@ export const ViewModel = Map.extend({
       this.testHardcodedMaterials( mesh );
     }
 
-    if ( mesh.material && mesh.__backgroundMeshInfo.ajaxInfo.color ) {
-      let ajaxColor = mesh.__backgroundMeshInfo.ajaxInfo.color;
-      let r = parseFloat( ajaxColor.r );
-      let g = parseFloat( ajaxColor.g );
-      let b = parseFloat( ajaxColor.b );
-      let a = parseFloat( ajaxColor.a );
-      mesh.material.diffuseColor = new BABYLON.Color4( r, g, b, a );
+    if ( mesh.material ) {
+      // Check if lightmap tag exists for the mesh
+      const lightmapId = this.getTagValue( mesh, "lightmap" );
+      if(lightmapId !== ""){
+        // Try and get the lightmap for that id and then set it
+        const lightmap = this.attr( "lightmaps" )[ lightmapId ];
+        if (lightmap){
+          mesh.material.ambientTexture = lightmap;
+        }
+      }
+
+      // Check if the diffuseColor should be something else than white (1, 1, 1)
+      if (mesh.__backgroundMeshInfo.ajaxInfo.color ) {
+        let ajaxColor = mesh.__backgroundMeshInfo.ajaxInfo.color;
+        let r = parseFloat(ajaxColor.r);
+        let g = parseFloat(ajaxColor.g);
+        let b = parseFloat(ajaxColor.b);
+        let a = parseFloat(ajaxColor.a);
+        mesh.material.diffuseColor = new BABYLON.Color4(r, g, b, a);
+      }
     }
 
     // TODO: make our own .mtl info and bundle it with the textures to set uv scales
@@ -770,6 +871,8 @@ export const ViewModel = Map.extend({
       mesh.checkCollisions = true;
       mesh.receiveShadows = true;
 
+      this.collisionMeshes.push( mesh );
+
       this.bgMeshSetMaterial ( mesh, roomInfo );
     }
   },
@@ -779,7 +882,7 @@ export const ViewModel = Map.extend({
     var arrayOfLoadedMaterials = data[ 0 ];
     var roomMeshSetDef = data[ 1 ];
     var unzippedMeshFiles = roomMeshSetDef.unzippedFiles;
-    var lightmapLivingspace = this.attr( "lightmapLivingspace" );
+    // const lightmaps = this.attr( "lightmaps" );
 
     this.attr( "bgMeshes", [] );
 
@@ -787,7 +890,13 @@ export const ViewModel = Map.extend({
       let curMaterial = arrayOfLoadedMaterials[ i ];
       let mat = this.createMaterial( curMaterial.internalName, curMaterial.unzippedFiles );
 
-      mat.ambientTexture = lightmapLivingspace;
+      // const lightmaps = this.attr( "lightmaps" );
+      // const lightmapId = this.getTagValue( mesh, "lightmap" );
+      //
+      // if (lightmapId !== "" && lightmaps[ lightmapId ]){
+      //   mat.ambientTexture = lightmaps[ lightmapId ];
+      // }
+
       curMaterial.attr( "instance", mat );
       //curMaterial.removeAttr( "unzippedFiles" );
     }
@@ -802,9 +911,13 @@ export const ViewModel = Map.extend({
     }
   },
 
-  applyTerrainLightmaps () {
+  /**
+   * Applies the lightmap material to terrain meshes that uses a lightmap
+   * Also sets the attr skydomeMaterial so it can be animated
+   */
+  applyTerrainMaterials () {
     let meshes = this.attr("terrainMeshes");
-    const lightmapTerrain = this.attr("lightmapTerrain");
+    const lightmaps = this.attr("lightmaps");
 
     let materialGroups = {};
 
@@ -822,7 +935,7 @@ export const ViewModel = Map.extend({
 
         if (lightmapId != ""){
           // Check if the lightmap exists as a file
-          if (lightmapTerrain[ lightmapId ]){
+          if (lightmaps[ lightmapId ]){
             // Creates a key like "xxxx-xxxx-xxxx-xxxxxxterrainfloor (GUID + lmId)
             const key = mesh.material.id + lightmapId;
             // If the group already exists then just add the mesh
@@ -855,7 +968,7 @@ export const ViewModel = Map.extend({
     for (const key in materialGroups){
       let group = materialGroups[ key ];
       // The lightmap texture to use
-      const lm = lightmapTerrain[ group.lightmapId ];
+      const lm = lightmaps[ group.lightmapId ];
 
       let meshes = group.meshes;
       let material = group.material;
@@ -898,6 +1011,9 @@ export const ViewModel = Map.extend({
   },
 
   loadLightmaps ( lightmapBundleURL ) {
+
+    lightmapBundleURL = "/src/static/3d/LS_27_lightmap_1400.zip";
+
     var lightmapReq = new can.Map({
       lightmap: true,
       assetID: -333,
@@ -909,25 +1025,18 @@ export const ViewModel = Map.extend({
       var scene = this.attr( "scene" );
       var unzippedAssets = assetData.unzippedFiles;
 
-      this.attr("lightmapTerrain", {});
+      this.attr("lightmaps", {});
 
       for ( let x = 0; x < unzippedAssets.length; x++ ) {
         let asset = unzippedAssets[ x ];
         if ( asset.type === "texture" ) {
-          if ( asset.name === "livingspace.png" ) {
-            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapLivingspace", scene );
-            lm.coordinatesIndex = 1; // Use UV channel 2
-            this.attr( "lightmapLivingspace", lm );
-          // Create the lightmapTerrain entries for terrainshops1.png, terrainshops2.png and terrainfloor.png
-          } else {
-            // length -4 should cover our usecase but if we change to .jpeg for some reason we need to check the actual extensions length!
-            // Example: terrainfloor.png => terrainfloor as key name
-            const terrainLmName = asset.name.substring( 0, asset.name.length - 4 );
+          // length -4 should cover our usecase but if we change to .jpeg for some reason we need to check the actual extensions length!
+          // Example: terrainfloor.png => terrainfloor as key name
+          const lmName = asset.name.substring( 0, asset.name.length - 4 );
 
-            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, terrainLmName, scene );
-            lm.coordinatesIndex = 1;
-            this.attr( "lightmapTerrain" )[ terrainLmName ] = lm;
-          }
+          let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmap_" + lmName, scene );
+          lm.coordinatesIndex = 1;
+          this.attr( "lightmaps" )[ lmName ] = lm;
         }
       }
     });
@@ -1023,7 +1132,8 @@ export const ViewModel = Map.extend({
       var roomAssetURL = vm.roomAssetURL( uroomID );
       //TODO: use real roomAssetURL to load the backgroundMesh or change service
       let livingSpaceID = homeLoad.livingSpaceID;
-      roomAssetURL = "https://cdn.testing.egowall.com/CDN_new/Game/Assetbundles/Home/LS_" + livingSpaceID + "_test.zip";
+      // roomAssetURL = "https://cdn.testing.egowall.com/CDN_new/Game/Assetbundles/Home/LS_" + livingSpaceID + "_test.zip";
+      roomAssetURL = "/src/static/3d/ls27room.zip";
       var setDef = new Map({ assetID: roomAssetURL, assetURL: roomAssetURL });
       var roomMeshProm = Asset.get( setDef );
       
@@ -1037,7 +1147,7 @@ export const ViewModel = Map.extend({
         vm.roomLoad.bind( vm, uroomID )
       ).then(( arrOfRoomLoadResults ) => {
         return terrainProm.then(( terrainPromResults ) => {
-          vm.applyTerrainLightmaps( terrainPromResults );
+          vm.applyTerrainMaterials( terrainPromResults );
           vm.attr( "homeLoadFinished", true );
           return { arrOfRoomLoadResults, terrainPromResults };
         });
@@ -1054,7 +1164,322 @@ export const ViewModel = Map.extend({
     } else {
       scene.debugLayer.show();
     }
-  }
+  },
+
+  /*
+    Temporary functions
+   */
+  updatePositions(a_item, a_positionDelta){
+    for ( let i = 0; i < a_item.rootMeshes.length; ++i){
+      let rootMesh = a_item.rootMeshes[i];
+      // Should get all children even from different meshes that still are parents
+      let children = rootMesh.getChildMeshes();
+
+      rootMesh.position.addInPlace( a_positionDelta );
+
+      rootMesh.freezeWorldMatrix();
+
+      for (let i = 0; i < children.length; ++i){
+        children[i].freezeWorldMatrix();
+      }
+    }
+
+    for (let i = 0; i < a_item.children.length; ++i){
+      this.updatePosition( a_item.children[i], a_positionDelta );
+    }
+    // An item has moved need new shadow map generated
+    this.updateShadowmap = true;
+  },
+
+  setItemParent(a_item, a_parent ){
+    if (a_item.parent){
+
+      if (a_parent == null){
+        this.removeChild( a_item.parent, a_item );
+      }
+      else if ( a_item.parent !== a_parent ){
+        this.removeChild( a_item.parent, a_item );
+        a_item.parent = a_parent;
+        a_parent.children.push( a_item);
+      }
+      else {
+        // Do nothing same reference
+      }
+    }
+    else{
+      if (a_parent){
+        a_item.parent = a_parent;
+        a_parent.children.push( a_item );
+      }
+    }
+  },
+
+  removeChild( item, child ){
+    for (let i = 0; i < item.children.length; ++i){
+      if (item.children[i] === child){
+        item.children.splice(i, 1);
+        break;
+      }
+    }
+  },
+  /**
+   * Items affected by gravity
+   */
+  gravityItems : [],
+  /**
+   * If the shadowmap needs to be updated, for example if a furniture has moved.
+   */
+  updateShadowmap: false,
+  selectedFurnitureMeshes: null,
+  // The meshes to check against for collision
+  meshesToCheckFurniture: null,
+
+  /**
+   * Activate gravity for an item
+   * @param {EgowallItem} a_item
+   */
+  activateGravity(a_item ){
+    this.gravityItems.push ( a_item );
+    BABYLON.Vector3.FromFloatsToRef(0, 2, 0, BABYLON.Tmp.Vector3[8]);
+    this.updatePositions(a_item, BABYLON.Tmp.Vector3[8]);
+  },
+
+  /**
+   * Remove the item from
+   * @param {EgowallItem} a_item
+   */
+  removeGravity( a_item ){
+    for( let i = 0; i < this.gravityItems.length; ++i){
+      if (this.gravityItems[i] === a_item ){
+        this.gravityItems.splice(i, 1);
+      }
+    }
+  },
+
+  /**
+   * Recursively get all childMeshes for an item
+   * @param {EgowallItem} a_item
+   * @returns {BABYLON.Mesh[]}
+   */
+  getChildMeshes( a_item ){
+    let result = [];
+
+    for ( let i = 0; i < a_item.rootMeshes.length; ++i){
+      result.push( ...a_item.rootMeshes[i].getChildMeshes() );
+    }
+
+    for (let i = 0; i < a_item.children; ++i) {
+      result.push( ...this.getChildMeshes( a_item.children[i]) );
+    }
+
+    return result;
+  },
+
+  /**
+   *
+   * @param {EgowallItem} a_item
+   * @returns {CollisionResult[]}
+   */
+  checkFurnitureCollisions( a_item ){
+    // Lazy load the array and store until a new selection happens
+    if (!this.selectedFurnitureMeshes){
+      // calculate the meshes
+      this.selectedFurnitureMeshes = this.getChildMeshes( a_item );
+    }
+
+    let selectedFurnitureMeshes = this.selectedFurnitureMeshes;
+
+    // If first time checking meshes
+    if (!this.meshesToCheckFurniture){
+      let scene = this.attr("scene");
+      // TODO: Improve this by already having an array with all meshes that needs checking instead of BG, Terrain and furnitures
+      let meshes = this.collisionMeshes;
+
+      this.meshesToCheckFurniture = [];
+
+      for (let i = 0; i < meshes.length; ++i){
+        let canCheck = true;
+        let mesh = meshes[i];
+        for ( let j = 0; j < selectedFurnitureMeshes.length; ++j){
+          if (mesh === selectedFurnitureMeshes[j]){
+            canCheck = false;
+            break;
+          }
+        }
+
+        if (canCheck){
+          // Add it to the cached checkable meshes
+          this.meshesToCheckFurniture.push(mesh);
+        }
+      }
+    }
+
+    let meshes = this.meshesToCheckFurniture;
+    let result = [];
+    for (let i = 0; i < meshes.length; ++i){
+      let mesh = meshes[i];
+      for ( let j = 0; j < selectedFurnitureMeshes.length; ++j){
+        let furnitureMesh = selectedFurnitureMeshes[j];
+
+        if (furnitureMesh.intersectsMesh( mesh)){
+          //return { hit: mesh, furniture: furnitureMesh };
+          result.push( { hit:mesh, furniture: furnitureMesh } );
+        }
+      }
+    }
+
+    return result;
+  },
+  /**
+   *
+   * @param {EgowallItem} a_item
+   * @param {CollisionResult[]} a_collisions
+   * @param {float} a_deltaY How much the gravity moved an object since last frame
+   */
+  adjustCollisionPos(a_item, a_collisions, a_deltaY ){
+    // const furnitureInfo = a_collisionResult.furniture.getBoundingInfo().boundingBox;
+    // const hitInfo = a_collisionResult.hit.getBoundingInfo().boundingBox;
+
+    // -1 = against gravity
+    let direction = -1;
+
+    let tempVec = BABYLON.Tmp.Vector3[7];
+    let isColliding = true;
+    let multiplierValue = 0;
+
+    for (let i = 1; i < 6; ++i){
+      // Half the distance until finished!
+      // 0.5, 0.75, 0.875, 0.9375, 0.96875
+      let multiplier = direction * (1 / Math.pow(2, i));
+
+      multiplierValue += multiplier;
+
+      tempVec.y = a_deltaY * multiplier;
+
+      this.updatePositions(a_item, tempVec);
+
+      isColliding = false;
+
+      // Check all collisions if they still collide or not
+      for (let j = 0; j < a_collisions.length; ++j){
+        let collision = a_collisions[j];
+        if ( collision.furniture.intersectsMesh( collision.hit )){
+          isColliding = true;
+        }
+      }
+      // If it's not colliding then try and get closer towards collision
+      if (!isColliding){
+        // If no collision and moving against gravity start moving towards gravity
+        if (direction == -1){
+          direction = -direction;
+        }
+      }
+      else{
+        // If colliding and direction is going towards gravity
+        // Then go against gravity
+        if (direction == 1){
+          direction = -direction;
+        }
+      }
+    }
+
+    console.log(multiplierValue);
+    // If still colliding then
+  },
+  /**
+   * Get the item to be new parent if possible
+   * @param a_collisions
+   */
+  getParentFromCollisions(a_collisions){
+    let parentCount = {};
+
+    for (let i = 0; i < a_collisions.length; ++i){
+      let itemRef = this.getItemFromMesh( a_collisions[i].hit );
+
+      if (itemRef && Object.keys( itemRef ).length > 0  ){
+        if (!parentCount[ itemRef ] ){
+          parentCount[itemRef] = 0;
+        }
+
+        parentCount[itemRef]++;
+      }
+    }
+    let highestCount = 0;
+    let parent = null;
+    for (let key in parentCount){
+      let count = parentCount[ key ];
+      if ( count > highestCount ){
+        parent = key;
+        highestCount = count;
+      }
+    }
+
+    return parent;
+  },
+
+  /**
+   * Adds the gravity distance to the item and checks for collision
+   * @param {EgowallItem} a_item
+   * @param {BABYLON.Vector3}a_gravityDistance
+   */
+  applyGravity( a_item, a_gravityDistance ){
+    // Start by adding the gravity distance
+    this.updatePositions( a_item, a_gravityDistance );
+
+    // Check collision and get result
+    let collisions = this.checkFurnitureCollisions( a_item );
+    // If colliding try and figure out where!
+    if (collisions.length > 0){
+      // Adjust the position by moving object ~6 times to get as near as possible
+      this.adjustCollisionPos( a_item, collisions, a_gravityDistance.y );
+      // If the collisions is an EgowallItem then add item as child to which had highest count or first occurence if same count
+      const parent = this.getParentFromCollisions( collisions );
+
+      // TEMPORARY debug code incase it would happen
+      if (parent === a_item){
+        console.log("Parent equals gravityItem,  this should not happen! Investigate!");
+        throw "a party";
+      }
+      // Set a parent for the item
+      if (parent){
+        this.setItemParent( a_item, parent );
+      }
+      // Remove this item from having gravity affecting it
+      this.removeGravity( a_item );
+    }
+  },
+
+  /**
+   * Update rotation of an item
+   * @param {EgowallItem} a_item
+   */
+  updateRotation(a_item){
+    for ( let i = 0; i < a_item.rootMeshes.length; ++i){
+      let rootMesh = a_item.rootMeshes[i];
+      // Should get all children even from different meshes that still are parents
+      let children = rootMesh.getChildMeshes();
+
+      const rotValue = 1;
+      if (!rootMesh.rotation){
+        rootMesh.rotation = new BABYLON.Vector3(0, 0, rotValue);
+      }
+      else{
+        rootMesh.rotation.y = rotValue;
+      }
+      rootMesh.freezeWorldMatrix();
+
+      for (let i = 0; i < children.length; ++i){
+        children[i].freezeWorldMatrix();
+      }
+    }
+
+    for (let i = 0; i < a_item.children.length; ++i){
+      this.updateRotation( a_item.children[i] );
+    }
+    // An item has moved need new shadow map generated
+    this.updateShadowmap = true;
+  },
+
 });
 
 export const controls = {
@@ -1142,12 +1567,57 @@ export default Component.extend({
           skydomeMaterial.diffuseTexture.uOffset += deltaTime * 0.0025;
         }
 
+        /*
+          BABYLON.Vector3.Tmp usage:
+          8: Gravity delta movement
+          7: By adjustCollisionPos
+         */
+        let gravityItems = vm.attr("gravityItems");
+
+        if (gravityItems.length > 0){
+
+          BABYLON.Vector3.FromFloatsToRef(0, scene.gravity.y * deltaTime, 0, BABYLON.Tmp.Vector3[8]);
+          let gravityDistance = BABYLON.Tmp.Vector3[8];
+
+          for ( let i = 0; i < gravityItems.length; ++i){
+            vm.applyGravity( gravityItems[i], gravityDistance );
+          }
+        }
+
+        if (vm.updateShadowmap){
+          vm.unfreezeShadowCalculations();
+        }
+
         scene.render();
         renderCount = ( renderCount + 1 ) % 100;
       });
 
       controls[ "context" ] = this.viewModel;
       getControls().registerControls( controls.name, controls );
+
+      // TEMP
+      window.updatePosition = function( a_item, a_pos ){
+        vm.updatePositions( a_item, a_pos );
+      };
+
+      window.updateRotation = function( a_item, a_rot ){
+        vm.updateRotation( a_item, a_rot );
+      };
+
+      window.setItemParent = function(a_item, a_parent) {
+        vm.setItemParent(a_item, a_parent);
+      };
+      window.removeChild = function(a_item, a_child) {
+        vm.removeChild(a_item, a_child);
+      };
+
+      window.activateGravity = function(a_item){
+        vm.activateGravity(a_item);
+      };
+
+      window.removeGravity = function(a_item){
+        vm.removeGravity( a_item);
+      };
 
       return;
     },

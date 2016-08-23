@@ -97,28 +97,56 @@ export const ViewModel = Map.extend({
   },
 
   pickingEvent ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
-    var scene = this.attr( "scene" );
-    var curMousePos = controlsVM.curMousePos();
-    var customizeMode = this.attr( "customizeMode" );
 
-    var pickingInfo = scene.pick( curMousePos.x, curMousePos.y, ( hitMesh ) => {
-      return this.getPickingFn( hitMesh, customizeMode ) ? true : false;
-    });
 
-    var hoveredMesh = this.attr( "hoveredMesh" );
+    if ($ev.target.nodeName.toLowerCase() === "canvas") {
+      // Micro optimization it's more likely selectedItem is false than true
+      if (!this.selectedItem){
 
-    var allowPick = pickingInfo.hit && $ev.target.nodeName.toLowerCase() === "canvas";
+        var curMousePos = controlsVM.curMousePos();
+        var customizeMode = this.attr( "customizeMode" );
+        let hoveredMesh = this.attr( "hoveredMesh" );
 
-    if ( allowPick ) {
-      let pickingFn = this.getPickingFn( pickingInfo.pickedMesh, customizeMode );
-      this[ pickingFn ]( hoveredMesh, pickingInfo, curMousePos );
+        let pickingInfo = this.getPickingFromMouse( curMousePos, ( hitMesh ) => {
+          return this.getPickingFn( hitMesh, customizeMode ) ? true : false;
+        });
+
+        if ( pickingInfo.hit ) {
+          let pickingFn = this.getPickingFn( pickingInfo.pickedMesh, customizeMode );
+          this[ pickingFn ]( hoveredMesh, pickingInfo, curMousePos );
+        } else {
+          this.unsetHoveredMesh();
+        }
+      }
+      // If selectedItem is set
+      else {
+        this.selectedItemMovePicking( controlsVM.curMousePos() );
+      }
     } else {
-      if ( hoveredMesh ) {
-        this.clearMeshOutline( hoveredMesh );
-        getTooltip().clear( "meshHover" );
-        this.attr( "hoveredMesh", null );
+      // If outside canvas and selectedItem is false then unset the hoveredMesh
+      if (!this.selectedItem){
+        this.unsetHoveredMesh();
       }
     }
+  },
+
+  /**
+   * Unset the hovered mesh if mouseover the canvas or no picking result
+   */
+  unsetHoveredMesh(){
+    let hoveredMesh = this.attr( "hoveredMesh" );
+    if ( hoveredMesh ) {
+      this.clearMeshOutline( hoveredMesh );
+      getTooltip().clear( "meshHover" );
+      this.attr( "hoveredMesh", null );
+    }
+  },
+
+  getPickingFromMouse( mousePos, predicate ){
+
+    // If mouse is not on the canvas then don't even bother picking
+    const scene = this.attr( "scene" );
+    return scene.pick( mousePos.x, mousePos.y, predicate);
   },
 
   pickingBG ( hoveredMesh, pickingInfo, curMousePos ) {
@@ -266,6 +294,8 @@ export const ViewModel = Map.extend({
 
   initScene () {
     var scene = this.attr( "scene" );
+    window.scene = scene;
+    window.BABYLON = BABYLON;
     // Needs to be black for the outline or the renderTarget gets false positives.
     scene.clearColor = new BABYLON.Color3( 0, 0, 0 );
 
@@ -282,6 +312,69 @@ export const ViewModel = Map.extend({
     var camera = this.initCamera();
   },
 
+
+
+  initOutline(scene){
+
+    /*********** END OF SHADERSTORE ***********************/
+
+    let engine = scene.getEngine();
+    let camera = this.attr("camera");
+
+    // setup render target
+    var renderTarget = new BABYLON.RenderTargetTexture("depth", 1024, scene, false);
+
+    scene.customRenderTargets.push(renderTarget);
+    renderTarget.activeCamera = camera;
+    this.attr("renderTarget", renderTarget);
+
+    renderTarget.onBeforeRender = function () {
+      for (var i = 0; i < renderTarget.renderList.length; i++) {
+        let mesh = renderTarget.renderList[i];
+        // mesh.visibility = 1;
+
+        if (mesh.__outlineMat){
+          mesh.__savedMaterial = mesh.material;
+          mesh.material = mesh.__outlineMat;
+        }
+      }
+    };
+
+    renderTarget.onAfterRender = function () {
+      for (var i = 0; i < renderTarget.renderList.length; i++) {
+        let mesh = renderTarget.renderList[i];
+        // mesh.visibility = 0;
+        mesh.material = mesh.__savedMaterial;
+      }
+    };
+
+    //setup post processing
+    var tPass = new BABYLON.PassPostProcess("pass", 1.0, camera);
+
+    var tDisplayPass = new BABYLON.DisplayPassPostProcess("displayRenderTarget", 1.0, camera);
+    tDisplayPass.onApply = function (pEffect) {
+      pEffect.setTexture("passSampler", renderTarget);
+    };
+
+    new BABYLON.BlurPostProcess("blurH", new BABYLON.Vector2(1.0, 0), 1.0, 0.25, camera);
+    new BABYLON.BlurPostProcess("blurV", new BABYLON.Vector2(0, 1.0), 1.0, 0.25, camera);
+
+    var tCombine = new BABYLON.PostProcess("combine", "outlineCombine", null, ["passSampler", "maskSampler"], 1.0, camera);
+    tCombine.onApply = function (pEffect) {
+      pEffect.setTexture("maskSampler", renderTarget);
+      //pEffect.setTextureFromPostProcess("rendering", renderTarget);
+      pEffect.setTextureFromPostProcess("passSampler", tPass);
+    };
+
+    tCombine.onBeforeRender = function () {
+      engine.setAlphaMode(BABYLON.Engine.ALPHA_COMBINE);
+    };
+
+    tCombine.onAfterRender = function () {
+      engine.setAlphaMode(BABYLON.Engine.ALPHA_DISABLE);
+    };
+
+  },
   roomInfo ( uroomID ) {
     var homeLoad = this.attr( "homeLoad" );
     var roomStatus = homeLoad.roomStatus;
@@ -1383,8 +1476,6 @@ export const ViewModel = Map.extend({
       }
     }
 
-    console.log(multiplierValue);
-    // If still colliding then
   },
   /**
    * Get the item to be new parent if possible
@@ -1480,19 +1571,167 @@ export const ViewModel = Map.extend({
     this.updateShadowmap = true;
   },
 
+  /* Mesh movement code */
+  selectedItem: null,
+  selectedItemPos: null,
+
+  selectedItemMovePicking(a_mousePos){
+    function lookRotation(forward, up){
+      forward = forward.normalize();
+
+      //const normForward = forward.copy();
+      const crossUp = BABYLON.Vector3.Cross( up, forward ).normalize();
+      const crossCross = BABYLON.Vector3.Cross( forward, crossUp );
+
+      const m00 = crossUp.x;
+      const m01 = crossUp.y;
+      const m02 = crossUp.z;
+      const m10 = crossCross.x;
+      const m11 = crossCross.y;
+      const m12 = crossCross.z;
+      const m20 = forward.x;
+      const m21 = forward.y;
+      const m22 = forward.z;
+
+      const num8 = (m00 + m11) + m22;
+      let quaternion = BABYLON.Quaternion.Identity();
+      if (num8 > 0)
+      {
+        let num = Math.sqrt(num8 + 1);
+        quaternion.w = num * 0.5;
+        num = 0.5 / num;
+        quaternion.x = (m12 - m21) * num;
+        quaternion.y = (m20 - m02) * num;
+        quaternion.z = (m01 - m10) * num;
+        return quaternion.normalize();
+      }
+      if ((m00 >= m11) && (m00 >= m22))
+      {
+        const num7 = Math.sqrt(((1 + m00) - m11) - m22);
+        const num4 = 0.5 / num7;
+        quaternion.x = 0.5 * num7;
+        quaternion.y = (m01 + m10) * num4;
+        quaternion.z = (m02 + m20) * num4;
+        quaternion.w = (m12 - m21) * num4;
+        return quaternion.normalize();
+      }
+      if (m11 > m22)
+      {
+        const num6 = Math.sqrt(((1 + m11) - m00) - m22);
+        const num3 = 0.5 / num6;
+        quaternion.x = (m10+ m01) * num3;
+        quaternion.y = 0.5 * num6;
+        quaternion.z = (m21 + m12) * num3;
+        quaternion.w = (m20 - m02) * num3;
+        return quaternion.normalize();
+      }
+      const num5 = Math.sqrt(((1 + m22) - m00) - m11);
+      const num2 = 0.5 / num5;
+      quaternion.x = (m20 + m02) * num2;
+      quaternion.y = (m21 + m12) * num2;
+      quaternion.z = 0.5 * num5;
+      quaternion.w = (m01 - m10) * num2;
+      return quaternion.normalize();
+    }
+    function multiplyVector3(quat, vec3, vec3Dest) {
+      if (!quat) quat = BABYLON.Quaternion.Identity();
+
+      quat = [ quat.x, quat.y, quat.z, quat.w ];
+      vec3 = [ vec3.x, vec3.y, vec3.z ];
+
+      vec3Dest = [];
+      var d = vec3[0],
+        e = vec3[1],
+        g = vec3[2],
+        b = quat[0],
+        f = quat[1],
+        h = quat[2],
+        a = quat[3],
+        i = a * d + f * g - h * e,
+        j = a * e + h * d - b * g,
+        k = a * g + b * e - f * d,
+        d = -b * d - f * e - h * g;
+      vec3Dest[0] = i * a + d * -b + j * -h - k * -f;
+      vec3Dest[1] = j * a + d * -f + k * -b - i * -h;
+      vec3Dest[2] = k * a + d * -h + i * -f - j * -b;
+      return new BABYLON.Vector3( vec3Dest[0], vec3Dest[1], vec3Dest[2] );
+    };
+
+
+    let selectedItem = this.selectedItem;
+    let vm = this;
+
+    const pickingResult = this.getPickingFromMouse( a_mousePos, ( hitMesh ) => {
+      let itemRef = hitMesh.__itemRef;
+      // 1. Don't return a hit for the same item
+      if (itemRef){
+        // If __itemRef exists and isn't the selected item then return true!
+        if (itemRef !== selectedItem){
+          return true;
+        }
+      }
+      else {
+        let backgroundRef = hitMesh.__backgroundMeshInfo;
+        // If the backgroundMeshInfo exists then it's a background mesh and return true!
+        if (backgroundRef){
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if (pickingResult.hit){
+      let rootMesh = selectedItem.rootMeshes[0];
+      // Calculate correct position
+      pickingResult.pickedPoint.subtractToRef(rootMesh.position, BABYLON.Tmp.Vector3[8] );
+      this.updatePositions( selectedItem, BABYLON.Tmp.Vector3[8] );
+
+      const upVector = BABYLON.Vector3.Up();
+
+      const normal = pickingResult.getNormal(true);
+      const direction = new BABYLON.Vector3( normal.x, normal.y, normal.z);
+
+      const axis = BABYLON.Vector3.Cross(upVector, direction ).normalize();
+
+      if (axis.length() === 0){
+        // debugger;
+      }
+      const angle = Math.acos(BABYLON.Vector3.Dot(upVector, direction));
+
+      let rotQuat;
+      if (direction.y === 1){
+        // If direction is up then use identity quaternion
+        rotQuat = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 0, 1);
+      }
+      else if (direction.y === -1){
+        rotQuat = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 1, 0);
+      }
+      else{
+        rotQuat = BABYLON.Quaternion.RotationAxis( axis, angle );
+      }
+
+      rootMesh.rotationQuaternion.copyFrom( rotQuat );
+    }
+  },
+  unselectItem(){
+    this.selectedItem = null;
+  }
+
 });
 
 export const controls = {
   "name": "game-canvas",
   "context": null,
   "keypress": {
-    "`": "toggleBabylonDebugLayer"
+    "`": "toggleBabylonDebugLayer",
+    "Escape": "unselectItem"
   },
   "click": {
     "Left" ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
-      if ( this.attr( "hoveredMesh" ) ) {
+      if ( this.attr( "hoveredMesh" )) {
         // don't execute camera click on ground
         $ev.controlPropagationStopped = true;
+        this.selectedItem = this.attr("hoveredMesh").__itemRef;
       }
     }
   },
@@ -1550,6 +1789,8 @@ export default Component.extend({
 
       vm.initLights();
 
+      // vm.initOutline(scene);
+
       var renderCount = 0;
       engine.runRenderLoop(function () {
         // Convert deltaTime from milliseconds to seconds
@@ -1567,15 +1808,13 @@ export default Component.extend({
           skydomeMaterial.diffuseTexture.uOffset += deltaTime * 0.0025;
         }
 
-        /*
-          BABYLON.Vector3.Tmp usage:
-          8: Gravity delta movement
-          7: By adjustCollisionPos
-         */
         let gravityItems = vm.attr("gravityItems");
-
         if (gravityItems.length > 0){
-
+          /*
+           BABYLON.Vector3.Tmp usage:
+           8: Gravity delta movement
+           7: By adjustCollisionPos
+           */
           BABYLON.Vector3.FromFloatsToRef(0, scene.gravity.y * deltaTime, 0, BABYLON.Tmp.Vector3[8]);
           let gravityDistance = BABYLON.Tmp.Vector3[8];
 

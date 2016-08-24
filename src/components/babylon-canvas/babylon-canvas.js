@@ -24,11 +24,13 @@ import Asset from '../../models/asset.js';
  * @typedef {{ hit: BABYLON.Mesh, furniture: BABYLON.Mesh }} CollisionResult
  */
 
+/*
+  Added properties to meshes:
+  {Quaternion} __invInitialRotation The inverse of the rotation quaternion to cancel out rotation when setting parent
+ */
+
 export const ViewModel = Map.extend({
   define: {
-    items:{
-      value: []
-    },
     /*items: {
       get ( last ) {
         return last || [];
@@ -57,6 +59,7 @@ export const ViewModel = Map.extend({
       }
     }
   },
+  items: [],
   /**
    * The skydome material to animate in the renderloop
    */
@@ -483,8 +486,10 @@ export const ViewModel = Map.extend({
       if (isPainting){
         // rootMesh.rotation.y = Math.PI;
         // rootMesh.rotation.x = Math.PI / -2;
-        rootMesh.rotationQuaternion.multiplyInPlace( BABYLON.Quaternion.RotationYawPitchRoll(0, Math.PI * 1.5, Math.PI ) );
+        // rootMesh.rotationQuaternion.multiplyInPlace( BABYLON.Quaternion.RotationYawPitchRoll(0, Math.PI * 1.5, Math.PI ) );
       }
+
+      rootMesh.__invInitialRotation = BABYLON.Quaternion.Inverse(rootMesh.rotationQuaternion);
     }
   },
 
@@ -550,7 +555,7 @@ export const ViewModel = Map.extend({
         item.meshes.push( mesh );
       }
 
-      mesh.__itemRef = item;
+      // mesh.__itemRef = item;
 
       mesh.name = itemInfo.furnName || mesh.name;
 
@@ -603,9 +608,13 @@ export const ViewModel = Map.extend({
       this.setMeshLocationFromAjaxData( item.rootMeshes, info, !!itemInfo.egoID );
     }
 
+    const __itemRef = this.attr("items")[ this.attr("items").length -1 ];
     // Need to do this after the meshes loop because for the paintings it doesn't work inside the loop.
     // Also not using item.meshes because item.meshes only adds meshes with vertices
     for ( let i = 0; i < meshes.length; ++i ) {
+      // console.log( item );
+      // console.log( this.attr("items")[ this.attr("items").length -1 ] );
+      meshes[i].__itemRef = __itemRef;
       meshes[i].freezeWorldMatrix();
     }
   },
@@ -1278,14 +1287,18 @@ export const ViewModel = Map.extend({
 
       rootMesh.freezeWorldMatrix();
 
-      for (let i = 0; i < children.length; ++i){
-        children[i].freezeWorldMatrix();
+      for (let j = 0; j < children.length; ++j){
+        children[j].freezeWorldMatrix();
       }
     }
 
-    for (let i = 0; i < a_item.children.length; ++i){
-      this.updatePosition( a_item.children[i], a_positionDelta );
-    }
+    //for (let i = 0; i < a_item.children.length; ++i){
+    //   this.freezeChildren( a_item.children[i] );
+    // }
+
+    // for (let i = 0; i < a_item.children.length; ++i){
+    //   this.updatePositions( a_item.children[i], a_positionDelta );
+    // }
     // An item has moved need new shadow map generated
     this.updateShadowmap = true;
   },
@@ -1295,11 +1308,11 @@ export const ViewModel = Map.extend({
 
       if (a_parent == null){
         this.removeChild( a_item.parent, a_item );
+        a_item.parent = null;
       }
       else if ( a_item.parent !== a_parent ){
         this.removeChild( a_item.parent, a_item );
-        a_item.parent = a_parent;
-        a_parent.children.push( a_item);
+        this.setItemParent2( a_item, a_parent );
       }
       else {
         // Do nothing same reference
@@ -1307,10 +1320,78 @@ export const ViewModel = Map.extend({
     }
     else{
       if (a_parent){
-        a_item.parent = a_parent;
-        a_parent.children.push( a_item );
+        this.setItemParent2( a_item, a_parent );
       }
     }
+  },
+
+  /**
+   *
+   * @param {EgowallItem} a_item
+   * @param {EgowallItem} a_parent
+   */
+  setItemParent2( a_item, a_parent ){
+
+    a_item.parent = a_parent;
+    a_parent.children.push( a_item );
+
+    let tmpVector = BABYLON.Tmp.Vector3[8];
+    let tmpQuat = BABYLON.Tmp.Quaternion[0];
+    for ( let i = 0; i < a_item.rootMeshes.length; ++i ){
+      let rootMesh = a_item.rootMeshes[i];
+      tmpVector.copyFrom(rootMesh.getAbsolutePosition());
+
+
+      rootMesh.parent = a_parent.rootMeshes[0];
+
+      const inverseQuat = BABYLON.Quaternion.Inverse(rootMesh.parent.rotationQuaternion);
+      // rootMesh.rotationQuaternion.multiplyInPlace( rootMesh.__invInitialRotation );
+      rootMesh.rotationQuaternion.multiplyInPlace( inverseQuat );
+
+      rootMesh.setAbsolutePosition( tmpVector );
+
+      rootMesh.freezeWorldMatrix();
+      let children = rootMesh.getChildMeshes();
+      for( let j = 0; j < children.length; ++j){
+        children[j].freezeWorldMatrix();
+      }
+
+      // a_item.rootMeshes[i].position.copyFromFloats( 0, 0, 0);
+    }
+
+    // Calculate pivot point difference
+    // let pivotMatrix = a_item.rootMeshes[0].getPivotMatrix();
+    // const parentPivotMatrix = a_parent.rootMeshes[0].getPivotMatrix();
+    // a_item.basePos = {
+    //   x: pivotMatrix.m[12],
+    //   y: pivotMatrix.m[13],
+    //   z: pivotMatrix.m[14]
+    // }
+    //
+    // let tmpVector = BABYLON.Tmp.Vector3[8];
+    // // Has the difference
+    // a_parent.rootMeshes[0].position.subtractToRef(a_item.rootMeshes[0].position , tmpVector);
+    // // tmpVector.copy( pivotMatrix.m[12] - parentPivotMatrix.m[12],
+    // //   pivotMatrix.m[13] - parentPivotMatrix.m[13],
+    // //   pivotMatrix.m[14] - parentPivotMatrix.m[14] );
+    //
+    // console.log( pivotMatrix );
+    // console.log(tmpVector);
+    // // pivotMatrix.setTranslation( tmpVector );
+    // // pivotMatrix.m[12] -= parentPivotMatrix.m[12];
+    // // pivotMatrix.m[13] -= parentPivotMatrix.m[13];
+    // // pivotMatrix.m[14] -= parentPivotMatrix.m[14];
+    //
+    // pivotMatrix.m[14] += tmpVector.x;
+    // pivotMatrix.m[13] -= tmpVector.y;
+    // pivotMatrix.m[12] -= tmpVector.z;
+    // // console.log(tmpVector);
+    //
+    // // a_item.rootMeshes[0].position.addInPlace( tmpVector);
+    // a_item.rootMeshes[0].position.copyFrom( a_parent.rootMeshes[0].position  );
+
+
+    // a_item.rootMeshes[0].setPivotMatrix( pivotMatrix );
   },
 
   removeChild( item, child ){
@@ -1550,29 +1631,30 @@ export const ViewModel = Map.extend({
    * Update rotation of an item
    * @param {EgowallItem} a_item
    */
-  updateRotation(a_item, a_rotation){
+  updateRotation( a_item ){
     for ( let i = 0; i < a_item.rootMeshes.length; ++i){
       let rootMesh = a_item.rootMeshes[i];
       // Should get all children even from different meshes that still are parents
       let children = rootMesh.getChildMeshes();
 
       const rotValue = 1;
-      if (!rootMesh.rotation){
-        rootMesh.rotation = new BABYLON.Vector3(0, 0, rotValue);
-      }
-      else{
-        rootMesh.rotation.y = rotValue;
-      }
+      // if (!rootMesh.rotation){
+      //   rootMesh.rotation = new BABYLON.Vector3(0, 0, rotValue);
+      // }
+      // else{
+      //   rootMesh.rotation.y = rotValue;
+      // }
+      rootMesh.rotationQuaternion.multiplyInPlace( BABYLON.Quaternion.RotationYawPitchRoll(Math.PI * 0.25,0,0)   );
       rootMesh.freezeWorldMatrix();
 
-      for (let i = 0; i < children.length; ++i){
-        children[i].freezeWorldMatrix();
+      for (let j = 0; j < children.length; ++j){
+        children[j].freezeWorldMatrix();
       }
     }
 
-    for (let i = 0; i < a_item.children.length; ++i){
-      this.updateRotation( a_item.children[i] );
-    }
+    // for (let i = 0; i < a_item.children.length; ++i){
+    //   this.updateRotation( a_item.children[i] );
+    // }
     // An item has moved need new shadow map generated
     this.updateShadowmap = true;
   },
@@ -1582,38 +1664,53 @@ export const ViewModel = Map.extend({
    * @param {BABYLON.Vector3} a_positionDelta
    * @param {BABYLON.Quaternion}a_rotation
    */
-  updatePositionRotation(a_item, a_positionDelta, a_rotation ){
-
-    // a_rotation = a_rotation.add( a_item.baseRotation ).normalize();
-
-
-
+  updatePositionRotation(a_item, a_positionDelta, a_rotation, a_parent ){
     for ( let i = 0; i < a_item.rootMeshes.length; ++i){
       let rootMesh = a_item.rootMeshes[i];
-      // rootMesh.rotation.x = 0;
-      // rootMesh.rotation.y = 0;
-      // rootMesh.rotation.z = 0;
-      // Should get all children even from different meshes that still are parents
-      let children = rootMesh.getChildMeshes();
 
-      rootMesh.position.addInPlace( a_positionDelta );
-      // TODO: Use base rotation or the mesh loses its rotation
-      // rootMesh.rotationQuaternion.copyFrom( a_rotation );
-      //  a_rotation, rootMesh.rotationQuaternion);
-      a_rotation.multiplyToRef( a_item.baseRotation, rootMesh.rotationQuaternion );
+      if (!a_parent){
+        rootMesh.position.addInPlace( a_positionDelta );
+        // rootMesh.rotationQuaternion.copyFrom( a_rotation );
+        //  a_rotation, rootMesh.rotationQuaternion);
+        a_rotation.multiplyToRef( a_item.baseRotation, rootMesh.rotationQuaternion );
+      }
 
       rootMesh.freezeWorldMatrix();
 
-      for (let i = 0; i < children.length; ++i){
-        children[i].freezeWorldMatrix();
+      // Should get all children even from different meshes that still are parents
+      let children = rootMesh.getChildMeshes();
+      for (let j = 0; j < children.length; ++j){
+        children[j].freezeWorldMatrix();
+      }
+    }
+
+
+    // for (let i = 0; i < a_item.children.length; ++i){
+    //   this.freezeChildren( a_item.children[0] );
+    // }
+
+    // for (let i = 0; i < a_item.children.length; ++i){
+    //   this.updatePositionRotation( a_item.children[i], a_positionDelta, a_rotation );
+    // }
+    // An item has moved need new shadow map generated
+    this.updateShadowmap = true;
+  },
+
+  freezeChildren( a_item ){
+    for ( let i = 0; i < a_item.rootMeshes.length; ++i) {
+      let rootMesh = a_item.rootMeshes[i];
+      // rootMesh.parent = a_parentMesh;
+      let children = rootMesh.getChildMeshes();
+
+      rootMesh.freezeWorldMatrix();
+      for (let j = 0; j < children.length; ++j){
+        children[j].freezeWorldMatrix();
       }
     }
 
     for (let i = 0; i < a_item.children.length; ++i){
-      this.updatePositionRotation( a_item.children[i], a_positionDelta, a_rotation );
+      this.freezeChildren( a_item.children[i] );
     }
-    // An item has moved need new shadow map generated
-    this.updateShadowmap = true;
   },
 
   /* Mesh movement code */
@@ -1697,8 +1794,15 @@ export const ViewModel = Map.extend({
     this.selectedItem = null;
   },
   // Constant stored for the upVector
-  upVector3: BABYLON.Vector3.Up()
+  upVector3: BABYLON.Vector3.Up(),
 
+  setBaseRotation( a_item ){
+    a_item.baseRotation = a_item.rootMeshes[0].rotationQuaternion.clone();
+
+    for (let i = 0; i < a_item.children.length; ++i){
+      this.setBaseRotation( a_item.children[i] );
+    }
+  }
 });
 
 export const controls = {
@@ -1715,7 +1819,10 @@ export const controls = {
         $ev.controlPropagationStopped = true;
         this.selectedItem = this.attr("hoveredMesh").__itemRef;
         // Clone the reference because otherwise it'd get updated when changes are done to the selectedItem
-        this.selectedItem.baseRotation = this.selectedItem.rootMeshes[0].rotationQuaternion.clone();
+        this.setBaseRotation( this.selectedItem );
+
+
+        window.selectedItem = this.selectedItem;
       }
     }
   },

@@ -16,9 +16,32 @@ import Homes from '../../models/homes.js';
 import Rooms from '../../models/rooms.js';
 import Asset from '../../models/asset.js';
 
+/**
+ * @typedef {{
+ * _cid: undefined|String,
+ * activeGravity: undefined|Boolean,
+ * baseRotation:undefined|BABYLON.Quaternion,
+ * children: EgowallItem[],
+ * lastSurfaceNormal: undefined|BABYLON.Vector3,
+ * meshes: BABYLON.Mesh[],
+ * name: string,
+ * options: *,
+ * parent: EgowallItem|null,
+ * parentInitialRotation: undefined|BABYLON.Quaternion,
+ * rootMeshes: BABYLON.Mesh[]
+ * }} EgowallItem
+ */
+/**
+ * @typedef {{ hit: BABYLON.Mesh, furniture: BABYLON.Mesh }} CollisionResult
+ */
+/**
+ * @typedef {{x:Number, y:Number}} Vector2
+ */
+
 export const ViewModel = Map.extend({
   define: {
     items: {
+      value: [],
       get ( last ) {
         return last || [];
       }
@@ -52,6 +75,10 @@ export const ViewModel = Map.extend({
   skydomeMaterial: null,
   // A temporary array to gather all the terrain meshes for the applyTerrainLightmap function
   terrainMeshes: [],
+  // Meshes to do collision checks against
+  collisionMeshes: [],
+  // If the shadowmap needs to be updated, for example when a furniture is moved or rotated.
+  updateShadowmap: true,
   // This creates and positions a free camera
   initCamera () {
     var scene = this.attr( "scene" );
@@ -84,28 +111,56 @@ export const ViewModel = Map.extend({
   },
 
   pickingEvent ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
-    var scene = this.attr( "scene" );
-    var curMousePos = controlsVM.curMousePos();
-    var customizeMode = this.attr( "customizeMode" );
+    if ($ev.target.nodeName.toLowerCase() === "canvas") {
+      if (this.selectedItem){
+        this.selectedItemMovePicking( controlsVM.curMousePos() );
+      }
+      // If selectedItem is set
+      else {
+        var curMousePos = controlsVM.curMousePos();
+        var customizeMode = this.attr( "customizeMode" );
+        let hoveredMesh = this.attr( "hoveredMesh" );
 
-    var pickingInfo = scene.pick( curMousePos.x, curMousePos.y, ( hitMesh ) => {
-      return this.getPickingFn( hitMesh, customizeMode ) ? true : false;
-    });
+        let pickingInfo = this.getPickingFromMouse( curMousePos, ( hitMesh ) => {
+          return this.getPickingFn( hitMesh, customizeMode ) ? true : false;
+        });
 
-    var hoveredMesh = this.attr( "hoveredMesh" );
-
-    var allowPick = pickingInfo.hit && $ev.target.nodeName.toLowerCase() === "canvas";
-
-    if ( allowPick ) {
-      let pickingFn = this.getPickingFn( pickingInfo.pickedMesh, customizeMode );
-      this[ pickingFn ]( hoveredMesh, pickingInfo, curMousePos );
+        if ( pickingInfo.hit ) {
+          let pickingFn = this.getPickingFn( pickingInfo.pickedMesh, customizeMode );
+          this[ pickingFn ]( hoveredMesh, pickingInfo, curMousePos );
+        } else {
+          this.unsetHoveredMesh();
+        }
+      }
     } else {
-      if ( hoveredMesh ) {
-        this.clearMeshOutline( hoveredMesh );
-        getTooltip().clear( "meshHover" );
-        this.attr( "hoveredMesh", null );
+      // If outside canvas and selectedItem is false then unset the hoveredMesh
+      if (!this.selectedItem){
+        this.unsetHoveredMesh();
       }
     }
+  },
+
+  /**
+   * Unset the hovered mesh if mouseover the canvas or no picking result
+   */
+  unsetHoveredMesh(){
+    let hoveredMesh = this.attr( "hoveredMesh" );
+    if ( hoveredMesh ) {
+      this.clearMeshOutline( hoveredMesh );
+      getTooltip().clear( "meshHover" );
+      this.attr( "hoveredMesh", null );
+    }
+  },
+  /**
+   * Get a picking result from mouse coordinates for the meshes that fulfill the predicate
+   * @param {Vector2} mousePos
+   * @param {Function} predicate
+   * @returns {PickingInfo|*}
+   */
+  getPickingFromMouse( mousePos, predicate ){
+    // If mouse is not on the canvas then don't even bother picking
+    const scene = this.attr( "scene" );
+    return scene.pick( mousePos.x, mousePos.y, predicate);
   },
 
   pickingBG ( hoveredMesh, pickingInfo, curMousePos ) {
@@ -208,10 +263,25 @@ export const ViewModel = Map.extend({
 
   freezeShadowCalculations () {
     this.attr( "objDirLightShadowGen" ).getShadowMap().refreshRate = 0;
+    this.updateShadowmap = false;
   },
 
   unfreezeShadowCalculations () {
-    this.attr( "objDirLightShadowGen" ).getShadowMap().refreshRate = 1;
+    let shadowmap =  this.attr( "objDirLightShadowGen" ).getShadowMap();
+
+    // Only do this once
+    if (shadowmap.refreshRate === 0){
+      shadowmap.refreshRate = 1;
+
+      // After the shadowmap as updated then freeze it again
+      let onAfterRender = () => {
+        shadowmap.onAfterRenderObservable.remove( observer );
+        // Now freeze the shadows again
+        this.freezeShadowCalculations();
+      };
+      // Get the observer reference so it can be removed after the render
+      let observer = shadowmap.onAfterRenderObservable.add( onAfterRender );
+    }
   },
 
   initLights () {
@@ -319,6 +389,30 @@ export const ViewModel = Map.extend({
     return item && item.meshes || [ mesh ];
   },
 
+  /**
+   * Get the rootMesh for a mesh. Recursively go through all parents until root parent.
+   * @param a_mesh
+   * @returns {*}
+   */
+  getRootMesh(a_mesh ){
+    let parent = a_mesh.parent || a_mesh;
+    while (parent.parent){
+      parent = parent.parent;
+    }
+    return parent;
+  },
+
+  /**
+   * Get the root item from a group of items.
+   * So if you do getRootItem( item ) and it has a parent you'll get the parent item instead of input item.
+   * @param a_item
+   * @returns EgowallItem
+   */
+  getRootItem ( a_item ){
+    const rootMesh = this.getRootMesh(a_item.rootMeshes[0]);
+    return rootMesh.__itemRef;
+  },
+
   isMeshFurnitureItem ( mesh ) {
     var itemOptions = this.getItemOptionsFromMesh( mesh );
     return itemOptions && itemOptions.furnArg && anyTruthy( itemOptions.furnArg );
@@ -329,31 +423,46 @@ export const ViewModel = Map.extend({
     return itemOptions && ( itemOptions.egoID ? true : false );
   },
 
-  setMeshLocationFromAjaxData ( mesh, info = {} ) {
-    var pos = info.position;
-    var rot = info.rotation;
+  setMeshLocationFromAjaxData ( rootMeshes, info, isPainting ) {
+    const pos = info.position || {};
+    const rot = info.rotation || {};
 
-    if ( mesh.position && pos ) {
-      mesh.position.x = parseFloat( pos.x ) || 0;
-      mesh.position.y = parseFloat( pos.y ) || 0;
-      mesh.position.z = parseFloat( pos.z ) || 0;
-    }
-    if ( mesh.rotationQuaternion && rot ) {
-      mesh.rotationQuaternion.x = parseFloat( rot.x ) || 0;
-      mesh.rotationQuaternion.y = parseFloat( rot.y ) || 0;
-      mesh.rotationQuaternion.z = parseFloat( rot.z ) || 0;
-      mesh.rotationQuaternion.w = parseFloat( rot.w ) || 1;
+    const posX = parseFloat( pos.x ) || 0;
+    const posY = parseFloat( pos.y ) || 0;
+    const posZ = parseFloat( pos.z ) || 0;
+
+    const rotX = parseFloat( rot.x ) || 0;
+    const rotY = parseFloat( rot.y ) || 0;
+    const rotZ = parseFloat( rot.z ) || 0;
+    const rotW = parseFloat( rot.w ) || 0;
+
+    for (let i = 0; i < rootMeshes.length; ++i){
+      let rootMesh = rootMeshes[i];
+      rootMesh.position.x = posX;
+      rootMesh.position.y = posY;
+      rootMesh.position.z = posZ;
+
+      // If no rotationQuaternion exists then create an identity quaternion
+      if (!rootMesh.rotationQuaternion){
+        rootMesh.rotationQuaternion = BABYLON.Quaternion.Identity();
+      }
+
+      rootMesh.rotationQuaternion.x = rotX;
+      rootMesh.rotationQuaternion.y = rotY;
+      rootMesh.rotationQuaternion.z = rotZ;
+      rootMesh.rotationQuaternion.w = rotW;
+
+      // To currently show the paintings before they get the rotation from the walls
+      if (isPainting){
+        // rootMesh.rotation.y = Math.PI;
+        // rootMesh.rotation.x = Math.PI / -2;
+        rootMesh.rotationQuaternion.multiplyInPlace( BABYLON.Quaternion.RotationYawPitchRoll(0, Math.PI * 1.5, Math.PI ) );
+      }
     }
   },
 
-  setEgoObjectDetails ( mesh ) {
-    var itemInfo = this.getItemOptionsFromMesh( mesh );
-    var parent = mesh.parent || mesh;
-    while ( parent.parent ) {
-      parent = parent.parent;
-    }
-
-    this.setMeshLocationFromAjaxData( parent, itemInfo.roomInfo );
+  setEgoObjectDetails ( mesh, itemInfo ) {
+    // var itemInfo = this.getItemOptionsFromMesh( mesh );
 
     var meshName = mesh.material && mesh.material.name || "";
 
@@ -368,20 +477,30 @@ export const ViewModel = Map.extend({
       mat.diffuseTexture = null;
       mat.diffuseColor = new BABYLON.Color3( 1, 1, 1 );
     }
-
-    //parent.rotation.z = 0;
-    parent.rotation.y = Math.PI;
-    parent.rotation.x = Math.PI / -2;
   },
 
   meshesLoaded ( itemInfo, babylonName, meshes ) {
     var item = {
+      // Children items, what items should have same changes done as this item
+      children: [],
       name: babylonName,
       options: itemInfo,
-      meshes: []
+      meshes: [],
+      // RootMeshes to easily update all positions when moving an item
+      rootMeshes: [],
+      // The parent item of this item.
+      parent:null
     };
 
-    this.attr( "items" ).push( item );
+    // rootMeshes hashmap to check if already added
+    let rootMeshes = {};
+    const isTerrain = itemInfo.terrain;
+
+
+    // This adds the _cid which is our uniqueId for an EgowallItem
+    this.attr("items").push( item );
+    // Update the item reference since canjs created a new object?
+    item = this.attr("items")[ this.attr("items").length -1 ];
 
     for ( let i = 0; i < meshes.length; ++i ) {
       let mesh = meshes[ i ];
@@ -394,33 +513,58 @@ export const ViewModel = Map.extend({
         item.meshes.push( mesh );
       }
 
-      mesh.__itemRef = item;
-
       mesh.name = itemInfo.furnName || mesh.name;
 
       mesh.receiveShadows = true;
 
-      if ( itemInfo.terrain ) {
+      if ( !isTerrain ) {
+        // Check if painting
+        if ( itemInfo.egoID ){
+          this.setEgoObjectDetails( mesh, itemInfo );
+        }
+
+        mesh.checkCollisions = true;
+        mesh.receiveShadows = true;
+        // Temporary, should be set from collisions.babylon
+        this.collisionMeshes.push( mesh);
+        this.addToObjDirLightShadowGenerator( mesh );
+
+        let parent = this.getRootMesh( mesh );
+        // Check if rootMesh has already been added
+        if (!rootMeshes[ parent.id ]){
+          rootMeshes[ parent.id ] = true;
+          item.rootMeshes.push( parent );
+        }
+      }
+      // Turn off collision & receiveShadows for terrain
+      else{
+        mesh.checkCollisions = false;
+        mesh.receiveShadows = false;
         // Add the mesh to terrainMeshes to later in applyTerrainLightmap() foreach to setup the lightmap materials
         this.attr("terrainMeshes").push(mesh);
-      } else if ( itemInfo.egoID ) {
-        this.setEgoObjectDetails( mesh );
-        mesh.checkCollisions = true;
-      } else {
-        this.setMeshLocationFromAjaxData( mesh, itemInfo );
-        mesh.checkCollisions = true;
-      }
-
-      if ( !itemInfo.terrain ) {
-        this.addToObjDirLightShadowGenerator( mesh );
       }
 
       if ( parseInt( itemInfo.furnPhysics, 10 ) ) {
         //vm.testSetPhysicsImpostor( mesh );
       }
     }
+
+    // Check if rootMeshes.length > 0 which it is unless it's terrain
+    if (item.rootMeshes.length > 0){
+      // For paintings get itemInfo.roomInfo
+      // For furniture just itemInfo is fine
+      const info = itemInfo.egoID ? itemInfo.roomInfo : itemInfo;
+      // Set the position for all rootMeshes and rotation
+      this.setMeshLocationFromAjaxData( item.rootMeshes, info, !!itemInfo.egoID );
+    }
+
     // Need to do this after the meshes loop because for the paintings it doesn't work inside the loop.
     for ( let i = 0; i < meshes.length; ++i ) {
+      // Add itemRef to all meshes except terrain.
+      // Could do this in mainloop too but the mainloop stops for these meshes   if ( !positions )
+      if (!isTerrain){
+        meshes[i].__itemRef = item;
+      }
       meshes[i].freezeWorldMatrix();
     }
   },
@@ -715,13 +859,26 @@ export const ViewModel = Map.extend({
       this.testHardcodedMaterials( mesh );
     }
 
-    if ( mesh.material && mesh.__backgroundMeshInfo.ajaxInfo.color ) {
-      let ajaxColor = mesh.__backgroundMeshInfo.ajaxInfo.color;
-      let r = parseFloat( ajaxColor.r );
-      let g = parseFloat( ajaxColor.g );
-      let b = parseFloat( ajaxColor.b );
-      let a = parseFloat( ajaxColor.a );
-      mesh.material.diffuseColor = new BABYLON.Color4( r, g, b, a );
+    if ( mesh.material ) {
+      // Check if lightmap tag exists for the mesh
+      const lightmapId = this.getTagValue( mesh, "lightmap" );
+      if(lightmapId !== ""){
+        // Try and get the lightmap for that id and then set it
+        const lightmap = this.attr( "lightmaps" )[ lightmapId ];
+        if ( lightmap ){
+          mesh.material.ambientTexture = lightmap;
+        }
+      }
+
+      // Check if the diffuseColor should be something else than white (1, 1, 1)
+      if (mesh.__backgroundMeshInfo.ajaxInfo.color ) {
+        let ajaxColor = mesh.__backgroundMeshInfo.ajaxInfo.color;
+        let r = parseFloat(ajaxColor.r);
+        let g = parseFloat(ajaxColor.g);
+        let b = parseFloat(ajaxColor.b);
+        let a = parseFloat(ajaxColor.a);
+        mesh.material.diffuseColor = new BABYLON.Color4(r, g, b, a);
+      }
     }
 
     // TODO: make our own .mtl info and bundle it with the textures to set uv scales
@@ -770,6 +927,8 @@ export const ViewModel = Map.extend({
       mesh.checkCollisions = true;
       mesh.receiveShadows = true;
 
+      this.collisionMeshes.push( mesh );
+
       this.bgMeshSetMaterial ( mesh, roomInfo );
     }
   },
@@ -779,15 +938,12 @@ export const ViewModel = Map.extend({
     var arrayOfLoadedMaterials = data[ 0 ];
     var roomMeshSetDef = data[ 1 ];
     var unzippedMeshFiles = roomMeshSetDef.unzippedFiles;
-    var lightmapLivingspace = this.attr( "lightmapLivingspace" );
 
     this.attr( "bgMeshes", [] );
 
     for ( let i = 0; i < arrayOfLoadedMaterials.length; i++ ) {
       let curMaterial = arrayOfLoadedMaterials[ i ];
       let mat = this.createMaterial( curMaterial.internalName, curMaterial.unzippedFiles );
-
-      mat.ambientTexture = lightmapLivingspace;
       curMaterial.attr( "instance", mat );
       //curMaterial.removeAttr( "unzippedFiles" );
     }
@@ -802,9 +958,13 @@ export const ViewModel = Map.extend({
     }
   },
 
-  applyTerrainLightmaps () {
+  /**
+   * Applies the lightmap material to terrain meshes that uses a lightmap
+   * Also sets the attr skydomeMaterial so it can be animated
+   */
+  applyTerrainMaterials () {
     let meshes = this.attr("terrainMeshes");
-    const lightmapTerrain = this.attr("lightmapTerrain");
+    const lightmaps = this.attr("lightmaps");
 
     let materialGroups = {};
 
@@ -822,7 +982,7 @@ export const ViewModel = Map.extend({
 
         if (lightmapId != ""){
           // Check if the lightmap exists as a file
-          if (lightmapTerrain[ lightmapId ]){
+          if (lightmaps[ lightmapId ]){
             // Creates a key like "xxxx-xxxx-xxxx-xxxxxxterrainfloor (GUID + lmId)
             const key = mesh.material.id + lightmapId;
             // If the group already exists then just add the mesh
@@ -855,7 +1015,7 @@ export const ViewModel = Map.extend({
     for (const key in materialGroups){
       let group = materialGroups[ key ];
       // The lightmap texture to use
-      const lm = lightmapTerrain[ group.lightmapId ];
+      const lm = lightmaps[ group.lightmapId ];
 
       let meshes = group.meshes;
       let material = group.material;
@@ -887,7 +1047,7 @@ export const ViewModel = Map.extend({
         for (let i = 0; i < meshes.length; ++i){
           meshes[i].material = material;
         }
-      // If no cloning use the lightmap directly
+        // If no cloning use the lightmap directly
       } else {
         material.ambientTexture = lm;
       }
@@ -909,25 +1069,18 @@ export const ViewModel = Map.extend({
       var scene = this.attr( "scene" );
       var unzippedAssets = assetData.unzippedFiles;
 
-      this.attr("lightmapTerrain", {});
+      this.attr("lightmaps", {});
 
       for ( let x = 0; x < unzippedAssets.length; x++ ) {
         let asset = unzippedAssets[ x ];
         if ( asset.type === "texture" ) {
-          if ( asset.name === "livingspace.png" ) {
-            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmapLivingspace", scene );
-            lm.coordinatesIndex = 1; // Use UV channel 2
-            this.attr( "lightmapLivingspace", lm );
-          // Create the lightmapTerrain entries for terrainshops1.png, terrainshops2.png and terrainfloor.png
-          } else {
-            // length -4 should cover our usecase but if we change to .jpeg for some reason we need to check the actual extensions length!
-            // Example: terrainfloor.png => terrainfloor as key name
-            const terrainLmName = asset.name.substring( 0, asset.name.length - 4 );
+          // length -4 should cover our usecase but if we change to .jpeg for some reason we need to check the actual extensions length!
+          // Example: terrainfloor.png => terrainfloor as key name
+          const lmName = asset.name.substring( 0, asset.name.length - 4 );
 
-            let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, terrainLmName, scene );
-            lm.coordinatesIndex = 1;
-            this.attr( "lightmapTerrain" )[ terrainLmName ] = lm;
-          }
+          let lm = new BABYLON.Texture.CreateFromBase64String( "data:image/png;base64," + asset.data, "lightmap_" + lmName, scene );
+          lm.coordinatesIndex = 1;
+          this.attr( "lightmaps" )[ lmName ] = lm;
         }
       }
     });
@@ -1037,7 +1190,7 @@ export const ViewModel = Map.extend({
         vm.roomLoad.bind( vm, uroomID )
       ).then(( arrOfRoomLoadResults ) => {
         return terrainProm.then(( terrainPromResults ) => {
-          vm.applyTerrainLightmaps( terrainPromResults );
+          vm.applyTerrainMaterials( terrainPromResults );
           vm.attr( "homeLoadFinished", true );
           return { arrOfRoomLoadResults, terrainPromResults };
         });
@@ -1054,20 +1207,584 @@ export const ViewModel = Map.extend({
     } else {
       scene.debugLayer.show();
     }
+  },
+
+  /**************************************
+    Mesh movement functions
+   **************************************/
+  /**
+   * Updates the position of an item by adding the delta movement. So x = 2  means position.x += 2
+   * @param {EgowallItem} a_item
+   * @param {BABYLON.Vector3} a_positionDelta
+   */
+  updatePositions(a_item, a_positionDelta){
+    for ( let i = 0; i < a_item.rootMeshes.length; ++i){
+      let rootMesh = a_item.rootMeshes[i];
+
+      rootMesh.position.addInPlace( a_positionDelta );
+
+      this.updateMeshMatrices( rootMesh );
+    }
+  },
+
+  /**
+   * Update position and rotation of an item
+   * @param {EgowallItem} a_item The item to do changes to, changes will affect children automatically
+   * @param {BABYLON.Vector3} a_positionDelta How much object has translated
+   * @param {BABYLON.Quaternion} a_rotation The delta rotation, could for example be the rotation of a wall.
+   */
+  updatePositionRotation(a_item, a_positionDelta, a_rotation ){
+
+    for ( let i = 0; i < a_item.rootMeshes.length; ++i){
+      let rootMesh = a_item.rootMeshes[i];
+
+      rootMesh.position.addInPlace( a_positionDelta );
+      // Use the baseRotation and
+      a_rotation.multiplyToRef( a_item.baseRotation, rootMesh.rotationQuaternion );
+
+      // rootMesh.rotationQuaternion = BABYLON.Quaternion.Identity();
+      // rootMesh.rotationQuaternion.multiplyInPlace( a_rotation );
+
+      this.updateMeshMatrices( rootMesh );
+    }
+  },
+
+  /**
+   * Updates a root mesh's world matrix and the child meshes' matrices.
+   * @param {BABYLON.Mesh} rootMesh
+   */
+  updateMeshMatrices(rootMesh ){
+    let children = rootMesh.getChildMeshes();
+    // freezeWorldMatrix re-updates the world matrix so the position is correct
+    rootMesh.freezeWorldMatrix();
+    for (let i = 0; i < children.length; ++i){
+      children[i].freezeWorldMatrix();
+    }
+    // Finish by telling shadowmap it needs to update
+    this.updateShadowmap = true;
+  },
+
+  /***************************************
+   * Parent & Child relations
+   ***************************************/
+  /**
+   * Adds the parent to an item and if the item already had a parent then the item removes itself as a child from the old parent.
+   * @param {EgowallItem} a_item
+   * @param {EgowallItem} a_parent
+   */
+  addItemParent(a_item, a_parent ){
+    if (a_item.parent){
+
+      if (a_parent == null){
+        this.removeChild( a_item );
+      }
+      else if ( a_item.parent !== a_parent ){
+        this.removeChild( a_item );
+        this.setItemParent( a_item, a_parent );
+      }
+      // Do nothing for same reference
+    }
+    else{
+      if (a_parent){
+        this.setItemParent( a_item, a_parent );
+      }
+    }
+  },
+
+  /**
+   * Sets the parent and sets position & rotation correctly
+   * @param {EgowallItem} a_item
+   * @param {EgowallItem} a_parent
+   */
+  setItemParent(a_item, a_parent ){
+    a_item.parent = a_parent;
+    a_parent.children.push( a_item );
+
+    let tmpVector = BABYLON.Tmp.Vector3[8];
+    // Stores the inverse parent quaternion
+    let tmpQuat = BABYLON.Tmp.Quaternion[0];
+    for ( let i = 0; i < a_item.rootMeshes.length; ++i ){
+      let rootMesh = a_item.rootMeshes[i];
+      // Copy the current absolute position before adding the parent
+      tmpVector.copyFrom(rootMesh.getAbsolutePosition());
+
+      rootMesh.parent = a_parent.rootMeshes[0];
+
+      const parentQuaternion = rootMesh.parent.rotationQuaternion;
+      // Clone the parentInitialRotation to later multiply with the child when splitting.
+      a_item.parentInitialRotation = parentQuaternion.clone();
+      // Inverse it
+      tmpQuat.copyFromFloats( -parentQuaternion.x, -parentQuaternion.y, -parentQuaternion.z, parentQuaternion.w );
+
+      // We need to add the inverse quaternion to remove the rotation of the parent.
+      // Else the rotation is very off!
+      tmpQuat.multiplyToRef(rootMesh.rotationQuaternion, rootMesh.rotationQuaternion);
+      // We need to use absolute position because the position gets really wrong after adding the the parent
+      // My guess is the poseMatrix changes the local space
+      rootMesh.setAbsolutePosition( tmpVector );
+    }
+  },
+
+  /**
+   * Removed the parent and sets the proper positions again
+   * Cleanup code when removing a child from an item
+   * @param {EgowallItem} child
+   */
+  removeChild( child ){
+    let parent = child.parent;
+    if (parent){
+      let found = false;
+      for (let i = 0; i < parent.children.length; ++i){
+        if (parent.children[i] === child){
+          parent.children.splice(i, 1);
+          found = true;
+          break;
+        }
+      }
+
+      if (found){
+        child.parent = null;
+
+        // Fix positions!
+        for (let i = 0; i < child.rootMeshes.length; ++i){
+          let rootMesh = child.rootMeshes[i];
+          rootMesh.parent = null;
+          // Remove parentInitialRotation reduction by multiplying it back
+          rootMesh.rotationQuaternion.multiplyInPlace( child.parentInitialRotation );
+          // Remove parentInitialRotation
+          delete child.parentInitialRotation;
+        }
+      }
+    }
+  },
+
+  /***************************************
+   * Gravity and furniture collisions
+   **************************************/
+  //Items affected by gravity
+  gravityItems : [],
+  // Selected furnitures for example gravity
+  selectedFurnitureMeshes: {},
+  // The meshes to check against for collision for selectedFurnitureMeshes
+  meshesToCheckFurniture: {},
+
+  /**
+   * Activate gravity for an item by adding it to the gravityItems list. RenderLoop will now update it's position
+   * @param {EgowallItem} a_item
+   */
+  activateGravity(a_item ){
+    this.gravityItems.push ( a_item );
+    // TODO: Temporary code to update the position slightly so gravity can be observed.
+    // Will later for rotations add a fixed position so it doesn't collide
+    // For furniture movement it slightly puts it above ground when moving so it doesn't collide with rugs.
+    let tmpVector = BABYLON.Tmp.Vector3[8];
+    BABYLON.Vector3.FromFloatsToRef(0, 0.5, 0, tmpVector );
+    this.updatePositions(a_item, tmpVector);
+  },
+
+  // TODO: Evaluate if deltaY should be a vector incase of objects moving in more directions than just 1.
+  /**
+   * Adjust the position by using a binary search approach.
+   * Start by checking half the value of deltaY and then half from there 5 times reaching 96.875% of a_deltaY
+   * If it's not colliding it tries to move closer towards collision
+   * @param {EgowallItem} a_item
+   * @param {CollisionResult[]} a_collisions
+   * @param {float} a_deltaY How much the gravity moved an object since last frame
+   */
+  adjustCollisionPos(a_item, a_collisions, a_deltaY ){
+
+    // -1 = against gravity
+    let direction = -1;
+
+    let tempVec = BABYLON.Tmp.Vector3[7];
+    // Need to set x & z to 0 since it's a tmp variable
+    tempVec.x = 0;
+    tempVec.z = 0;
+    let isColliding = true;
+    let multiplierValue = 0;
+
+    for (let i = 1; i < 6; ++i){
+      // Half the distance until finished!
+      // 0.5, 0.75, 0.875, 0.9375, 0.96875
+      let multiplier = direction * (1 / Math.pow(2, i));
+
+      multiplierValue += multiplier;
+
+      tempVec.y = a_deltaY * multiplier;
+
+      this.updatePositions(a_item, tempVec);
+
+      isColliding = false;
+
+      // Check all collisions if they still collide or not
+      for (let j = 0; j < a_collisions.length; ++j){
+        let collision = a_collisions[j];
+        if ( collision.furniture.intersectsMesh( collision.hit )){
+          isColliding = true;
+        }
+      }
+      // If it's not colliding then try and get closer towards collision
+      if (!isColliding){
+        // If no collision and moving against gravity start moving towards gravity
+        if (direction == -1){
+          direction = -direction;
+        }
+      }
+      else{
+        // If colliding and direction is going towards gravity
+        // Then go against gravity
+        if (direction == 1){
+          direction = -direction;
+        }
+      }
+    }
+  },
+
+  /**
+   * Adds the gravity distance to the item and checks for collision
+   * @param {EgowallItem} a_item
+   * @param {BABYLON.Vector3}a_gravityDistance
+   */
+  applyGravity( a_item, a_gravityDistance ){
+    // Start by adding the gravity distance
+    this.updatePositions( a_item, a_gravityDistance );
+
+    // Check collision and get result
+    let collisions = this.checkFurnitureCollisions( a_item );
+    // If colliding try and figure out where!
+    if (collisions.length > 0){
+      // Adjust the position by moving object ~6 times to get as near as possible
+      this.adjustCollisionPos( a_item, collisions, a_gravityDistance.y );
+      // If the collisions is an EgowallItem then add item as child to which had highest count or first occurence if same count
+      const parent = this.getParentFromCollisions( collisions );
+
+      // Set a parent for the item
+      if (parent){
+        this.addItemParent( a_item, parent );
+      }
+      // Remove this item from having gravity affecting it
+      this.removeGravity( a_item );
+      return true;
+    }
+
+    return false;
+  },
+
+  // TODO: Make outline use this function when implemented
+  /**
+   * Check if the furniture item is colliding with any other mesh.
+   * Used by applyGravity
+   * @param {EgowallItem} a_item
+   * @returns {CollisionResult[]}
+   */
+  checkFurnitureCollisions( a_item ){
+    const id = a_item._cid;
+    // Lazy load the array and store until a new selection happens
+    if (!this.selectedFurnitureMeshes[ id ]  ){
+      // calculate the meshes
+      this.selectedFurnitureMeshes[ id ] = this.getChildMeshes( a_item );
+    }
+
+    let selectedFurnitureMeshes = this.selectedFurnitureMeshes[ id ];
+
+    // If first time checking meshes
+    if (!this.meshesToCheckFurniture[ id ]){
+      this.meshesToCheckFurniture[ id ] = this.getCollidableMeshes( selectedFurnitureMeshes, this.collisionMeshes );
+    }
+
+    let collidableMeshes = this.meshesToCheckFurniture[ id ];
+    // The collisions result,  if empty no collisions occured
+    let collisions = [];
+    // Go over all collidables
+    for (let i = 0; i < collidableMeshes.length; ++i){
+      let collidableMesh = collidableMeshes[i];
+
+      for ( let j = 0; j < selectedFurnitureMeshes.length; ++j){
+        let furnitureMesh = selectedFurnitureMeshes[j];
+
+        if (furnitureMesh.intersectsMesh( collidableMesh, true )){
+          // Add the collision result to collisions array if colliding
+          collisions.push( { hit:collidableMesh, furniture: furnitureMesh } );
+        }
+      }
+    }
+
+    return collisions;
+  },
+
+  /**
+   * Get all childMeshes for an item. Iterating over all rootMeshes and get the childmeshes for those.
+   * @param {EgowallItem} a_item
+   * @returns {BABYLON.Mesh[]}
+   */
+  getChildMeshes( a_item ){
+    let result = [];
+
+    let rootMeshes = a_item.rootMeshes;
+    for ( let i = 0; i < rootMeshes.length; ++i){
+      let rootMesh = rootMeshes[i];
+      // Add the rootMesh and all children
+      result.push( rootMesh, ...rootMesh.getChildMeshes() );
+    }
+
+    return result;
+  },
+
+  /**
+   * Get all collidable meshes for a_selectedMeshes. Basically all the meshes except selectedMeshes
+   * @param {BABYLON.Mesh[]} selectedMeshes
+   * @param {BABYLON.Mesh[]} collisionMeshes
+   */
+  getCollidableMeshes(selectedMeshes, collisionMeshes ){
+
+    let collidableMeshes = [];
+
+    for (let i = 0; i < collisionMeshes.length; ++i){
+      // Default to canCheck so it's true if no mesh was found
+      let canCheck = true;
+      let mesh = collisionMeshes[i];
+      // Check all selectedMeshes to see if they are equal to mesh
+      for (let j = 0; j < selectedMeshes.length; ++j){
+        if (mesh === selectedMeshes[j]){
+          canCheck = false;
+          break;
+        }
+      }
+
+      // Add it to the cached collidable meshes if it wasn't in selectedMeshes
+      if (canCheck){
+        collidableMeshes.push(mesh);
+      }
+    }
+    // Set the cache
+    return collidableMeshes;
+  },
+
+  /**
+   * Get the item to be new parent if possible
+   * If 2 parents has same count the first one that occured is the parent
+   * @param {CollisionResult[]} a_collisions
+   */
+  getParentFromCollisions(a_collisions){
+    // Get count of how often a parent occurs
+    let parentCount = {};
+
+    for (let i = 0; i < a_collisions.length; ++i){
+      // Get the itemRef
+      let itemRef = this.getItemFromMesh( a_collisions[i].hit );
+      // If the itemRef isn't empty object
+      if (itemRef && Object.keys( itemRef ).length > 0  ){
+        if (!parentCount[ itemRef._cid ] ){
+          parentCount[ itemRef._cid ] = { count: 0, item: itemRef };
+        }
+
+        parentCount[ itemRef._cid ].count++;
+      }
+    }
+    let highestCount = 0;
+    let parent = null;
+    // Check parents & parentCount
+    for (let key in parentCount){
+      const count = parentCount[ key ].count;
+      // Compare count
+      if ( count > highestCount ){
+        parent = parentCount[ key ].item;
+        highestCount = count;
+      }
+    }
+
+    return parent;
+  },
+
+  /**
+   * Remove the item from gravityItems making renderloop stop applying gravity
+   * Also attempts to remove cached furniture collision values
+   * @param {EgowallItem} a_item
+   */
+  removeGravity( a_item ){
+    for( let i = 0; i < this.gravityItems.length; ++i){
+      if (this.gravityItems[i] === a_item ){
+        this.gravityItems.splice(i, 1);
+      }
+    }
+
+    // TODO: Change so it tries to remove selectedFurnitureMeshes since that is useful for outline functionality aswell.
+    // Remove the cached meshes & collision meshes arrays when removing gravity
+    const id = a_item._cid;
+    if (this.selectedFurnitureMeshes[ id ]){
+      delete this.selectedFurnitureMeshes[ id ];
+    }
+    if ( this.meshesToCheckFurniture[ id ] ){
+      delete this.meshesToCheckFurniture[ id ];
+    }
+  },
+
+
+  /***************************************
+   Temporary functions
+   **************************************/
+
+  /*******
+   * SelectedItem stuff
+   *******/
+  selectedItem: null,
+  selectedItemPos: null,
+  /**
+   * The picking when cursor is moved
+   * @param {Vector2} a_mousePos
+   */
+  selectedItemMovePicking(a_mousePos){
+    let selectedItem = this.selectedItem;
+
+    const pickingResult = this.getPickingFromMouse( a_mousePos, ( hitMesh ) => {
+
+      let itemRef = hitMesh.__itemRef;
+      // 1. Don't return a hit for the same item
+      if (itemRef){
+        // Note: Reason for checking rootItems is to know if you're comparing the same group or not
+
+        // Change itemRef to the rootItem to compare
+        itemRef = this.getRootItem( itemRef );
+        // If __itemRef exists and isn't the selected item then return true!
+        if (itemRef !== this.getRootItem( selectedItem )){
+          return true;
+        }
+      }
+      else {
+        let backgroundRef = hitMesh.__backgroundMeshInfo;
+        // If the backgroundMeshInfo exists then it's a background mesh and return true!
+        if (backgroundRef){
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if (pickingResult.hit){
+      this.moveRotateSelectedItem( selectedItem, pickingResult );
+    }
+  },
+
+  /**
+   * Calculate the new position and rotation for a selectedItem based off the pickingResult
+   * @param {EgowallItem} selectedItem
+   * @param {BABYLON.PickingInfo}pickingResult
+   */
+  moveRotateSelectedItem( selectedItem, pickingResult){
+    /*
+     BABYLON.Tmp.Vector indices:
+     8: deltaPosition
+     7: Axis for rotation
+
+     Babylon.Tmp.Quaternion indices:
+     0: Quaternion for y == 1 || -1
+     */
+    // Can use the first rootMesh to calculate how much the object has to move
+    // TODO: Evaluate if center between two rootMeshes would be neccesary for proper position
+    let rootMesh = selectedItem.rootMeshes[0];
+    // Need to get world normal or the wall rotation calculation is wrong.
+    const normal = pickingResult.getNormal(true);
+    let tmpPositionDelta = BABYLON.Tmp.Vector3[8];
+
+    pickingResult.pickedPoint.subtractToRef(rootMesh.position, tmpPositionDelta );
+
+    let doRotation = true;
+    const lastSurfaceNormal = selectedItem.lastSurfaceNormal;
+    // TODO: Evaluate if upvector of selectedItem should also be checked
+    if (lastSurfaceNormal){
+      if (lastSurfaceNormal.x === normal.x && lastSurfaceNormal.y === normal.y && lastSurfaceNormal.z === normal.z){
+        doRotation = false;
+      }
+    }
+    // For now store the normal to not redo rotations if same normal as last time
+    selectedItem.lastSurfaceNormal = normal;
+    // If there is no need to do rotation then
+    if (!doRotation){
+      // pickingResult.pickedPoint.subtractToRef(rootMesh.position, tmpPositionDelta );
+      this.updatePositions( selectedItem, tmpPositionDelta);
+
+      console.log("not doing rotations");
+
+    } else {
+
+      const upVector = this.upVector3;
+
+      // TODO: Check if normal is the same as last time because if it is there is no need to update rotation
+      // Only position is neccesary to update then.
+      let wallRotation;
+
+      // For normal.y = 1 return identity quaternion
+      if (normal.y === 1){
+        wallRotation = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 0, 1);
+      }
+      // For normal.y == 1 then return a quaternion to turn it upside down
+      else if (normal.y === -1){
+        wallRotation = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 1, 0);
+      }
+      else {
+        let tmpAxis = BABYLON.Tmp.Vector3[7];
+        // Axis is [ 0, 0, 0 ] for y == 1 and y == -1
+        BABYLON.Vector3.CrossToRef(upVector, normal, tmpAxis );
+        tmpAxis.normalize();
+        const angle = Math.acos(BABYLON.Vector3.Dot(upVector, normal));
+        // TODO: in Babylon 2.5 change to use RotationAxisToRef
+        // This normalizes tmpAxis
+        wallRotation = BABYLON.Quaternion.RotationAxis( tmpAxis, angle);
+        wallRotation.normalize();
+      }
+
+      this.updatePositionRotation( selectedItem, tmpPositionDelta, wallRotation );
+    }
+  },
+  /**
+   * Unselect the selected item and do cleanup
+   */
+  unselectItem(){
+    let item = this.selectedItem;
+    if (item){
+      this.selectedItem = null;
+
+      this.unsetHoveredMesh();
+
+      this.activateGravity( item );
+    }
+  },
+  // Constant stored for the upVector
+  upVector3: BABYLON.Vector3.Up(),
+
+  /**
+   * Sets the base rotation of an object before moving.
+   * @param a_item
+   */
+  setBaseRotation( a_item ){
+    a_item.baseRotation = a_item.rootMeshes[0].rotationQuaternion.clone();
   }
+
 });
 
 export const controls = {
   "name": "game-canvas",
   "context": null,
   "keypress": {
-    "`": "toggleBabylonDebugLayer"
+    "`": "toggleBabylonDebugLayer",
+    // Temporary until Escape works
+    "v": "unselectItem"
   },
   "click": {
     "Left" ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
-      if ( this.attr( "hoveredMesh" ) ) {
+
+      // Temporary solution that needs improving once adding more of the features from unity app
+      if ( this.attr( "hoveredMesh" )) {
         // don't execute camera click on ground
         $ev.controlPropagationStopped = true;
+        this.selectedItem = this.attr("hoveredMesh").__itemRef;
+
+        if (this.selectedItem.parent){
+          this.removeChild( this.selectedItem )
+        }
+
+        // Clone the reference because otherwise it'd get updated when changes are done to the selectedItem
+        this.setBaseRotation( this.selectedItem );
       }
     }
   },
@@ -1140,6 +1857,28 @@ export default Component.extend({
         if ( skydomeMaterial ){
           // Moving the cloud 1 cycle over 400 seconds
           skydomeMaterial.diffuseTexture.uOffset += deltaTime * 0.0025;
+        }
+
+        let gravityItems = vm.attr("gravityItems");
+        if (gravityItems.length > 0){
+          /*
+           BABYLON.Vector3.Tmp usage:
+           8: Gravity delta movement
+           7: By adjustCollisionPos
+           */
+          BABYLON.Vector3.FromFloatsToRef(0, scene.gravity.y * deltaTime, 0, BABYLON.Tmp.Vector3[8]);
+          let gravityDistance = BABYLON.Tmp.Vector3[8];
+
+          for ( let i = 0; i < gravityItems.length; ){
+            // If applyGravity returns true it removed the gravity item and thus don't increase i
+            if (!vm.applyGravity( gravityItems[i], gravityDistance ) ){
+              ++i;
+            }
+          }
+        }
+
+        if (vm.updateShadowmap){
+          vm.unfreezeShadowCalculations();
         }
 
         scene.render();

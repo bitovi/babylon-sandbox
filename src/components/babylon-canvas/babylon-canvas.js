@@ -1298,21 +1298,32 @@ export const ViewModel = Map.extend({
     // Stores the inverse parent quaternion
     let tmpQuat = BABYLON.Tmp.Quaternion[ 0 ];
     for ( let i = 0; i < item.rootMeshes.length; ++i ){
+
       let rootMesh = item.rootMeshes[i];
       // Copy the current absolute position before adding the parent
       tmpVector.copyFrom(rootMesh.getAbsolutePosition());
 
-      rootMesh.parent = parent.rootMeshes[ 0 ];
+      // Not the rootParent yet but the parent that the rootMesh needs
+      let rootParent = parent.rootMeshes[ 0 ];
+      rootMesh.parent = rootParent;
 
-      const parentQuaternion = rootMesh.parent.rotationQuaternion;
+      // Start by cloning the parents rotationQuaternion
+      let parentQuaternion = rootParent.rotationQuaternion.clone();
+      // Now iterate over all parents to hit the real root parent
+      while (rootParent.parent){
+        rootParent = rootParent.parent;
+        // Add the rotationQuaternion of each parent
+        rootParent.rotationQuaternion.multiplyToRef( parentQuaternion, parentQuaternion );
+      }
+      parentQuaternion.normalize();
       // Clone the parentInitialRotation to later multiply with the child when splitting.
-      item.parentInitialRotation = parentQuaternion.clone();
-      // Inverse it
+      item.parentInitialRotation = parentQuaternion;
+      // Inverse the quaternion to remove the rotation
       tmpQuat.copyFromFloats( -parentQuaternion.x, -parentQuaternion.y, -parentQuaternion.z, parentQuaternion.w );
 
       // We need to add the inverse quaternion to remove the rotation of the parent.
       // Else the rotation is very off!
-      tmpQuat.multiplyToRef( rootMesh.rotationQuaternion, rootMesh.rotationQuaternion );
+      tmpQuat.multiplyToRef(rootMesh.rotationQuaternion, rootMesh.rotationQuaternion);
       // We need to use absolute position because the position gets really wrong after adding the the parent
       // My guess is the poseMatrix changes the local space
       rootMesh.setAbsolutePosition( tmpVector );
@@ -1343,8 +1354,8 @@ export const ViewModel = Map.extend({
         for ( let i = 0; i < child.rootMeshes.length; ++i ){
           let rootMesh = child.rootMeshes[ i ];
           rootMesh.parent = null;
-          // Remove parentInitialRotation reduction by multiplying it back
-          rootMesh.rotationQuaternion.multiplyInPlace( child.parentInitialRotation );
+          // Remove parentInitialRotation inverse reduction by multiplying it back
+          child.parentInitialRotation.multiplyToRef( rootMesh.rotationQuaternion, rootMesh.rotationQuaternion );
           // Remove parentInitialRotation
           delete child.parentInitialRotation;
         }
@@ -1861,7 +1872,7 @@ export default Component.extend({
               ++i;
             } else {
               // Remove this item from having gravity affecting it
-              this.removeGravity( gravityItems[ i ] );
+              vm.removeGravity( gravityItems[ i ] );
             }
           }
         }

@@ -50,10 +50,10 @@ import Asset from '../../models/asset.js';
 export const ViewModel = Map.extend({
   define: {
     items: {
-      value:[]
-      // get ( last ) {
-      //   return last || [];
-      // }
+      value:[],
+      get ( last ) {
+        return last || [];
+      }
     },
     deltaTime: {
       value: 0
@@ -90,7 +90,7 @@ export const ViewModel = Map.extend({
   initCamera () {
     var scene = this.attr( "scene" );
     var camera = new BABYLON.TargetCamera( "camera1", new BABYLON.Vector3( -3, 1.5, -4 ), scene );
-    this.attr( "camera", camera );
+    this.attr( "camera", camera );
 
     camera.setTarget( new BABYLON.Vector3( 0, 1.25, 0 ) );
     camera.attachControl( this.attr( "canvas" ), false );
@@ -105,7 +105,7 @@ export const ViewModel = Map.extend({
     var isBGMesh = customizeMode && ( mesh.__backgroundMeshInfo ? true : false );
     var isFurnItem = !customizeMode && this.isMeshFurnitureItem( mesh );
     var isEgoObj = !customizeMode && this.isMeshEgoObj( mesh );
-    
+
     if ( isBGMesh ) {
       pickingFn = "pickingBG";
     } else if ( isFurnItem ) {
@@ -533,7 +533,7 @@ export const ViewModel = Map.extend({
 
     if ( meshName === "ImagePlane" ) {
       let mat = mesh.material.subMaterials[ 0 ];
-      mesh.material = mat.clone(); 
+      mesh.material = mat.clone();
       mesh.material.diffuseTexture = new BABYLON.Texture( itemInfo.egoAlbumURL, this.attr( "scene" ) );
       // Make the imageplane a bit backlit. Numbers need tweaking for desired backlitness
       mesh.material.emissiveColor = new BABYLON.Color3( 0.2, 0.2, 0.2 );
@@ -587,7 +587,7 @@ export const ViewModel = Map.extend({
       let positions = mesh.getVerticesData( BABYLON.VertexBuffer.PositionKind );
       if ( !positions ) {
         continue;
-      // If the mesh isn't a mesh group then add it to meshes[]
+        // If the mesh isn't a mesh group then add it to meshes[]
       } else {
         item.meshes.push( mesh );
       }
@@ -1015,7 +1015,7 @@ export const ViewModel = Map.extend({
     let bgMeshes = this.attr("bgMeshes");
 
     for (let i = 0; i < bgMeshes.length; ++i){
-       let material = bgMeshes[i].material;
+      let material = bgMeshes[i].material;
       if (material && material.ambientTexture){
         // Move the texture 0.75 of a pixel to properly position them.
         // This fixes the wrong corners for the livingspace lightmap
@@ -1164,7 +1164,7 @@ export const ViewModel = Map.extend({
         for (let i = 0; i < meshes.length; ++i){
           meshes[i].material = material;
         }
-      // If no cloning use the lightmap directly
+        // If no cloning use the lightmap directly
       } else {
         material.ambientTexture = lm;
       }
@@ -1300,9 +1300,9 @@ export const ViewModel = Map.extend({
       roomAssetURL = "/src/static/3d/ls27room.zip";
       var setDef = new Map({ assetID: roomAssetURL, assetURL: roomAssetURL });
       var roomMeshProm = Asset.get( setDef );
-      
+
       var beforeBGMeshRenderProms = Promise.all( [ materialsLodedProm, roomMeshProm, lightmapsProm ] );
-      
+
       return beforeBGMeshRenderProms.then(
         // load the background mesh in babylon
         vm.renderBackgroundMesh.bind( vm )
@@ -1331,7 +1331,7 @@ export const ViewModel = Map.extend({
   },
 
   /***************************************
-    Temporary functions
+   Temporary functions
    **************************************/
 
   updatePositions(a_item, a_positionDelta){
@@ -1384,6 +1384,7 @@ export const ViewModel = Map.extend({
       let rootMesh = a_item.rootMeshes[i];
       // Copy the current absolute position before adding the parent
       tmpVector.copyFrom(rootMesh.getAbsolutePosition());
+
       rootMesh.parent = a_parent.rootMeshes[0];
 
       const parentQuaternion = rootMesh.parent.rotationQuaternion;
@@ -1392,13 +1393,14 @@ export const ViewModel = Map.extend({
       // Inverse it
       tmpQuat.copyFromFloats( -parentQuaternion.x, -parentQuaternion.y, -parentQuaternion.z, parentQuaternion.w );
 
-
       // We need to add the inverse quaternion to remove the rotation of the parent.
       // Else the rotation is very off!
-      rootMesh.rotationQuaternion.multiplyInPlace( tmpQuat );
+      tmpQuat.multiplyToRef(rootMesh.rotationQuaternion, rootMesh.rotationQuaternion);
       // We need to use absolute position because the position gets really wrong after adding the the parent
       // My guess is the poseMatrix changes the local space
       rootMesh.setAbsolutePosition( tmpVector );
+
+      this.updateMeshMatrices( rootMesh );
     }
   },
 
@@ -1720,9 +1722,10 @@ export const ViewModel = Map.extend({
 
       rootMesh.position.addInPlace( a_positionDelta );
       // Use the baseRotation and
-      // a_rotation.multiplyToRef( a_item.baseRotation, rootMesh.rotationQuaternion );
-      rootMesh.rotationQuaternion = BABYLON.Quaternion.Identity();
-      rootMesh.rotationQuaternion.multiplyInPlace( a_rotation );
+      a_rotation.multiplyToRef( a_item.baseRotation, rootMesh.rotationQuaternion );
+
+      // rootMesh.rotationQuaternion = BABYLON.Quaternion.Identity();
+      // rootMesh.rotationQuaternion.multiplyInPlace( a_rotation );
 
       this.updateMeshMatrices( rootMesh );
     }
@@ -1827,33 +1830,6 @@ export const ViewModel = Map.extend({
 
     pickingResult.pickedPoint.subtractToRef(rootMesh.position, tmpPositionDelta );
 
-    // const dot = BABYLON.Vector3.Dot( itemUpVector, normal );
-    // let test = BABYLON.Tmp.Vector3[5];
-    // normal.addToRef( itemUpVector, test );
-    // const testLen = test.length();
-
-    // console.log(testLen);
-    // if (testLen < 0.5 && testLen > -0.5){
-    if (testLen < 1.95){
-
-      // if (testLen < 1.0){
-      //   tmpPositionDelta.x += selectedItem.size.width * 2 * normal.x;
-      //   tmpPositionDelta.y += selectedItem.size.height * 2 *  normal.y;
-      //   tmpPositionDelta.z += selectedItem.size.depth * 2 * normal.z;
-      // }
-      // else{
-      //   tmpPositionDelta.x += selectedItem.size.width * normal.x;
-      //   tmpPositionDelta.y += selectedItem.size.height * normal.y;
-      //   tmpPositionDelta.z += selectedItem.size.depth * normal.z;
-      // }
-    }
-
-    // if (dot < 0.5){
-    //   tmpPositionDelta.x += selectedItem.size.width * normal.x;
-    //   tmpPositionDelta.y += selectedItem.size.height * normal.y;
-    //   tmpPositionDelta.z += selectedItem.size.depth * normal.z;
-    // }
-
     let doRotation = true;
     const lastSurfaceNormal = selectedItem.lastSurfaceNormal;
 
@@ -1877,18 +1853,15 @@ export const ViewModel = Map.extend({
 
       // TODO: Check if normal is the same as last time because if it is there is no need to update rotation
       // Only position is neccesary to update then.
-      let rotQuat;
+      let wallRotation;
       let tmpAxis = BABYLON.Tmp.Vector3[7];
       if (normal.y === 1){
-        tmpAxis.copyFromFloats( 0, 1, 0 );
-
         // If direction is up then use identity quaternion
-        rotQuat = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 0, 1);
+        wallRotation = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 0, 1);
       }
       else if (normal.y === -1){
-        tmpAxis.copyFromFloats( 0, -1, 0 );
         // Upside down rotation
-        rotQuat = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 1, 0);
+        wallRotation = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 1, 0);
       }
       else {
         // let tmpAxis = BABYLON.Tmp.Vector3[7];
@@ -1898,60 +1871,13 @@ export const ViewModel = Map.extend({
         const angle = Math.acos(BABYLON.Vector3.Dot(upVector, normal));
         // TODO: in Babylon 2.5 change to use RotationAxisToRef
         // This normalizes tmpAxis
-        rotQuat = BABYLON.Quaternion.RotationAxis( tmpAxis, angle);
-        rotQuat.normalize();
+        wallRotation = BABYLON.Quaternion.RotationAxis( tmpAxis, angle);
+        wallRotation.normalize();
       }
 
       // this.updatePositions( selectedItem, tmpPositionDelta);
-      this.updatePositionRotation( selectedItem, tmpPositionDelta, rotQuat );
+      this.updatePositionRotation( selectedItem, tmpPositionDelta, wallRotation );
     }
-
-
-    // let tmpCenterPos = BABYLON.Tmp.Vector3[6];
-    // let tmpCenterScaledNormal = BABYLON.Tmp.Vector3[5];
-    // tmpCenterScaledNormal.copyFrom( selectedItem.center );
-    // tmpCenterScaledNormal.x *= normal.x;
-    // tmpCenterScaledNormal.y *= normal.y;
-    // tmpCenterScaledNormal.z *= normal.z;
-
-    // Ok now the object has had its position updated
-    // const bbInfo = rootMesh.getBoundingInfo();
-    // Get the size of the centerpos to add
-    // bbInfo.boundingBox.center.subtractToRef( bbInfo.boundingBox.minimum, tmpCenterPos );
-    // tmpCenterPos.copyFrom( selectedItem )
-
-    // rootMesh.position.subtractToRef( tmpCenterScaledNormal, tmpCenterPos );
-    // Calculate correct position delta
-
-    // tmpPositionDelta.addInPlace( selectedItem.center );
-
-
-
-    // Get half the size in a certain direction
-
-
-
-
-    // let tmpBottomPoint = BABYLON.Tmp.Vector3[3];
-    // tmpBottomPoint.copyFromFloats( selectedItem.center.x + selectedItem.size.width * -normal.x * 0.5,
-    //                               selectedItem.center.y + selectedItem.size.height * -normal.y * 0.5,
-    //                               selectedItem.center.z + selectedItem.size.depth * -normal.z * 0.5)
-    //
-    //
-    // let tmpData = BABYLON.Tmp.Vector3[4];
-    // tmpData.x = rootMesh.position.x;
-    // tmpData.y = rootMesh.position.y;
-    // tmpData.z = rootMesh.position.z;
-    // tmpData.addInPlace( tmpBottomPoint );
-    // // Add the point
-    // tmpData.addInPlace( tmpPositionDelta );
-    //
-    // // Check if center point is below
-    // if ()
-
-
-
-
   },
   /**
    * Unselect the selected item and do cleanup
@@ -1971,10 +1897,6 @@ export const ViewModel = Map.extend({
 
   setBaseRotation( a_item ){
     a_item.baseRotation = a_item.rootMeshes[0].rotationQuaternion.clone();
-
-    // for (let i = 0; i < a_item.children.length; ++i){
-    //   this.setBaseRotation( a_item.children[i] );
-    // }
   },
   getRootMesh(a_mesh ){
     let parent = a_mesh.parent || a_mesh;

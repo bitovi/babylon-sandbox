@@ -1310,7 +1310,7 @@ export const ViewModel = Map.extend({
       // Start by cloning the parents rotationQuaternion
       let parentQuaternion = rootParent.rotationQuaternion.clone();
       // Now iterate over all parents to hit the real root parent
-      while (rootParent.parent){
+      while ( rootParent.parent ){
         rootParent = rootParent.parent;
         // Add the rotationQuaternion of each parent
         rootParent.rotationQuaternion.multiplyToRef( parentQuaternion, parentQuaternion );
@@ -1337,7 +1337,7 @@ export const ViewModel = Map.extend({
    */
   removeChild( child ){
     let parent = child.parent;
-    if ( parent ){
+    if ( parent ) {
       let found = false;
       for ( let i = 0; i < parent.children.length; ++i ){
         if ( parent.children[ i ] === child ){

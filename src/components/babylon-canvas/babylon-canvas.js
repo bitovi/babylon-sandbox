@@ -24,6 +24,7 @@ import Asset from '../../models/asset.js';
  * baseRotation:undefined|BABYLON.Quaternion,
  * center: BABYLON.Vector3,
  * children: EgowallItem[],
+ * lastRotation: undefined|BABYLON.Vector3,
  * lastSurfaceNormal: undefined|BABYLON.Vector3,
  * meshes: BABYLON.Mesh[],
  * name: string,
@@ -509,10 +510,7 @@ export const ViewModel = Map.extend({
         rootMesh.rotationQuaternion = BABYLON.Quaternion.Identity();
       }
 
-      rootMesh.rotationQuaternion.x = rotX;
-      rootMesh.rotationQuaternion.y = rotY;
-      rootMesh.rotationQuaternion.z = rotZ;
-      rootMesh.rotationQuaternion.w = rotW;
+
 
       if (isPainting){
         // rootMesh.rotation.y = Math.PI;
@@ -665,6 +663,13 @@ export const ViewModel = Map.extend({
     __itemRef.size.depth = (maxZ- minZ) * 0.5;
     __itemRef.center.copyFromFloats(minX + __itemRef.size.width, minY + __itemRef.size.height, minZ + __itemRef.size.depth);
 
+    this.setBaseRotation( __itemRef );
+    let vm = this;
+    window.testFunc = function(a_item){  if (!a_item){ a_item = window.items[11]; } vm.testFunc(a_item); };
+    // this.testFunc( __itemRef );
+
+
+
     // Need to do this after the meshes loop because for the paintings it doesn't work inside the loop.
     // Also not using item.meshes because item.meshes only adds meshes with vertices
     for ( let i = 0; i < meshes.length; ++i ) {
@@ -673,6 +678,150 @@ export const ViewModel = Map.extend({
       meshes[i].__itemRef = __itemRef;
       meshes[i].freezeWorldMatrix();
     }
+  },
+
+  /**
+   *
+   * @param a_item
+   */
+  testFunc( a_item ){
+    // function lookRotation(forward, up){
+    //
+    //   if (!up){
+    //     up = BABYLON.Vector3.Up();
+    //   }
+    //
+    //   forward.normalize();
+    //
+    //   //const normForward = forward.copy();
+    //   const crossUp = BABYLON.Vector3.Cross( up, forward ).normalize();
+    //   const crossCross = BABYLON.Vector3.Cross( forward, crossUp );
+    //
+    //   const m00 = crossUp.x;
+    //   const m01 = crossUp.y;
+    //   const m02 = crossUp.z;
+    //   const m10 = crossCross.x;
+    //   const m11 = crossCross.y;
+    //   const m12 = crossCross.z;
+    //   const m20 = forward.x;
+    //   const m21 = forward.y;
+    //   const m22 = forward.z;
+    //
+    //   const num8 = (m00 + m11) + m22;
+    //   let quaternion = BABYLON.Quaternion.Identity();
+    //   if (num8 > 0)
+    //   {
+    //     let num = Math.sqrt(num8 + 1);
+    //     quaternion.w = num * 0.5;
+    //     num = 0.5 / num;
+    //     quaternion.x = (m12 - m21) * num;
+    //     quaternion.y = (m20 - m02) * num;
+    //     quaternion.z = (m01 - m10) * num;
+    //     return quaternion.normalize();
+    //   }
+    //   if ((m00 >= m11) && (m00 >= m22))
+    //   {
+    //     const num7 = Math.sqrt(((1 + m00) - m11) - m22);
+    //     const num4 = 0.5 / num7;
+    //     quaternion.x = 0.5 * num7;
+    //     quaternion.y = (m01 + m10) * num4;
+    //     quaternion.z = (m02 + m20) * num4;
+    //     quaternion.w = (m12 - m21) * num4;
+    //     return quaternion.normalize();
+    //   }
+    //   if (m11 > m22)
+    //   {
+    //     const num6 = Math.sqrt(((1 + m11) - m00) - m22);
+    //     const num3 = 0.5 / num6;
+    //     quaternion.x = (m10+ m01) * num3;
+    //     quaternion.y = 0.5 * num6;
+    //     quaternion.z = (m21 + m12) * num3;
+    //     quaternion.w = (m20 - m02) * num3;
+    //     return quaternion.normalize();
+    //   }
+    //   const num5 = Math.sqrt(((1 + m22) - m00) - m11);
+    //   const num2 = 0.5 / num5;
+    //   quaternion.x = (m20 + m02) * num2;
+    //   quaternion.y = (m21 + m12) * num2;
+    //   quaternion.z = 0.5 * num5;
+    //   quaternion.w = (m01 - m10) * num2;
+    //   return quaternion.normalize();
+    // }
+    // function multiplyVector3(quat, vec3, vec3Dest) {
+    //   quat = [ quat.x, quat.y, quat.z, quat.w ];
+    //   vec3 = [ vec3.x, vec3.y, vec3.z ];
+    //
+    //   vec3Dest = [];
+    //   var d = vec3[0],
+    //     e = vec3[1],
+    //     g = vec3[2],
+    //     b = quat[0],
+    //     f = quat[1],
+    //     h = quat[2],
+    //     a = quat[3],
+    //     i = a * d + f * g - h * e,
+    //     j = a * e + h * d - b * g,
+    //     k = a * g + b * e - f * d,
+    //     d = -b * d - f * e - h * g;
+    //   vec3Dest[0] = i * a + d * -b + j * -h - k * -f;
+    //   vec3Dest[1] = j * a + d * -f + k * -b - i * -h;
+    //   vec3Dest[2] = k * a + d * -h + i * -f - j * -b;
+    //   return new BABYLON.Vector3( vec3Dest[0], vec3Dest[1], vec3Dest[2] );
+    // };
+    let rootMesh = a_item.rootMeshes[0];
+    const point = new BABYLON.Vector3( 4.1787855630975335, 1.748583033687801, 15.000075036685118 );
+
+    const normal = window.testNormal || new BABYLON.Vector3( 0, 0, -1 );
+    let upVector = new BABYLON.Vector3( 0, 1, 0);
+
+    // Mesh from front wall
+    // rootMesh.rotationQuaternion.x = 0.4999971709436651;
+    // rootMesh.rotationQuaternion.y = 0.500002820656822;
+    // rootMesh.rotationQuaternion.z = 0.5000028628036671;
+    // rootMesh.rotationQuaternion.w = 0.4999971988083251;
+
+    rootMesh.rotationQuaternion.x = -0.7071067811865475;
+    rootMesh.rotationQuaternion.y = 0;
+    rootMesh.rotationQuaternion.z = 0;
+    rootMesh.rotationQuaternion.w = 0.7071067811865476;
+
+    // this.setBaseRotation( a_item );
+
+    const rq = rootMesh.rotationQuaternion;
+    let wallRotation;
+
+    if (normal.y === 1) {
+      // tmpAxis.copyFromFloats( 0, 1, 0 );
+      // If direction is up then use identity quaternion
+      wallRotation = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 0, 1);
+    } else if (normal.y === -1){
+      // tmpAxis.copyFromFloats( 0, -1, 0 );
+      // Upside down rotation
+      wallRotation = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 1, 0);
+    } else {
+      let tmpAxis = BABYLON.Tmp.Vector3[7];
+      // Axis is [ 0, 0, 0 ] for y == 1 and y == -1
+      BABYLON.Vector3.CrossToRef(upVector, normal, tmpAxis );
+      // tmpAxis.normalize();
+      const angle = Math.acos(BABYLON.Vector3.Dot(upVector, normal));
+      // TODO: in Babylon 2.5 change to use RotationAxisToRef
+      // This normalizes tmpAxis
+      wallRotation = BABYLON.Quaternion.RotationAxis( tmpAxis, angle);
+      wallRotation.normalize();
+    }
+
+    // TODO: in Babylon 2.5 change to use RotationAxisToRef
+    // This normalizes tmpAxis
+    // rotQuat = BABYLON.Quaternion.RotationAxis( tmpAxis, angle);
+    // rotQuat.normalize();
+
+    // rotQuat.conjugateInPlace();
+    let zero = BABYLON.Vector3.Zero();
+    this.updatePositionRotation( a_item, zero, wallRotation );
+
+    // this.updatePositionRotation( a_item, zero, BABYLON.Quaternion.Identity() );
+
+    rootMesh.rotationQuaternion.normalize();
   },
 
   loadModels ( arrayOfLoadedAssets ) {
@@ -1720,9 +1869,26 @@ export const ViewModel = Map.extend({
 
       rootMesh.position.addInPlace( a_positionDelta );
       // Use the baseRotation and
-      // a_rotation.multiplyToRef( a_item.baseRotation, rootMesh.rotationQuaternion );
-      rootMesh.rotationQuaternion = BABYLON.Quaternion.Identity();
+
+      const lastRotation = a_item.lastRotation;
+      // If there was a last rotation then remove the affect it had on the
+      if (lastRotation){
+        // Inverse it to remove the difference in rotation
+        lastRotation.conjugateInPlace();
+        rootMesh.rotationQuaternion.multiplyInPlace( lastRotation );
+      }
+
+      // Should be base rotation - wall rotation
+      // a_item.baseRotation.multiplyToRef(tmpInverseRotation , tmpInverseRotation );
+
       rootMesh.rotationQuaternion.multiplyInPlace( a_rotation );
+      a_item.lastRotation = a_rotation.clone();
+      // a_rotation.multiplyToRef( a_item.baseRotation, rootMesh.rotationQuaternion );
+      // rootMesh.rotationQuaternion = BABYLON.Quaternion.Identity();
+      // rootMesh.rotationQuaternion.multiplyInPlace( tmpInverseRotation );
+      // rootMesh.rotationQuaternion.multiplyInPlace( a_rotation );
+
+      // console.log(rootMesh.rotationQuaternion);
 
       this.updateMeshMatrices( rootMesh );
     }
@@ -1816,6 +1982,10 @@ export const ViewModel = Map.extend({
      8: deltaPosition
      7: Axis for rotation
      6: Center offset
+
+     Tmp.Quaternions:
+     0: rotQuat for rotations sent to updateRotations
+
      */
     // Can use the first rootMesh to calculate how much the object has to move
     // TODO: Evaluate if center between two rootMeshes would be neccesary for proper position
@@ -1832,68 +2002,40 @@ export const ViewModel = Map.extend({
     // normal.addToRef( itemUpVector, test );
     // const testLen = test.length();
 
-    // console.log(testLen);
-    // if (testLen < 0.5 && testLen > -0.5){
-    if (testLen < 1.95){
-
-      // if (testLen < 1.0){
-      //   tmpPositionDelta.x += selectedItem.size.width * 2 * normal.x;
-      //   tmpPositionDelta.y += selectedItem.size.height * 2 *  normal.y;
-      //   tmpPositionDelta.z += selectedItem.size.depth * 2 * normal.z;
-      // }
-      // else{
-      //   tmpPositionDelta.x += selectedItem.size.width * normal.x;
-      //   tmpPositionDelta.y += selectedItem.size.height * normal.y;
-      //   tmpPositionDelta.z += selectedItem.size.depth * normal.z;
-      // }
-    }
-
-    // if (dot < 0.5){
-    //   tmpPositionDelta.x += selectedItem.size.width * normal.x;
-    //   tmpPositionDelta.y += selectedItem.size.height * normal.y;
-    //   tmpPositionDelta.z += selectedItem.size.depth * normal.z;
-    // }
-
     let doRotation = true;
     const lastSurfaceNormal = selectedItem.lastSurfaceNormal;
 
     if (lastSurfaceNormal){
       if (lastSurfaceNormal.x === normal.x && lastSurfaceNormal.y === normal.y && lastSurfaceNormal.z === normal.z){
         doRotation = false;
+        console.log("same upvector");
       }
     }
 
     selectedItem.lastSurfaceNormal = normal;
     // If there is no need to do rotation then
     if (!doRotation){
-      // pickingResult.pickedPoint.subtractToRef(rootMesh.position, tmpPositionDelta );
       this.updatePositions( selectedItem, tmpPositionDelta);
-
-      console.log("not doing rotations");
-
     } else {
-
       const upVector = this.upVector3;
 
       // TODO: Check if normal is the same as last time because if it is there is no need to update rotation
       // Only position is neccesary to update then.
       let rotQuat;
       let tmpAxis = BABYLON.Tmp.Vector3[7];
-      if (normal.y === 1){
+      if (normal.y === 1) {
         tmpAxis.copyFromFloats( 0, 1, 0 );
-
         // If direction is up then use identity quaternion
         rotQuat = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 0, 1);
-      }
-      else if (normal.y === -1){
+      } else if (normal.y === -1){
         tmpAxis.copyFromFloats( 0, -1, 0 );
         // Upside down rotation
         rotQuat = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 1, 0);
-      }
-      else {
-        // let tmpAxis = BABYLON.Tmp.Vector3[7];
+      } else {
+        let tmpAxis = BABYLON.Tmp.Vector3[7];
         // Axis is [ 0, 0, 0 ] for y == 1 and y == -1
         BABYLON.Vector3.CrossToRef(upVector, normal, tmpAxis );
+
         tmpAxis.normalize();
         const angle = Math.acos(BABYLON.Vector3.Dot(upVector, normal));
         // TODO: in Babylon 2.5 change to use RotationAxisToRef
@@ -1902,56 +2044,8 @@ export const ViewModel = Map.extend({
         rotQuat.normalize();
       }
 
-      // this.updatePositions( selectedItem, tmpPositionDelta);
       this.updatePositionRotation( selectedItem, tmpPositionDelta, rotQuat );
     }
-
-
-    // let tmpCenterPos = BABYLON.Tmp.Vector3[6];
-    // let tmpCenterScaledNormal = BABYLON.Tmp.Vector3[5];
-    // tmpCenterScaledNormal.copyFrom( selectedItem.center );
-    // tmpCenterScaledNormal.x *= normal.x;
-    // tmpCenterScaledNormal.y *= normal.y;
-    // tmpCenterScaledNormal.z *= normal.z;
-
-    // Ok now the object has had its position updated
-    // const bbInfo = rootMesh.getBoundingInfo();
-    // Get the size of the centerpos to add
-    // bbInfo.boundingBox.center.subtractToRef( bbInfo.boundingBox.minimum, tmpCenterPos );
-    // tmpCenterPos.copyFrom( selectedItem )
-
-    // rootMesh.position.subtractToRef( tmpCenterScaledNormal, tmpCenterPos );
-    // Calculate correct position delta
-
-    // tmpPositionDelta.addInPlace( selectedItem.center );
-
-
-
-    // Get half the size in a certain direction
-
-
-
-
-    // let tmpBottomPoint = BABYLON.Tmp.Vector3[3];
-    // tmpBottomPoint.copyFromFloats( selectedItem.center.x + selectedItem.size.width * -normal.x * 0.5,
-    //                               selectedItem.center.y + selectedItem.size.height * -normal.y * 0.5,
-    //                               selectedItem.center.z + selectedItem.size.depth * -normal.z * 0.5)
-    //
-    //
-    // let tmpData = BABYLON.Tmp.Vector3[4];
-    // tmpData.x = rootMesh.position.x;
-    // tmpData.y = rootMesh.position.y;
-    // tmpData.z = rootMesh.position.z;
-    // tmpData.addInPlace( tmpBottomPoint );
-    // // Add the point
-    // tmpData.addInPlace( tmpPositionDelta );
-    //
-    // // Check if center point is below
-    // if ()
-
-
-
-
   },
   /**
    * Unselect the selected item and do cleanup
@@ -1971,10 +2065,6 @@ export const ViewModel = Map.extend({
 
   setBaseRotation( a_item ){
     a_item.baseRotation = a_item.rootMeshes[0].rotationQuaternion.clone();
-
-    // for (let i = 0; i < a_item.children.length; ++i){
-    //   this.setBaseRotation( a_item.children[i] );
-    // }
   },
   getRootMesh(a_mesh ){
     let parent = a_mesh.parent || a_mesh;
@@ -2009,7 +2099,7 @@ export const controls = {
         }
 
         // Clone the reference because otherwise it'd get updated when changes are done to the selectedItem
-        this.setBaseRotation( this.selectedItem );
+        // this.setBaseRotation( this.selectedItem );
 
 
         window.selectedItem = this.selectedItem;
@@ -2063,6 +2153,11 @@ export default Component.extend({
         "engine": engine,
         "scene": scene
       });
+
+      // If there is only 1 temp quaternion add another one
+      if (!BABYLON.Tmp.Quaternion[1]){
+        BABYLON.Tmp.Quaternion[1] = new BABYLON.Quaternion();
+      }
 
       vm.initScene();
 

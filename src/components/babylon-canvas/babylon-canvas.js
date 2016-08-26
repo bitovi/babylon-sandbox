@@ -755,7 +755,7 @@ export const ViewModel = Map.extend({
 
   loadTerrain ( terrainURL ) {
 
-    terrainURL = "/src/static/3d/terrain.zip";
+    // terrainURL = "/src/static/3d/terrain.zip";
 
     var terrain = new can.Map({
       terrain: true,
@@ -1176,7 +1176,7 @@ export const ViewModel = Map.extend({
 
   loadLightmaps ( lightmapBundleURL ) {
 
-    lightmapBundleURL = "/src/static/3d/LS_27_lightmap_1400.zip";
+    // lightmapBundleURL = "/src/static/3d/LS_27_lightmap_1400.zip";
 
     var lightmapReq = new can.Map({
       lightmap: true,
@@ -1296,8 +1296,8 @@ export const ViewModel = Map.extend({
       var roomAssetURL = vm.roomAssetURL( uroomID );
       //TODO: use real roomAssetURL to load the backgroundMesh or change service
       let livingSpaceID = homeLoad.livingSpaceID;
-      // roomAssetURL = "https://cdn.testing.egowall.com/CDN_new/Game/Assetbundles/Home/LS_" + livingSpaceID + "_test.zip";
-      roomAssetURL = "/src/static/3d/ls27room.zip";
+      roomAssetURL = "https://cdn.testing.egowall.com/CDN_new/Game/Assetbundles/Home/LS_" + livingSpaceID + "_test.zip";
+      // roomAssetURL = "/src/static/3d/ls27room.zip";
       var setDef = new Map({ assetID: roomAssetURL, assetURL: roomAssetURL });
       var roomMeshProm = Asset.get( setDef );
 
@@ -1387,9 +1387,15 @@ export const ViewModel = Map.extend({
 
       rootMesh.parent = a_parent.rootMeshes[0];
 
-      const parentQuaternion = rootMesh.parent.rotationQuaternion;
+      let parentQuaternion = rootMesh.parent.rotationQuaternion.clone();
+      let parent = rootMesh.parent.parent;
+      while (parent){
+        parent.rotationQuaternion.multiplyToRef( parentQuaternion, parentQuaternion );
+        parent = parent.parent;
+      }
+
       // Clone the parentInitialRotation to later multiply with the child when splitting.
-      a_item.parentInitialRotation = parentQuaternion.clone();
+      a_item.parentInitialRotation = parentQuaternion;
       // Inverse it
       tmpQuat.copyFromFloats( -parentQuaternion.x, -parentQuaternion.y, -parentQuaternion.z, parentQuaternion.w );
 
@@ -1429,7 +1435,7 @@ export const ViewModel = Map.extend({
           let rootMesh = child.rootMeshes[i];
           rootMesh.parent = null;
           // Remove parentInitialRotation
-          rootMesh.rotationQuaternion.multiplyInPlace( child.parentInitialRotation );
+          child.parentInitialRotation.multiplyToRef( rootMesh.rotationQuaternion, rootMesh.rotationQuaternion );
           // Remove parentInitialRotation
           delete child.parentInitialRotation;
         }
@@ -1844,11 +1850,9 @@ export const ViewModel = Map.extend({
     if (!doRotation){
       // pickingResult.pickedPoint.subtractToRef(rootMesh.position, tmpPositionDelta );
       this.updatePositions( selectedItem, tmpPositionDelta);
-
       console.log("not doing rotations");
 
     } else {
-
       const upVector = this.upVector3;
 
       // TODO: Check if normal is the same as last time because if it is there is no need to update rotation

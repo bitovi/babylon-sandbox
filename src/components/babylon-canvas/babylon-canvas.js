@@ -114,9 +114,8 @@ export const ViewModel = Map.extend({
     if ($ev.target.nodeName.toLowerCase() === "canvas") {
       if (this.selectedItem){
         this.selectedItemMovePicking( controlsVM.curMousePos() );
-      }
-      // If selectedItem is set
-      else {
+      // If selected isn't set
+      } else {
         var curMousePos = controlsVM.curMousePos();
         var customizeMode = this.attr( "customizeMode" );
         let hoveredMesh = this.attr( "hoveredMesh" );
@@ -134,7 +133,7 @@ export const ViewModel = Map.extend({
       }
     } else {
       // If outside canvas and selectedItem is false then unset the hoveredMesh
-      if (!this.selectedItem){
+      if ( !this.selectedItem ){
         this.unsetHoveredMesh();
       }
     }
@@ -160,7 +159,7 @@ export const ViewModel = Map.extend({
   getPickingFromMouse( mousePos, predicate ){
     // If mouse is not on the canvas then don't even bother picking
     const scene = this.attr( "scene" );
-    return scene.pick( mousePos.x, mousePos.y, predicate);
+    return scene.pick( mousePos.x, mousePos.y, predicate );
   },
 
   pickingBG ( hoveredMesh, pickingInfo, curMousePos ) {
@@ -270,7 +269,7 @@ export const ViewModel = Map.extend({
     let shadowmap =  this.attr( "objDirLightShadowGen" ).getShadowMap();
 
     // Only do this once
-    if (shadowmap.refreshRate === 0){
+    if ( shadowmap.refreshRate === 0 ){
       shadowmap.refreshRate = 1;
 
       // After the shadowmap as updated then freeze it again
@@ -391,12 +390,12 @@ export const ViewModel = Map.extend({
 
   /**
    * Get the rootMesh for a mesh. Recursively go through all parents until root parent.
-   * @param a_mesh
+   * @param mesh
    * @returns {*}
    */
-  getRootMesh(a_mesh ){
-    let parent = a_mesh.parent || a_mesh;
-    while (parent.parent){
+  getRootMesh( mesh ){
+    let parent = mesh.parent || mesh;
+    while ( parent.parent ){
       parent = parent.parent;
     }
     return parent;
@@ -405,11 +404,11 @@ export const ViewModel = Map.extend({
   /**
    * Get the root item from a group of items.
    * So if you do getRootItem( item ) and it has a parent you'll get the parent item instead of input item.
-   * @param a_item
+   * @param item
    * @returns EgowallItem
    */
-  getRootItem ( a_item ){
-    const rootMesh = this.getRootMesh(a_item.rootMeshes[0]);
+  getRootItem (item ){
+    const rootMesh = this.getRootMesh( item.rootMeshes[ 0 ] );
     return rootMesh.__itemRef;
   },
 
@@ -443,7 +442,7 @@ export const ViewModel = Map.extend({
       rootMesh.position.z = posZ;
 
       // If no rotationQuaternion exists then create an identity quaternion
-      if (!rootMesh.rotationQuaternion){
+      if ( !rootMesh.rotationQuaternion ){
         rootMesh.rotationQuaternion = BABYLON.Quaternion.Identity();
       }
 
@@ -453,10 +452,10 @@ export const ViewModel = Map.extend({
       rootMesh.rotationQuaternion.w = rotW;
 
       // To currently show the paintings before they get the rotation from the walls
-      if (isPainting){
+      if ( isPainting ){
         // rootMesh.rotation.y = Math.PI;
         // rootMesh.rotation.x = Math.PI / -2;
-        rootMesh.rotationQuaternion.multiplyInPlace( BABYLON.Quaternion.RotationYawPitchRoll(0, Math.PI * 1.5, Math.PI ) );
+        rootMesh.rotationQuaternion.multiplyInPlace( BABYLON.Quaternion.RotationYawPitchRoll( 0, Math.PI * 1.5, Math.PI ) );
       }
     }
   },
@@ -531,13 +530,12 @@ export const ViewModel = Map.extend({
 
         let parent = this.getRootMesh( mesh );
         // Check if rootMesh has already been added
-        if (!rootMeshes[ parent.id ]){
+        if ( !rootMeshes[ parent.id ] ){
           rootMeshes[ parent.id ] = true;
           item.rootMeshes.push( parent );
         }
-      }
-      // Turn off collision & receiveShadows for terrain
-      else{
+        // Turn off collision & receiveShadows for terrain
+      } else {
         mesh.checkCollisions = false;
         mesh.receiveShadows = false;
         // Add the mesh to terrainMeshes to later in applyTerrainLightmap() foreach to setup the lightmap materials
@@ -550,7 +548,7 @@ export const ViewModel = Map.extend({
     }
 
     // Check if rootMeshes.length > 0 which it is unless it's terrain
-    if (item.rootMeshes.length > 0){
+    if ( item.rootMeshes.length > 0 ){
       // For paintings get itemInfo.roomInfo
       // For furniture just itemInfo is fine
       const info = itemInfo.egoID ? itemInfo.roomInfo : itemInfo;
@@ -562,7 +560,7 @@ export const ViewModel = Map.extend({
     for ( let i = 0; i < meshes.length; ++i ) {
       // Add itemRef to all meshes except terrain.
       // Could do this in mainloop too but the mainloop stops for these meshes   if ( !positions )
-      if (!isTerrain){
+      if ( !isTerrain ){
         meshes[i].__itemRef = item;
       }
       meshes[i].freezeWorldMatrix();
@@ -610,7 +608,7 @@ export const ViewModel = Map.extend({
       this.loadTextures.bind( this )
     );
 
-    return materials.then(()=>{
+    return materials.then( () => {
       return furnitures.then(
         this.loadModels.bind( this )
       );
@@ -862,10 +860,10 @@ export const ViewModel = Map.extend({
     if ( mesh.material ) {
       // Check if lightmap tag exists for the mesh
       const lightmapId = this.getTagValue( mesh, "lightmap" );
-      if(lightmapId !== ""){
+      if( lightmapId !== "" ) {
         // Try and get the lightmap for that id and then set it
         const lightmap = this.attr( "lightmaps" )[ lightmapId ];
-        if ( lightmap ){
+        if ( lightmap ) {
           mesh.material.ambientTexture = lightmap;
         }
       }
@@ -977,16 +975,16 @@ export const ViewModel = Map.extend({
       // 4. Check materialId + lightmapId already exists ( If parentId is null then use meshId )
       //    4a. If exists then add mesh to meshes
       //    4b. If not then create new group
-      if (mesh.material){
+      if ( mesh.material ){
         const lightmapId = this.getTagValue( mesh, "lightmap" );
 
-        if (lightmapId != ""){
+        if ( lightmapId != "" ){
           // Check if the lightmap exists as a file
-          if (lightmaps[ lightmapId ]){
+          if ( lightmaps[ lightmapId ] ) {
             // Creates a key like "xxxx-xxxx-xxxx-xxxxxxterrainfloor (GUID + lmId)
             const key = mesh.material.id + lightmapId;
             // If the group already exists then just add the mesh
-            if (materialGroups[ key ]){
+            if ( materialGroups[ key ] ){
               materialGroups[ key ].meshes.push( mesh );
             } else {
               // Otherwise create the group
@@ -1012,7 +1010,7 @@ export const ViewModel = Map.extend({
     // 1. Check if the material's binded meshes all exist
     // 2. If one binded mesh doesn't exist then the material needs to be cloned
     // 3. If the binded meshes are all in group.meshes then set the lightmap directly without cloning material
-    for (const key in materialGroups){
+    for ( const key in materialGroups ){
       let group = materialGroups[ key ];
       // The lightmap texture to use
       const lm = lightmaps[ group.lightmapId ];
@@ -1023,28 +1021,28 @@ export const ViewModel = Map.extend({
 
       let needClone = false;
       // Go over all the bindedMeshes and see if they are part of the meshes for this material
-      for (let i = 0; i < bindedMeshes.length; ++i){
+      for ( let i = 0; i < bindedMeshes.length; ++i ){
         let found = false;
         const bindedMesh = bindedMeshes[i];
         // Check if the bindedMesh isn't part of groups.meshes
         // If it's not part of the groups.meshes then the material needs to be cloned as a different lightmap or no lightmap atall is expected
-        for (let j = 0; j < meshes.length; ++j){
+        for ( let j = 0; j < meshes.length; ++j ){
           if (bindedMesh === meshes[j]){
             found = true;
             break;
           }
         }
         // If no mesh was found then we need to copy the material
-        if (!found){
+        if ( !found ){
           needClone = true;
           break;
         }
       }
       // Clone the material if needed and set it for all the meshes
-      if (needClone){
+      if ( needClone ){
         material = material.clone();
         material.ambientTexture = lm;
-        for (let i = 0; i < meshes.length; ++i){
+        for ( let i = 0; i < meshes.length; ++i ){
           meshes[i].material = material;
         }
         // If no cloning use the lightmap directly
@@ -1065,7 +1063,7 @@ export const ViewModel = Map.extend({
     });
     var lightmapProm = Asset.get( lightmapReq );
 
-    return lightmapProm.then(( assetData ) => {
+    return lightmapProm.then( ( assetData ) => {
       var scene = this.attr( "scene" );
       var unzippedAssets = assetData.unzippedFiles;
 
@@ -1214,14 +1212,14 @@ export const ViewModel = Map.extend({
    **************************************/
   /**
    * Updates the position of an item by adding the delta movement. So x = 2  means position.x += 2
-   * @param {EgowallItem} a_item
-   * @param {BABYLON.Vector3} a_positionDelta
+   * @param {EgowallItem} item
+   * @param {BABYLON.Vector3} positionDelta
    */
-  updatePositions(a_item, a_positionDelta){
-    for ( let i = 0; i < a_item.rootMeshes.length; ++i){
-      let rootMesh = a_item.rootMeshes[i];
+  updatePositions( item, positionDelta ){
+    for (let i = 0; i < item.rootMeshes.length; ++i ){
+      let rootMesh = item.rootMeshes[ i ];
 
-      rootMesh.position.addInPlace( a_positionDelta );
+      rootMesh.position.addInPlace( positionDelta );
 
       this.updateMeshMatrices( rootMesh );
     }
@@ -1229,18 +1227,17 @@ export const ViewModel = Map.extend({
 
   /**
    * Update position and rotation of an item
-   * @param {EgowallItem} a_item The item to do changes to, changes will affect children automatically
-   * @param {BABYLON.Vector3} a_positionDelta How much object has translated
-   * @param {BABYLON.Quaternion} a_rotation The delta rotation, could for example be the rotation of a wall.
+   * @param {EgowallItem} item The item to do changes to, changes will affect children automatically
+   * @param {BABYLON.Vector3} positionDelta How much object has translated
+   * @param {BABYLON.Quaternion} rotation The delta rotation, could for example be the rotation of a wall.
    */
-  updatePositionRotation(a_item, a_positionDelta, a_rotation ){
+  updatePositionRotation(item, positionDelta, rotation ){
+    for (let i = 0; i < item.rootMeshes.length; ++i ){
+      let rootMesh = item.rootMeshes[ i ];
 
-    for ( let i = 0; i < a_item.rootMeshes.length; ++i){
-      let rootMesh = a_item.rootMeshes[i];
-
-      rootMesh.position.addInPlace( a_positionDelta );
+      rootMesh.position.addInPlace( positionDelta );
       // Use the baseRotation and
-      a_rotation.multiplyToRef( a_item.baseRotation, rootMesh.rotationQuaternion );
+      rotation.multiplyToRef( item.baseRotation, rootMesh.rotationQuaternion );
 
       // rootMesh.rotationQuaternion = BABYLON.Quaternion.Identity();
       // rootMesh.rotationQuaternion.multiplyInPlace( a_rotation );
@@ -1253,12 +1250,12 @@ export const ViewModel = Map.extend({
    * Updates a root mesh's world matrix and the child meshes' matrices.
    * @param {BABYLON.Mesh} rootMesh
    */
-  updateMeshMatrices(rootMesh ){
+  updateMeshMatrices( rootMesh ){
     let children = rootMesh.getChildMeshes();
     // freezeWorldMatrix re-updates the world matrix so the position is correct
     rootMesh.freezeWorldMatrix();
-    for (let i = 0; i < children.length; ++i){
-      children[i].freezeWorldMatrix();
+    for ( let i = 0; i < children.length; ++i ){
+      children[ i ].freezeWorldMatrix();
     }
     // Finish by telling shadowmap it needs to update
     this.updateShadowmap = true;
@@ -1269,56 +1266,53 @@ export const ViewModel = Map.extend({
    ***************************************/
   /**
    * Adds the parent to an item and if the item already had a parent then the item removes itself as a child from the old parent.
-   * @param {EgowallItem} a_item
-   * @param {EgowallItem} a_parent
+   * @param {EgowallItem} item
+   * @param {EgowallItem} parent
    */
-  addItemParent(a_item, a_parent ){
-    if (a_item.parent){
-
-      if (a_parent == null){
-        this.removeChild( a_item );
-      }
-      else if ( a_item.parent !== a_parent ){
-        this.removeChild( a_item );
-        this.setItemParent( a_item, a_parent );
+  addItemParent( item, parent ){
+    if ( item.parent ) {
+      if ( parent === null ){
+        this.removeChild( item );
+      } else if ( item.parent !== parent ) {
+        this.removeChild( item );
+        this.setItemParent( item, parent );
       }
       // Do nothing for same reference
-    }
-    else{
-      if (a_parent){
-        this.setItemParent( a_item, a_parent );
+    } else {
+      if ( parent ){
+        this.setItemParent( item, parent );
       }
     }
   },
 
   /**
    * Sets the parent and sets position & rotation correctly
-   * @param {EgowallItem} a_item
-   * @param {EgowallItem} a_parent
+   * @param {EgowallItem} item
+   * @param {EgowallItem} parent
    */
-  setItemParent(a_item, a_parent ){
-    a_item.parent = a_parent;
-    a_parent.children.push( a_item );
+  setItemParent( item, parent ){
+    item.parent = parent;
+    parent.children.push( item );
 
-    let tmpVector = BABYLON.Tmp.Vector3[8];
+    let tmpVector = BABYLON.Tmp.Vector3[ 8 ];
     // Stores the inverse parent quaternion
-    let tmpQuat = BABYLON.Tmp.Quaternion[0];
-    for ( let i = 0; i < a_item.rootMeshes.length; ++i ){
-      let rootMesh = a_item.rootMeshes[i];
+    let tmpQuat = BABYLON.Tmp.Quaternion[ 0 ];
+    for ( let i = 0; i < item.rootMeshes.length; ++i ){
+      let rootMesh = item.rootMeshes[i];
       // Copy the current absolute position before adding the parent
       tmpVector.copyFrom(rootMesh.getAbsolutePosition());
 
-      rootMesh.parent = a_parent.rootMeshes[0];
+      rootMesh.parent = parent.rootMeshes[ 0 ];
 
       const parentQuaternion = rootMesh.parent.rotationQuaternion;
       // Clone the parentInitialRotation to later multiply with the child when splitting.
-      a_item.parentInitialRotation = parentQuaternion.clone();
+      item.parentInitialRotation = parentQuaternion.clone();
       // Inverse it
       tmpQuat.copyFromFloats( -parentQuaternion.x, -parentQuaternion.y, -parentQuaternion.z, parentQuaternion.w );
 
       // We need to add the inverse quaternion to remove the rotation of the parent.
       // Else the rotation is very off!
-      tmpQuat.multiplyToRef(rootMesh.rotationQuaternion, rootMesh.rotationQuaternion);
+      tmpQuat.multiplyToRef( rootMesh.rotationQuaternion, rootMesh.rotationQuaternion );
       // We need to use absolute position because the position gets really wrong after adding the the parent
       // My guess is the poseMatrix changes the local space
       rootMesh.setAbsolutePosition( tmpVector );
@@ -1332,22 +1326,22 @@ export const ViewModel = Map.extend({
    */
   removeChild( child ){
     let parent = child.parent;
-    if (parent){
+    if ( parent ){
       let found = false;
-      for (let i = 0; i < parent.children.length; ++i){
-        if (parent.children[i] === child){
-          parent.children.splice(i, 1);
+      for ( let i = 0; i < parent.children.length; ++i ){
+        if ( parent.children[ i ] === child ){
+          parent.children.splice( i, 1 );
           found = true;
           break;
         }
       }
 
-      if (found){
+      if ( found ){
         child.parent = null;
 
         // Fix positions!
-        for (let i = 0; i < child.rootMeshes.length; ++i){
-          let rootMesh = child.rootMeshes[i];
+        for ( let i = 0; i < child.rootMeshes.length; ++i ){
+          let rootMesh = child.rootMeshes[ i ];
           rootMesh.parent = null;
           // Remove parentInitialRotation reduction by multiplying it back
           rootMesh.rotationQuaternion.multiplyInPlace( child.parentInitialRotation );
@@ -1370,16 +1364,16 @@ export const ViewModel = Map.extend({
 
   /**
    * Activate gravity for an item by adding it to the gravityItems list. RenderLoop will now update it's position
-   * @param {EgowallItem} a_item
+   * @param {EgowallItem} item
    */
-  activateGravity(a_item ){
-    this.gravityItems.push ( a_item );
+  activateGravity( item ){
+    this.gravityItems.push ( item );
     // TODO: Temporary code to update the position slightly so gravity can be observed.
     // Will later for rotations add a fixed position so it doesn't collide
     // For furniture movement it slightly puts it above ground when moving so it doesn't collide with rugs.
-    let tmpVector = BABYLON.Tmp.Vector3[8];
-    BABYLON.Vector3.FromFloatsToRef(0, 0.5, 0, tmpVector );
-    this.updatePositions(a_item, tmpVector);
+    let tmpVector = BABYLON.Tmp.Vector3[ 8 ];
+    BABYLON.Vector3.FromFloatsToRef( 0, 0.5, 0, tmpVector );
+    this.updatePositions( item, tmpVector);
   },
 
   // TODO: Evaluate if deltaY should be a vector incase of objects moving in more directions than just 1.
@@ -1387,53 +1381,52 @@ export const ViewModel = Map.extend({
    * Adjust the position by using a binary search approach.
    * Start by checking half the value of deltaY and then half from there 5 times reaching 96.875% of a_deltaY
    * If it's not colliding it tries to move closer towards collision
-   * @param {EgowallItem} a_item
-   * @param {CollisionResult[]} a_collisions
-   * @param {float} a_deltaY How much the gravity moved an object since last frame
+   * @param {EgowallItem} item
+   * @param {CollisionResult[]} collisions
+   * @param {float} deltaY How much the gravity moved an object since last frame
    */
-  adjustCollisionPos(a_item, a_collisions, a_deltaY ){
+  adjustCollisionPos( item, collisions, deltaY ){
 
     // -1 = against gravity
     let direction = -1;
 
-    let tempVec = BABYLON.Tmp.Vector3[7];
+    let tempVec = BABYLON.Tmp.Vector3[ 7 ];
     // Need to set x & z to 0 since it's a tmp variable
     tempVec.x = 0;
     tempVec.z = 0;
     let isColliding = true;
     let multiplierValue = 0;
 
-    for (let i = 1; i < 6; ++i){
+    for ( let i = 1; i < 6; ++i ) {
       // Half the distance until finished!
       // 0.5, 0.75, 0.875, 0.9375, 0.96875
-      let multiplier = direction * (1 / Math.pow(2, i));
+      let multiplier = direction * ( 1 / Math.pow( 2, i) );
 
       multiplierValue += multiplier;
 
-      tempVec.y = a_deltaY * multiplier;
+      tempVec.y = deltaY * multiplier;
 
-      this.updatePositions(a_item, tempVec);
+      this.updatePositions( item, tempVec );
 
       isColliding = false;
 
       // Check all collisions if they still collide or not
-      for (let j = 0; j < a_collisions.length; ++j){
-        let collision = a_collisions[j];
+      for ( let j = 0; j < collisions.length; ++j ){
+        let collision = collisions[ j ];
         if ( collision.furniture.intersectsMesh( collision.hit )){
           isColliding = true;
         }
       }
       // If it's not colliding then try and get closer towards collision
-      if (!isColliding){
+      if ( !isColliding ){
         // If no collision and moving against gravity start moving towards gravity
-        if (direction == -1){
+        if ( direction == -1 ){
           direction = -direction;
         }
-      }
-      else{
+      } else {
         // If colliding and direction is going towards gravity
         // Then go against gravity
-        if (direction == 1){
+        if ( direction == 1 ){
           direction = -direction;
         }
       }
@@ -1442,28 +1435,27 @@ export const ViewModel = Map.extend({
 
   /**
    * Adds the gravity distance to the item and checks for collision
-   * @param {EgowallItem} a_item
-   * @param {BABYLON.Vector3}a_gravityDistance
+   * @param {EgowallItem} item
+   * @param {BABYLON.Vector3}gravityDistance
    */
-  applyGravity( a_item, a_gravityDistance ){
+  applyGravity(item, gravityDistance ){
     // Start by adding the gravity distance
-    this.updatePositions( a_item, a_gravityDistance );
+    this.updatePositions( item, gravityDistance );
 
     // Check collision and get result
-    let collisions = this.checkFurnitureCollisions( a_item );
+    let collisions = this.checkFurnitureCollisions( item );
     // If colliding try and figure out where!
-    if (collisions.length > 0){
+    if ( collisions.length > 0 ){
       // Adjust the position by moving object ~6 times to get as near as possible
-      this.adjustCollisionPos( a_item, collisions, a_gravityDistance.y );
+      this.adjustCollisionPos( item, collisions, gravityDistance.y );
       // If the collisions is an EgowallItem then add item as child to which had highest count or first occurence if same count
       const parent = this.getParentFromCollisions( collisions );
 
       // Set a parent for the item
-      if (parent){
-        this.addItemParent( a_item, parent );
+      if ( parent ){
+        this.addItemParent( item, parent );
       }
-      // Remove this item from having gravity affecting it
-      this.removeGravity( a_item );
+
       return true;
     }
 
@@ -1474,15 +1466,15 @@ export const ViewModel = Map.extend({
   /**
    * Check if the furniture item is colliding with any other mesh.
    * Used by applyGravity
-   * @param {EgowallItem} a_item
+   * @param {EgowallItem} item
    * @returns {CollisionResult[]}
    */
-  checkFurnitureCollisions( a_item ){
-    const id = a_item._cid;
+  checkFurnitureCollisions(item ){
+    const id = item._cid;
     // Lazy load the array and store until a new selection happens
     if (!this.selectedFurnitureMeshes[ id ]  ){
       // calculate the meshes
-      this.selectedFurnitureMeshes[ id ] = this.getChildMeshes( a_item );
+      this.selectedFurnitureMeshes[ id ] = this.getChildMeshes( item );
     }
 
     let selectedFurnitureMeshes = this.selectedFurnitureMeshes[ id ];
@@ -1496,11 +1488,11 @@ export const ViewModel = Map.extend({
     // The collisions result,  if empty no collisions occured
     let collisions = [];
     // Go over all collidables
-    for (let i = 0; i < collidableMeshes.length; ++i){
-      let collidableMesh = collidableMeshes[i];
+    for ( let i = 0; i < collidableMeshes.length; ++i ){
+      let collidableMesh = collidableMeshes[ i ];
 
-      for ( let j = 0; j < selectedFurnitureMeshes.length; ++j){
-        let furnitureMesh = selectedFurnitureMeshes[j];
+      for ( let j = 0; j < selectedFurnitureMeshes.length; ++j ){
+        let furnitureMesh = selectedFurnitureMeshes[ j ];
 
         if (furnitureMesh.intersectsMesh( collidableMesh, true )){
           // Add the collision result to collisions array if colliding
@@ -1514,15 +1506,15 @@ export const ViewModel = Map.extend({
 
   /**
    * Get all childMeshes for an item. Iterating over all rootMeshes and get the childmeshes for those.
-   * @param {EgowallItem} a_item
+   * @param {EgowallItem} item
    * @returns {BABYLON.Mesh[]}
    */
-  getChildMeshes( a_item ){
+  getChildMeshes( item ){
     let result = [];
 
-    let rootMeshes = a_item.rootMeshes;
-    for ( let i = 0; i < rootMeshes.length; ++i){
-      let rootMesh = rootMeshes[i];
+    let rootMeshes = item.rootMeshes;
+    for ( let i = 0; i < rootMeshes.length; ++i ){
+      let rootMesh = rootMeshes[ i ];
       // Add the rootMesh and all children
       result.push( rootMesh, ...rootMesh.getChildMeshes() );
     }
@@ -1535,17 +1527,17 @@ export const ViewModel = Map.extend({
    * @param {BABYLON.Mesh[]} selectedMeshes
    * @param {BABYLON.Mesh[]} collisionMeshes
    */
-  getCollidableMeshes(selectedMeshes, collisionMeshes ){
+  getCollidableMeshes( selectedMeshes, collisionMeshes ){
 
     let collidableMeshes = [];
 
-    for (let i = 0; i < collisionMeshes.length; ++i){
+    for ( let i = 0; i < collisionMeshes.length; ++i ){
       // Default to canCheck so it's true if no mesh was found
       let canCheck = true;
-      let mesh = collisionMeshes[i];
+      let mesh = collisionMeshes[ i ];
       // Check all selectedMeshes to see if they are equal to mesh
-      for (let j = 0; j < selectedMeshes.length; ++j){
-        if (mesh === selectedMeshes[j]){
+      for ( let j = 0; j < selectedMeshes.length; ++j ){
+        if (mesh === selectedMeshes[ j ]){
           canCheck = false;
           break;
         }
@@ -1563,15 +1555,15 @@ export const ViewModel = Map.extend({
   /**
    * Get the item to be new parent if possible
    * If 2 parents has same count the first one that occured is the parent
-   * @param {CollisionResult[]} a_collisions
+   * @param {CollisionResult[]} collisions
    */
-  getParentFromCollisions(a_collisions){
+  getParentFromCollisions( collisions ){
     // Get count of how often a parent occurs
     let parentCount = {};
 
-    for (let i = 0; i < a_collisions.length; ++i){
+    for ( let i = 0; i < collisions.length; ++i ){
       // Get the itemRef
-      let itemRef = this.getItemFromMesh( a_collisions[i].hit );
+      let itemRef = this.getItemFromMesh( collisions[ i ].hit );
       // If the itemRef isn't empty object
       if (itemRef && Object.keys( itemRef ).length > 0  ){
         if (!parentCount[ itemRef._cid ] ){
@@ -1599,18 +1591,18 @@ export const ViewModel = Map.extend({
   /**
    * Remove the item from gravityItems making renderloop stop applying gravity
    * Also attempts to remove cached furniture collision values
-   * @param {EgowallItem} a_item
+   * @param {EgowallItem} item
    */
-  removeGravity( a_item ){
-    for( let i = 0; i < this.gravityItems.length; ++i){
-      if (this.gravityItems[i] === a_item ){
+  removeGravity( item ){
+    for( let i = 0; i < this.gravityItems.length; ++i ){
+      if (this.gravityItems[ i ] === item ){
         this.gravityItems.splice(i, 1);
       }
     }
 
     // TODO: Change so it tries to remove selectedFurnitureMeshes since that is useful for outline functionality aswell.
     // Remove the cached meshes & collision meshes arrays when removing gravity
-    const id = a_item._cid;
+    const id = item._cid;
     if (this.selectedFurnitureMeshes[ id ]){
       delete this.selectedFurnitureMeshes[ id ];
     }
@@ -1631,16 +1623,16 @@ export const ViewModel = Map.extend({
   selectedItemPos: null,
   /**
    * The picking when cursor is moved
-   * @param {Vector2} a_mousePos
+   * @param {Vector2} mousePos
    */
-  selectedItemMovePicking(a_mousePos){
+  selectedItemMovePicking( mousePos ){
     let selectedItem = this.selectedItem;
 
-    const pickingResult = this.getPickingFromMouse( a_mousePos, ( hitMesh ) => {
+    const pickingResult = this.getPickingFromMouse( mousePos, (hitMesh ) => {
 
       let itemRef = hitMesh.__itemRef;
       // 1. Don't return a hit for the same item
-      if (itemRef){
+      if ( itemRef ) {
         // Note: Reason for checking rootItems is to know if you're comparing the same group or not
 
         // Change itemRef to the rootItem to compare
@@ -1649,8 +1641,7 @@ export const ViewModel = Map.extend({
         if (itemRef !== this.getRootItem( selectedItem )){
           return true;
         }
-      }
-      else {
+      } else {
         let backgroundRef = hitMesh.__backgroundMeshInfo;
         // If the backgroundMeshInfo exists then it's a background mesh and return true!
         if (backgroundRef){
@@ -1660,7 +1651,7 @@ export const ViewModel = Map.extend({
       return false;
     });
 
-    if (pickingResult.hit){
+    if ( pickingResult.hit ){
       this.moveRotateSelectedItem( selectedItem, pickingResult );
     }
   },
@@ -1681,10 +1672,10 @@ export const ViewModel = Map.extend({
      */
     // Can use the first rootMesh to calculate how much the object has to move
     // TODO: Evaluate if center between two rootMeshes would be neccesary for proper position
-    let rootMesh = selectedItem.rootMeshes[0];
+    let rootMesh = selectedItem.rootMeshes[ 0 ];
     // Need to get world normal or the wall rotation calculation is wrong.
     const normal = pickingResult.getNormal(true);
-    let tmpPositionDelta = BABYLON.Tmp.Vector3[8];
+    let tmpPositionDelta = BABYLON.Tmp.Vector3[ 8 ];
 
     pickingResult.pickedPoint.subtractToRef(rootMesh.position, tmpPositionDelta );
 
@@ -1702,27 +1693,22 @@ export const ViewModel = Map.extend({
     if (!doRotation){
       // pickingResult.pickedPoint.subtractToRef(rootMesh.position, tmpPositionDelta );
       this.updatePositions( selectedItem, tmpPositionDelta);
-
-      console.log("not doing rotations");
-
     } else {
-
       const upVector = this.upVector3;
 
       // TODO: Check if normal is the same as last time because if it is there is no need to update rotation
-      // Only position is neccesary to update then.
+      // The wall rotation quaternion
       let wallRotation;
 
       // For normal.y = 1 return identity quaternion
       if (normal.y === 1){
-        wallRotation = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 0, 1);
+        wallRotation = BABYLON.Tmp.Quaternion[ 0 ].copyFromFloats(0, 0, 0, 1);
       }
       // For normal.y == 1 then return a quaternion to turn it upside down
       else if (normal.y === -1){
-        wallRotation = BABYLON.Tmp.Quaternion[0].copyFromFloats(0, 0, 1, 0);
-      }
-      else {
-        let tmpAxis = BABYLON.Tmp.Vector3[7];
+        wallRotation = BABYLON.Tmp.Quaternion[ 0 ].copyFromFloats(0, 0, 1, 0);
+      } else {
+        let tmpAxis = BABYLON.Tmp.Vector3[ 7 ];
         // Axis is [ 0, 0, 0 ] for y == 1 and y == -1
         BABYLON.Vector3.CrossToRef(upVector, normal, tmpAxis );
         tmpAxis.normalize();
@@ -1741,7 +1727,7 @@ export const ViewModel = Map.extend({
    */
   unselectItem(){
     let item = this.selectedItem;
-    if (item){
+    if ( item ){
       this.selectedItem = null;
 
       this.unsetHoveredMesh();
@@ -1754,12 +1740,11 @@ export const ViewModel = Map.extend({
 
   /**
    * Sets the base rotation of an object before moving.
-   * @param a_item
+   * @param item
    */
-  setBaseRotation( a_item ){
-    a_item.baseRotation = a_item.rootMeshes[0].rotationQuaternion.clone();
+  setBaseRotation( item ){
+    item.baseRotation = item.rootMeshes[ 0 ].rotationQuaternion.clone();
   }
-
 });
 
 export const controls = {
@@ -1853,31 +1838,35 @@ export default Component.extend({
         });
 
         // Animate the skydome by moving the clouds slowly
-        let skydomeMaterial = vm.attr("skydomeMaterial");
+        let skydomeMaterial = vm.attr( "skydomeMaterial" );
         if ( skydomeMaterial ){
           // Moving the cloud 1 cycle over 400 seconds
           skydomeMaterial.diffuseTexture.uOffset += deltaTime * 0.0025;
         }
 
         let gravityItems = vm.attr("gravityItems");
-        if (gravityItems.length > 0){
+        if ( gravityItems.length > 0 ){
           /*
            BABYLON.Vector3.Tmp usage:
            8: Gravity delta movement
            7: By adjustCollisionPos
            */
-          BABYLON.Vector3.FromFloatsToRef(0, scene.gravity.y * deltaTime, 0, BABYLON.Tmp.Vector3[8]);
-          let gravityDistance = BABYLON.Tmp.Vector3[8];
+          BABYLON.Vector3.FromFloatsToRef( 0, scene.gravity.y * deltaTime, 0, BABYLON.Tmp.Vector3[ 8 ] );
+          let gravityDistance = BABYLON.Tmp.Vector3[ 8 ];
 
           for ( let i = 0; i < gravityItems.length; ){
-            // If applyGravity returns true it removed the gravity item and thus don't increase i
-            if (!vm.applyGravity( gravityItems[i], gravityDistance ) ){
+            // If applyGravity returns true it will be removed
+            if (!vm.applyGravity( gravityItems[ i ], gravityDistance ) ) {
+              // If false increase i by 1!
               ++i;
+            } else {
+              // Remove this item from having gravity affecting it
+              this.removeGravity( gravityItems[ i ] );
             }
           }
         }
 
-        if (vm.updateShadowmap){
+        if ( vm.updateShadowmap ){
           vm.unfreezeShadowCalculations();
         }
 

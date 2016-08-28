@@ -1,5 +1,6 @@
 uniform sampler2D passSampler;
 uniform sampler2D maskSampler;
+uniform vec3 uOutlineColor;
 varying vec2 vUV;
 
 void main(void)

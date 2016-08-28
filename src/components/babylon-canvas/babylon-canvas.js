@@ -86,6 +86,13 @@ export const ViewModel = Map.extend({
   terrainMeshes: [],
   // Meshes to do collision checks against
   collisionMeshes: [],
+  outlineRT: null,
+  // The color used by emissiveColor to detect the meshes in the outlineRT
+  outlineFindColor: BABYLON.Color3.Red(),
+  // The outline color when colliding
+  outlineCollisionColor: BABYLON.Color3.Red(),
+  // The outline color when not colliding
+  outlineOKColor: BABYLON.Color3.Blue(),
   // This creates and positions a free camera
   initCamera () {
     var scene = this.attr( "scene" );
@@ -207,11 +214,13 @@ export const ViewModel = Map.extend({
   },
 
   clearMeshOutline ( mesh ) {
-    var groupedMeshes = this.getGroupedMeshesFromMesh( mesh );
+    // var groupedMeshes = this.getGroupedMeshesFromMesh( mesh );
 
-    for ( let i = 0; i < groupedMeshes.length; ++i ) {
-      groupedMeshes[ i ].renderOutline = false;
-    }
+    this.outlineRT.renderList.length = 0;
+    // for ( let i = 0; i < groupedMeshes.length; ++i ) {
+    //   // groupedMeshes[ i ].renderOutline = false;
+    //   this.outlineRT.renderList
+    // }
   },
 
   setMeshOutline ( mesh ) {
@@ -222,15 +231,74 @@ export const ViewModel = Map.extend({
     }
 
     var groupedMeshes = this.getGroupedMeshesFromMesh( mesh );
+    let scene = this.attr("scene");
 
     for ( let i = 0; i < groupedMeshes.length; ++i ) {
       let curMesh = groupedMeshes[ i ];
-      curMesh.renderOutline = true;
-      curMesh.outlineColor = new BABYLON.Color3( 0.3359375, 0.6640625, 0.8046875 ); // rgb( 86, 170, 206 )
-      curMesh.outlineWidth = 0.025;
+
+      let curMaterial = curMesh.material;
+
+      // If the outline material hasn't been copied then clone it
+      if (!curMesh.__outlineMat){
+        const matName = curMesh.id + "_outline";
+        let outlineMat = curMaterial ? curMaterial.clone(matName, true) : new BABYLON.StandardMaterial(matName , scene );
+        curMesh.__outlineMat = outlineMat;
+
+        outlineMat.unfreeze();
+        // TODO: Freeze Material after 1 frame!
+        // If currentMaterial then unset textures not needed and other values
+        if (curMaterial){
+
+          if (outlineMat.subMaterials){
+            for (let j = 0; j < outlineMat.subMaterials.length; ++j){
+              this.cleanOutlineMaterial( outlineMat.subMaterials[ j ] );
+            }
+          } else {
+            this.cleanOutlineMaterial( outlineMat );
+          }
+        } else {
+          outlineMat.emissiveColor = this.outlineFindColor;
+          outlineMat.freeze();
+        }
+      }
+
+      this.outlineRT.renderList.push(curMesh);
     }
 
+    // for ( let i = 0; i < groupedMeshes.length; ++i ) {
+    //   let curMesh = groupedMeshes[ i ];
+    //   curMesh.renderOutline = true;
+    //   curMesh.outlineColor = new BABYLON.Color3( 0.3359375, 0.6640625, 0.8046875 ); // rgb( 86, 170, 206 )
+    //   curMesh.outlineWidth = 0.025;
+    // }
+
     this.attr( "hoveredMesh", mesh );
+  },
+
+  /**
+   * Removes unneeded textures and adds emissiveColor
+   * @param BABYLON.StandardMaterial material
+   */
+  cleanOutlineMaterial( material ){
+    material.unfreeze();
+    // Keep diffuseTexture but delete color
+    if (material.diffuseColor) {
+      // delete material.diffuseColor;
+    }
+    if (material.bumpTexture) {
+      delete material.bumpTexture;
+    }
+    if (material.specularColor) {
+      // delete material.specularColor;
+    }
+    if (material.opacityTexture) {
+      delete material.opacityTexture;
+    }
+
+    material.useSpecularOverAlpha = false;
+    material.disableLighting = true;
+
+    material.emissiveColor = this.outlineFindColor;
   },
 
   getTagValue ( mesh, tag ) {
@@ -342,6 +410,39 @@ export const ViewModel = Map.extend({
    * @param {BABYLON.Scene} scene
    */
   initOutline(scene){
+    BABYLON.Effect.ShadersStore["OutlineFragmentShader"]=
+      "uniform sampler2D passSampler;"+
+      "uniform sampler2D maskSampler;"+
+      "varying vec2 vUV;"+
+      "void main(void)"+
+      "{"+
+      "vec4 orig = texture2D(passSampler, vUV);"+
+      "vec4 mask = texture2D(maskSampler, vUV);"+
+      "float dx = 0.0005208 * 1.5;"+
+      "float dy = 0.001923 * 1.5;"+
+      "float c0 = texture2D( maskSampler, vec2( vUV.x, vUV.y ) ).r;"+
+      "float c1 = texture2D( maskSampler, vec2( vUV.x + dx, vUV.y + dy ) ).r;"+
+      "float c2 = texture2D( maskSampler, vec2( vUV.x - dx, vUV.y + dy ) ).r;"+
+      "float c3 = texture2D( maskSampler, vec2( vUV.x + dx, vUV.y - dy ) ).r;"+
+      "float c4 = texture2D( maskSampler, vec2( vUV.x - dx, vUV.y - dy ) ).r;"+
+      "float c5 = texture2D( maskSampler, vec2( vUV.x + dx, vUV.y ) ).r;"+
+      "float c6 = texture2D( maskSampler, vec2( vUV.x - dx, vUV.y ) ).r;"+
+      "float c7 = texture2D( maskSampler, vec2( vUV.x, vUV.y + dy ) ).r;"+
+      "float c8 = texture2D( maskSampler, vec2( vUV.x, vUV.y - dy ) ).r;"+
+      "float adjacent = 0.0;"+
+      "adjacent = max( adjacent, c1 );"+
+      "adjacent = max( adjacent, c2 );"+
+      "adjacent = max( adjacent, c3 );"+
+      "adjacent = max( adjacent, c4 );"+
+      "adjacent = max( adjacent, c5 );"+
+      "adjacent = max( adjacent, c6 );"+
+      "adjacent = max( adjacent, c7 );"+
+      "adjacent = max( adjacent, c8 );"+
+      "float n = 1.0 - ( adjacent - c0);"+
+      "clamp(n, 0.0, 1.0);"+
+      "vec3 color = orig.rgb * n + (1.0- n) * vec3(0.4, 1.0, 0.6);"+
+      "gl_FragColor = vec4( color, 1.0 );"+
+      "}";
 
     /*********** END OF SHADERSTORE ***********************/
     let engine = scene.getEngine();
@@ -349,6 +450,7 @@ export const ViewModel = Map.extend({
 
     // setup render target
     var renderTarget = new BABYLON.RenderTargetTexture("depth", 1024, scene, false);
+    this.outlineRT = renderTarget;
 
     scene.customRenderTargets.push(renderTarget);
     renderTarget.activeCamera = camera;
@@ -359,9 +461,11 @@ export const ViewModel = Map.extend({
         let mesh = renderTarget.renderList[i];
         // mesh.visibility = 1;
 
-        if (mesh.__outlineMat){
+        if (mesh.__outlineMat) {
           mesh.__savedMaterial = mesh.material;
           mesh.material = mesh.__outlineMat;
+        } else {
+          console.log("NO OUTLINE MATERIAL FOUND");
         }
       }
     };
@@ -369,7 +473,6 @@ export const ViewModel = Map.extend({
     renderTarget.onAfterRender = function () {
       for (var i = 0; i < renderTarget.renderList.length; i++) {
         let mesh = renderTarget.renderList[i];
-        // mesh.visibility = 0;
         mesh.material = mesh.__savedMaterial;
       }
     };
@@ -385,7 +488,7 @@ export const ViewModel = Map.extend({
     new BABYLON.BlurPostProcess("blurH", new BABYLON.Vector2(1.0, 0), 1.0, 0.25, camera);
     new BABYLON.BlurPostProcess("blurV", new BABYLON.Vector2(0, 1.0), 1.0, 0.25, camera);
 
-    var tCombine = new BABYLON.PostProcess("combine", "outlineCombine", null, ["passSampler", "maskSampler"], 1.0, camera);
+    var tCombine = new BABYLON.PostProcess("combine", "Outline", null, ["passSampler", "maskSampler"], 1.0, camera);
     tCombine.onApply = function (pEffect) {
       pEffect.setTexture("maskSampler", renderTarget);
       //pEffect.setTextureFromPostProcess("rendering", renderTarget);
@@ -399,7 +502,6 @@ export const ViewModel = Map.extend({
     tCombine.onAfterRender = function () {
       engine.setAlphaMode(BABYLON.Engine.ALPHA_DISABLE);
     };
-
   },
   roomInfo ( uroomID ) {
     var homeLoad = this.attr( "homeLoad" );
@@ -1996,7 +2098,7 @@ export default Component.extend({
 
       vm.initLights();
 
-      // vm.initOutline(scene);
+      vm.initOutline(scene);
 
       var renderCount = 0;
       engine.runRenderLoop(function () {

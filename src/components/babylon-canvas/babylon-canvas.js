@@ -86,6 +86,7 @@ export const ViewModel = Map.extend({
   terrainMeshes: [],
   // Meshes to do collision checks against
   collisionMeshes: [],
+  outlineSharedMaterial: null,
   outlineRT: null,
   // The color used by emissiveColor to detect the meshes in the outlineRT
   outlineFindColor: BABYLON.Color3.Red(),
@@ -236,30 +237,9 @@ export const ViewModel = Map.extend({
     for ( let i = 0; i < groupedMeshes.length; ++i ) {
       let curMesh = groupedMeshes[ i ];
 
-      let curMaterial = curMesh.material;
-
-      // If the outline material hasn't been copied then clone it
       if (!curMesh.__outlineMat){
-        const matName = curMesh.id + "_outline";
-        let outlineMat = curMaterial ? curMaterial.clone(matName, true) : new BABYLON.StandardMaterial(matName , scene );
-        curMesh.__outlineMat = outlineMat;
-
-        outlineMat.unfreeze();
-        // TODO: Freeze Material after 1 frame!
-        // If currentMaterial then unset textures not needed and other values
-        if (curMaterial){
-
-          if (outlineMat.subMaterials){
-            for (let j = 0; j < outlineMat.subMaterials.length; ++j){
-              this.cleanOutlineMaterial( outlineMat.subMaterials[ j ] );
-            }
-          } else {
-            this.cleanOutlineMaterial( outlineMat );
-          }
-        } else {
-          outlineMat.emissiveColor = this.outlineFindColor;
-          outlineMat.freeze();
-        }
+        let outlineMaterial = this.createOutlineMaterial( curMesh.id, curMesh.material );
+        curMesh.__outlineMat = outlineMaterial;
       }
 
       this.outlineRT.renderList.push(curMesh);
@@ -273,6 +253,22 @@ export const ViewModel = Map.extend({
     // }
 
     this.attr( "hoveredMesh", mesh );
+  },
+
+  /**
+   * Check if a material has transparency enabled
+   * @param {BABYLON.StandardMaterial} material
+   */
+  checkTransparency( material ){
+    if (material.diffuseTexture && material.diffuseTexture.hasAlpha){
+      return true;
+    } else if (material.useAlphaFromDiffuseTexture){
+      return true;
+    } else if (material.opacityTexture){
+      return true;
+    }
+
+    return false;
   },
 
   /**
@@ -299,6 +295,67 @@ export const ViewModel = Map.extend({
     material.disableLighting = true;
 
     material.emissiveColor = this.outlineFindColor;
+  },
+
+  /**
+   * Create an outline material based off material input.
+   * If the material input is undefined then create a new StandardMaterial
+   * @param id
+   * @param material
+   */
+  createOutlineMaterial( id, material ){
+    let scene = this.attr("scene");
+
+    // If the outline material hasn't been copied then clone it
+    const matName = id + "_outline";
+    let outlineMat;
+
+    let hasTransparency = false;
+
+    // Check for transparency
+    if (material){
+      if (material.subMaterials) {
+        for (let i = 0; i < material.subMaterials.length; ++i){
+          if ( this.checkTransparency( material.subMaterials[i] ) ){
+            hasTransparency = true;
+            break;
+          }
+        }
+      } else {
+        hasTransparency = this.checkTransparency( material );
+      }
+    }
+
+    if ( hasTransparency ){
+      outlineMat = material.clone( id, true );
+      // TODO: Freeze Material after 1 frame!
+      outlineMat.unfreeze();
+      // Go over each submaterial if they exist
+      if (outlineMat.subMaterials){
+        for (let i = 0; i < outlineMat.subMaterials.length; ++i){
+          this.cleanOutlineMaterial( outlineMat.subMaterials[ i ] );
+        }
+      } else {
+        this.cleanOutlineMaterial( outlineMat );
+      }
+    // If no transparency then get the sharedOutlineMaterial reference
+    } else{
+      // All materials can use this
+      outlineMat = this.getSharedOutlineMaterial();
+    }
+  },
+
+  //TODO: CanJS getter?
+  getSharedOutlineMaterial(){
+    // If the material hasn't been created yet then create it
+    if (!this.outlineSharedMaterial){
+      this.outlineSharedMaterial = new BABYLON.StandardMaterial(matName , scene );
+      this.outlineSharedMaterial.emissiveColor = this.outlineFindColor;
+      this.outlineSharedMaterial.disableLighting = true;
+      this.outlineSharedMaterial.freeze();
+    }
+
+    return this.outlineSharedMaterial;
   },
 
   getTagValue ( mesh, tag ) {

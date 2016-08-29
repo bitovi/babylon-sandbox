@@ -7,7 +7,6 @@ import _find from 'lodash/find.js';
 
 import 'cannon';
 import BABYLON from 'babylonjs/babylon.max';
-// import '../../static/3d/js/babylon.objFileLoader.js';
 
 import { getControls, getTooltip, anyTruthy } from '../../util/util.js';
 
@@ -45,6 +44,13 @@ import Asset from '../../models/asset.js';
  */
 /**
  * @typedef {{width:Number, height:Number, depth:Number}} Size
+ */
+
+/*
+  Added BABYLON.Mesh properties:
+  __itemRef: For the EgowallItem reference
+ __outlineMat: Stored outline material for on/after render and also if it gets outlined again
+ __savedMaterial: The original mat when not using the outlineMaterial
  */
 
 export const ViewModel = Map.extend({
@@ -126,8 +132,6 @@ export const ViewModel = Map.extend({
   },
 
   pickingEvent ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
-
-
     if ($ev.target.nodeName.toLowerCase() === "canvas") {
       if (this.selectedItem){
         this.selectedItemMovePicking( controlsVM.curMousePos() );
@@ -166,6 +170,9 @@ export const ViewModel = Map.extend({
       this.clearMeshOutline( hoveredMesh );
       getTooltip().clear( "meshHover" );
       this.attr( "hoveredMesh", null );
+      // Disable postProcess since outline is no longer needed
+      this.attr("scene").postProcessesEnabled = false;
+      this.attr("outlineRT").refreshRate = 0;
     }
   },
   /**
@@ -215,13 +222,9 @@ export const ViewModel = Map.extend({
   },
 
   clearMeshOutline ( mesh ) {
-    // var groupedMeshes = this.getGroupedMeshesFromMesh( mesh );
-
-    this.outlineRT.renderList.length = 0;
-    // for ( let i = 0; i < groupedMeshes.length; ++i ) {
-    //   // groupedMeshes[ i ].renderOutline = false;
-    //   this.outlineRT.renderList
-    // }
+    // Clear the list but keep the array reference
+    // this.attr("outlineRT").renderList.length = 0;
+    this.attr("outlineRT").renderList.length = 0;
   },
 
   setMeshOutline ( mesh ) {
@@ -234,23 +237,23 @@ export const ViewModel = Map.extend({
     var groupedMeshes = this.getGroupedMeshesFromMesh( mesh );
     let scene = this.attr("scene");
 
+    // Enable the post process if it's disabled
+    if ( !scene.postProcessesEnabled ){
+      scene.postProcessesEnabled = true;
+      // Set the outline RT to refreshRate every 2 frames
+      this.outlineRT.refreshRate = 2;
+    }
+
     for ( let i = 0; i < groupedMeshes.length; ++i ) {
       let curMesh = groupedMeshes[ i ];
 
       if (!curMesh.__outlineMat){
-        let outlineMaterial = this.createOutlineMaterial( curMesh.id, curMesh.material );
+        let outlineMaterial = this.createOutlineMaterial( curMesh.material );
         curMesh.__outlineMat = outlineMaterial;
       }
 
       this.outlineRT.renderList.push(curMesh);
     }
-
-    // for ( let i = 0; i < groupedMeshes.length; ++i ) {
-    //   let curMesh = groupedMeshes[ i ];
-    //   curMesh.renderOutline = true;
-    //   curMesh.outlineColor = new BABYLON.Color3( 0.3359375, 0.6640625, 0.8046875 ); // rgb( 86, 170, 206 )
-    //   curMesh.outlineWidth = 0.025;
-    // }
 
     this.attr( "hoveredMesh", mesh );
   },
@@ -266,6 +269,8 @@ export const ViewModel = Map.extend({
       return true;
     } else if (material.opacityTexture){
       return true;
+    } else if (material.needAlphaBlending()){
+      return true;
     }
 
     return false;
@@ -276,19 +281,8 @@ export const ViewModel = Map.extend({
    * @param BABYLON.StandardMaterial material
    */
   cleanOutlineMaterial( material ){
-    material.unfreeze();
-    // Keep diffuseTexture but delete color
-    if (material.diffuseColor) {
-      // delete material.diffuseColor;
-    }
     if (material.bumpTexture) {
       delete material.bumpTexture;
-    }
-    if (material.specularColor) {
-      // delete material.specularColor;
-    }
-    if (material.opacityTexture) {
-      delete material.opacityTexture;
     }
 
     material.useSpecularOverAlpha = false;
@@ -303,11 +297,10 @@ export const ViewModel = Map.extend({
    * @param id
    * @param material
    */
-  createOutlineMaterial( id, material ){
+  createOutlineMaterial( material ){
     let scene = this.attr("scene");
 
-    // If the outline material hasn't been copied then clone it
-    const matName = id + "_outline";
+    // If the material has transparency then we clone the material otherwise use the shared reference
     let outlineMat;
 
     let hasTransparency = false;
@@ -327,29 +320,39 @@ export const ViewModel = Map.extend({
     }
 
     if ( hasTransparency ){
-      outlineMat = material.clone( id, true );
-      // TODO: Freeze Material after 1 frame!
-      outlineMat.unfreeze();
+      const matName = material.id + "_outline";
+      // TODO: Check if material already exists since some objects share materials
+      // Cloning unfreezes the material
+      outlineMat = material.clone( matName, true );
+
       // Go over each submaterial if they exist
       if (outlineMat.subMaterials){
         for (let i = 0; i < outlineMat.subMaterials.length; ++i){
-          this.cleanOutlineMaterial( outlineMat.subMaterials[ i ] );
+
+          let subMaterial = outlineMat.subMaterials[ i ];
+          this.cleanOutlineMaterial( subMaterial );
+
+          subMaterial.freeze();
         }
       } else {
         this.cleanOutlineMaterial( outlineMat );
       }
+
+      material.freeze();
     // If no transparency then get the sharedOutlineMaterial reference
     } else{
       // All materials can use this
       outlineMat = this.getSharedOutlineMaterial();
     }
+
+    return outlineMat;
   },
 
   //TODO: CanJS getter?
   getSharedOutlineMaterial(){
     // If the material hasn't been created yet then create it
     if (!this.outlineSharedMaterial){
-      this.outlineSharedMaterial = new BABYLON.StandardMaterial(matName , scene );
+      this.outlineSharedMaterial = new BABYLON.StandardMaterial("sharedOutline" , scene );
       this.outlineSharedMaterial.emissiveColor = this.outlineFindColor;
       this.outlineSharedMaterial.disableLighting = true;
       this.outlineSharedMaterial.freeze();
@@ -389,8 +392,25 @@ export const ViewModel = Map.extend({
     for (let i = 0; i < materials.length; ++i){
       let material = materials[i];
       if (material !== skydomeMaterial){
+
+        if (material.subMaterials){
+          for (let j = 0; j < material.subMaterials.length; ++j){
+            material.subMaterials[ j ].freeze();
+          }
+        }
         material.freeze();
       }
+    }
+    // Also freeze all multi materials
+    let multiMaterials = this.attr("scene").multiMaterials;
+    for ( let i = 0; i < multiMaterials.length; ++i ){
+      let material = multiMaterials[i];
+      if (material.subMaterials){
+        for (let j = 0; j < material.subMaterials.length; ++j){
+          material.subMaterials[ j ].freeze();
+        }
+      }
+      material.freeze();
     }
   },
   // A big fps boost
@@ -401,6 +421,7 @@ export const ViewModel = Map.extend({
     this.attr( "objDirLightShadowGen" ).getShadowMap().refreshRate = 0;
     this.updateShadowmap = false;
   },
+  // TODO: Update logic to do this every 2 frames instead of every frame, should lower RT usage by a bit while moving an object
   /**
    * Unfreeze the shadowmap so the shadows can be updated. Happens when something moves/rotates
    */
@@ -408,7 +429,7 @@ export const ViewModel = Map.extend({
     let shadowmap =  this.attr( "objDirLightShadowGen" ).getShadowMap();
 
     // Only do this once
-    if (shadowmap.refreshRate === 0){
+    if ( shadowmap.refreshRate === 0 ){
       shadowmap.refreshRate = 1;
 
       // After the shadowmap as updated then freeze it again
@@ -469,54 +490,35 @@ export const ViewModel = Map.extend({
   initOutline(scene){
     BABYLON.Effect.ShadersStore["OutlineFragmentShader"]=
       "uniform sampler2D passSampler;"+
+      "uniform sampler2D textureSampler;"+
       "uniform sampler2D maskSampler;"+
+      "uniform vec3 uOutlineColor;"+
       "varying vec2 vUV;"+
       "void main(void)"+
       "{"+
       "vec4 orig = texture2D(passSampler, vUV);"+
       "vec4 mask = texture2D(maskSampler, vUV);"+
-      "float dx = 0.0005208 * 1.5;"+
-      "float dy = 0.001923 * 1.5;"+
-      "float c0 = texture2D( maskSampler, vec2( vUV.x, vUV.y ) ).r;"+
-      "float c1 = texture2D( maskSampler, vec2( vUV.x + dx, vUV.y + dy ) ).r;"+
-      "float c2 = texture2D( maskSampler, vec2( vUV.x - dx, vUV.y + dy ) ).r;"+
-      "float c3 = texture2D( maskSampler, vec2( vUV.x + dx, vUV.y - dy ) ).r;"+
-      "float c4 = texture2D( maskSampler, vec2( vUV.x - dx, vUV.y - dy ) ).r;"+
-      "float c5 = texture2D( maskSampler, vec2( vUV.x + dx, vUV.y ) ).r;"+
-      "float c6 = texture2D( maskSampler, vec2( vUV.x - dx, vUV.y ) ).r;"+
-      "float c7 = texture2D( maskSampler, vec2( vUV.x, vUV.y + dy ) ).r;"+
-      "float c8 = texture2D( maskSampler, vec2( vUV.x, vUV.y - dy ) ).r;"+
-      "float adjacent = 0.0;"+
-      "adjacent = max( adjacent, c1 );"+
-      "adjacent = max( adjacent, c2 );"+
-      "adjacent = max( adjacent, c3 );"+
-      "adjacent = max( adjacent, c4 );"+
-      "adjacent = max( adjacent, c5 );"+
-      "adjacent = max( adjacent, c6 );"+
-      "adjacent = max( adjacent, c7 );"+
-      "adjacent = max( adjacent, c8 );"+
-      "float n = 1.0 - ( adjacent - c0);"+
-      "clamp(n, 0.0, 1.0);"+
-      "vec3 color = orig.rgb * n + (1.0- n) * vec3(0.4, 1.0, 0.6);"+
+      "vec4 blur = texture2D(textureSampler, vUV);"+
+      "float blurOutline = clamp((blur.r - mask.r) * 2.5, 0.0, 1.0);"+
+      "vec3 color = orig.rgb * (1.0 - blurOutline) + blurOutline * vec3(0.0274509803921569, 0.6666666666666667, 0.9607843137254902);"+
       "gl_FragColor = vec4( color, 1.0 );"+
       "}";
 
     /*********** END OF SHADERSTORE ***********************/
-    let engine = scene.getEngine();
     let camera = this.attr("camera");
 
     // setup render target
-    var renderTarget = new BABYLON.RenderTargetTexture("depth", 1024, scene, false);
-    this.outlineRT = renderTarget;
-
+    var renderTarget = new BABYLON.RenderTargetTexture("outlineRT", 1024, scene, false);
+    renderTarget.refreshRate = 0;
+    this.attr("outlineRT", renderTarget);
+    // Disable postProcess so the setMeshOutline function knows its disabled
+    scene.postProcessesEnabled = false;
     scene.customRenderTargets.push(renderTarget);
     renderTarget.activeCamera = camera;
-    this.attr("renderTarget", renderTarget);
 
     renderTarget.onBeforeRender = function () {
       for (var i = 0; i < renderTarget.renderList.length; i++) {
         let mesh = renderTarget.renderList[i];
-        // mesh.visibility = 1;
 
         if (mesh.__outlineMat) {
           mesh.__savedMaterial = mesh.material;
@@ -542,23 +544,23 @@ export const ViewModel = Map.extend({
       pEffect.setTexture("passSampler", renderTarget);
     };
 
-    new BABYLON.BlurPostProcess("blurH", new BABYLON.Vector2(1.0, 0), 1.0, 0.25, camera);
-    new BABYLON.BlurPostProcess("blurV", new BABYLON.Vector2(0, 1.0), 1.0, 0.25, camera);
+    new BABYLON.BlurPostProcess("blurH", new BABYLON.Vector2(1.0, 0), 0.85, 0.25, camera);
+    new BABYLON.BlurPostProcess("blurV", new BABYLON.Vector2(0, 1.0), 0.85, 0.25, camera);
 
-    var tCombine = new BABYLON.PostProcess("combine", "Outline", null, ["passSampler", "maskSampler"], 1.0, camera);
+    var tCombine = new BABYLON.PostProcess("combine", "Outline", null, ["passSampler", "maskSampler", "blurSampler"], 1.0, camera);
+
     tCombine.onApply = function (pEffect) {
       pEffect.setTexture("maskSampler", renderTarget);
-      //pEffect.setTextureFromPostProcess("rendering", renderTarget);
       pEffect.setTextureFromPostProcess("passSampler", tPass);
     };
 
-    tCombine.onBeforeRender = function () {
-      engine.setAlphaMode(BABYLON.Engine.ALPHA_COMBINE);
-    };
-
-    tCombine.onAfterRender = function () {
-      engine.setAlphaMode(BABYLON.Engine.ALPHA_DISABLE);
-    };
+    // tCombine.onBeforeRender = function () {
+    //   // engine.setAlphaMode(BABYLON.Engine.ALPHA_COMBINE);
+    // };
+    //
+    // tCombine.onAfterRender = function () {
+    //   // engine.setAlphaMode(BABYLON.Engine.ALPHA_DISABLE);
+    // };
   },
   roomInfo ( uroomID ) {
     var homeLoad = this.attr( "homeLoad" );

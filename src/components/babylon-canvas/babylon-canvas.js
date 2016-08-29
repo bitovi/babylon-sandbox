@@ -37,6 +37,12 @@ import Asset from '../../models/asset.js';
 /**
  * @typedef {{x:Number, y:Number}} Vector2
  */
+/*
+  Added BABYLON.Mesh properties:
+  __itemRef: For the EgowallItem reference
+  __outlineMat: Stored outline material for on/after render and also if it gets outlined again
+  __savedMaterial: The original mat when not using the outlineMaterial
+ */
 
 export const ViewModel = Map.extend({
   define: {
@@ -79,6 +85,16 @@ export const ViewModel = Map.extend({
   collisionMeshes: [],
   // If the shadowmap needs to be updated, for example when a furniture is moved or rotated.
   updateShadowmap: true,
+  // Shared material by multiple outlineMaterials if no transparency is needed
+  outlineSharedMaterial: null,
+  // The renderTarget that has the outline meshes
+  outlineRT: null,
+  // The color used by emissiveColor to detect the meshes in the outlineRT
+  outlineFindColor: BABYLON.Color3.Red(),
+  // The outline color when colliding
+  outlineCollisionColor: BABYLON.Color3.Red(),
+  // The outline color when not colliding
+  outlineOKColor: BABYLON.Color3.Blue(),
   // This creates and positions a free camera
   initCamera () {
     var scene = this.attr( "scene" );
@@ -145,9 +161,14 @@ export const ViewModel = Map.extend({
   unsetHoveredMesh(){
     let hoveredMesh = this.attr( "hoveredMesh" );
     if ( hoveredMesh ) {
-      this.clearMeshOutline( hoveredMesh );
+      this.clearMeshOutline();
       getTooltip().clear( "meshHover" );
       this.attr( "hoveredMesh", null );
+      // Disable postProcess since outline is no longer needed,  otherwise the outline stays in screen.
+      // Did not find a way to clear renderTarget :( . Besides disabling postProcess should improve performance.
+      this.attr("scene").postProcessesEnabled = false;
+      // I think this gives ~0.01ms faster render time
+      this.attr("outlineRT").refreshRate = 0;
     }
   },
   /**
@@ -197,31 +218,146 @@ export const ViewModel = Map.extend({
     getTooltip().set( "meshHover", name, "fa-picture-o", "Click to Manage", curMousePos.x, curMousePos.y );
   },
 
-  clearMeshOutline ( mesh ) {
-    var groupedMeshes = this.getGroupedMeshesFromMesh( mesh );
-
-    for ( let i = 0; i < groupedMeshes.length; ++i ) {
-      groupedMeshes[ i ].renderOutline = false;
-    }
+  /**************************
+   * Outline functions
+   *************************/
+  clearMeshOutline () {
+    // Clear the list but keep the array reference, no garbage collections here. We recycle!
+    this.attr( "outlineRT" ).renderList.length = 0;
   },
 
   setMeshOutline ( mesh ) {
     let hoveredMesh = this.attr( "hoveredMesh" );
 
     if ( hoveredMesh ){
-      this.clearMeshOutline( hoveredMesh );
+      this.clearMeshOutline();
     }
 
-    var groupedMeshes = this.getGroupedMeshesFromMesh( mesh );
+    let groupedMeshes = this.getGroupedMeshesFromMesh( mesh );
+    let scene = this.attr("scene");
+
+    // Enable the post process if it's disabled also enable renderTarget refresh rate
+    if ( !scene.postProcessesEnabled ){
+      scene.postProcessesEnabled = true;
+      // Set the outline RT to refreshRate every 2 frames
+      this.outlineRT.refreshRate = 2;
+    }
 
     for ( let i = 0; i < groupedMeshes.length; ++i ) {
       let curMesh = groupedMeshes[ i ];
-      curMesh.renderOutline = true;
-      curMesh.outlineColor = new BABYLON.Color3( 0.3359375, 0.6640625, 0.8046875 ); // rgb( 86, 170, 206 )
-      curMesh.outlineWidth = 0.025;
+
+      // Create the outlineMaterial if it doesn't already exist
+      if (!curMesh.__outlineMat){
+        const outlineMaterial = this.createOutlineMaterial( curMesh.material );
+        curMesh.__outlineMat = outlineMaterial;
+      }
+
+      this.outlineRT.renderList.push(curMesh);
     }
 
     this.attr( "hoveredMesh", mesh );
+  },
+
+  /**
+   * Check if a material has transparency enabled
+   * @param {BABYLON.StandardMaterial} material
+   */
+  checkTransparency( material ){
+    if ( material.diffuseTexture && material.diffuseTexture.hasAlpha ){
+      return true;
+    } else if ( material.useAlphaFromDiffuseTexture ){
+      return true;
+    } else if ( material.opacityTexture ){
+      return true;
+    } else if ( material.needAlphaBlending() ){
+      return true;
+    }
+
+    return false;
+  },
+
+  /**
+   * Removes unneeded textures and adds emissiveColor
+   * @param {BABYLON.StandardMaterial} material
+   */
+  cleanOutlineMaterial( material ){
+    if ( material.bumpTexture ) {
+      delete material.bumpTexture;
+    }
+
+    material.useSpecularOverAlpha = false;
+    material.disableLighting = true;
+    material.emissiveColor = this.outlineFindColor;
+  },
+
+  /**
+   * Possibly create an outline material based off material input.
+   * If the material has transparency then clone the input
+   * Else set the outline material as the common shared outline mat
+   * @param {BABYLON.MultiMaterial|BABYLON.StandardMaterial} material
+   */
+  createOutlineMaterial( material ){
+    let scene = this.attr( "scene" );
+
+    // If the material has transparency then we clone the material otherwise use the shared reference
+    let outlineMat;
+
+    let hasTransparency = false;
+
+    // Check for transparency
+    if (material){
+      if (material.subMaterials) {
+        for (let i = 0; i < material.subMaterials.length; ++i){
+          if ( this.checkTransparency( material.subMaterials[i] ) ){
+            hasTransparency = true;
+            break;
+          }
+        }
+      } else {
+        hasTransparency = this.checkTransparency( material );
+      }
+    }
+
+    if ( hasTransparency ){
+      const matName = material.id + "_outline";
+      // TODO: Check if material already exists since some objects share materials
+      // Cloning unfreezes the material
+      outlineMat = material.clone( matName, true );
+
+      // Go over each submaterial if they exist
+      if ( outlineMat.subMaterials ) {
+        for ( let i = 0; i < outlineMat.subMaterials.length; ++i ){
+
+          let subMaterial = outlineMat.subMaterials[ i ];
+          this.cleanOutlineMaterial( subMaterial );
+
+          subMaterial.freeze();
+        }
+      } else {
+        this.cleanOutlineMaterial( outlineMat );
+      }
+
+      material.freeze();
+      // If no transparency then get the sharedOutlineMaterial reference
+    } else{
+      // All materials can use this
+      outlineMat = this.getSharedOutlineMaterial();
+    }
+
+    return outlineMat;
+  },
+
+  //TODO: CanJS getter?
+  getSharedOutlineMaterial() {
+    // If the material hasn't been created yet then create it
+    if (!this.outlineSharedMaterial){
+      this.outlineSharedMaterial = new BABYLON.StandardMaterial( "sharedOutline" , this.attr( "scene" ));
+      this.outlineSharedMaterial.emissiveColor = this.outlineFindColor;
+      this.outlineSharedMaterial.disableLighting = true;
+      this.outlineSharedMaterial.freeze();
+    }
+
+    return this.outlineSharedMaterial;
   },
 
   getTagValue ( mesh, tag ) {
@@ -255,16 +391,39 @@ export const ViewModel = Map.extend({
     for (let i = 0; i < materials.length; ++i){
       let material = materials[i];
       if (material !== skydomeMaterial){
+
+        if (material.subMaterials){
+          for (let j = 0; j < material.subMaterials.length; ++j){
+            material.subMaterials[ j ].freeze();
+          }
+        }
         material.freeze();
       }
     }
+    // Also freeze all multi materials
+    let multiMaterials = this.attr("scene").multiMaterials;
+    for ( let i = 0; i < multiMaterials.length; ++i ){
+      let material = multiMaterials[i];
+      if (material.subMaterials){
+        for (let j = 0; j < material.subMaterials.length; ++j){
+          material.subMaterials[ j ].freeze();
+        }
+      }
+      material.freeze();
+    }
   },
-
+  // A big fps boost freezing the shadowmap rendertarget
+  /**
+   * Freezes the shadowmap rendertarget.
+   */
   freezeShadowCalculations () {
     this.attr( "objDirLightShadowGen" ).getShadowMap().refreshRate = 0;
     this.updateShadowmap = false;
   },
-
+  // TODO: Update logic to do this every 2 frames instead of every frame, should lower RT usage by a bit while moving an object
+  /**
+   * Unfreeze the shadowmap so the shadows can be updated. Happens when something moves/rotates
+   */
   unfreezeShadowCalculations () {
     let shadowmap =  this.attr( "objDirLightShadowGen" ).getShadowMap();
 
@@ -306,7 +465,7 @@ export const ViewModel = Map.extend({
 
   initScene () {
     var scene = this.attr( "scene" );
-    scene.clearColor = new BABYLON.Color3( 1, 1, 1 );
+    scene.clearColor = new BABYLON.Color3( 0, 0, 0 );
 
     // Gravity & physics stuff
     var physicsPlugin = new BABYLON.CannonJSPlugin();
@@ -318,6 +477,81 @@ export const ViewModel = Map.extend({
     scene.workerCollisions = false;
 
     var camera = this.initCamera();
+  },
+
+  /**
+   * Init the outline code setting up the post-process pipeline
+   * @param {BABYLON.Scene} scene
+   */
+  initOutline( scene ) {
+
+    BABYLON.Effect.ShadersStore["OutlineFragmentShader"]=
+      "uniform sampler2D passSampler;"+
+      "uniform sampler2D textureSampler;"+
+      "uniform sampler2D maskSampler;"+
+      "uniform vec3 uOutlineColor;"+
+      "varying vec2 vUV;"+
+      "void main(void)"+
+      "{"+
+      "vec4 orig = texture2D(passSampler, vUV);"+
+      "vec4 mask = texture2D(maskSampler, vUV);"+
+      "vec4 blur = texture2D(textureSampler, vUV);"+
+      "float blurOutline = clamp((blur.r - mask.r) * 2.5, 0.0, 1.0);"+
+      "vec3 color = orig.rgb * (1.0 - blurOutline) + blurOutline * vec3(0.0274509803921569, 0.6666666666666667, 0.9607843137254902);"+
+      "gl_FragColor = vec4( color, 1.0 );"+
+      "}";
+
+    /*********** END OF SHADERSTORE ***********************/
+    let camera = this.attr( "camera" );
+
+    // setup render target
+    let renderTarget = new BABYLON.RenderTargetTexture( "outlineRT" , 1024, scene, false);
+    renderTarget.refreshRate = 0;
+    this.attr( "outlineRT" , renderTarget);
+    // Disable postProcess so the setMeshOutline function knows its disabled
+    scene.postProcessesEnabled = false;
+    scene.customRenderTargets.push(renderTarget);
+    renderTarget.activeCamera = camera;
+
+    renderTarget.onBeforeRender = function () {
+      for (let i = 0; i < renderTarget.renderList.length; i++) {
+        let mesh = renderTarget.renderList[i];
+
+        if (mesh.__outlineMat) {
+          mesh.__savedMaterial = mesh.material;
+          mesh.material = mesh.__outlineMat;
+        } else {
+          // TODO: Remove after some more tests
+          console.log( "NO OUTLINE MATERIAL FOUND" );
+        }
+      }
+    };
+
+    renderTarget.onAfterRender = function () {
+      for (let i = 0; i < renderTarget.renderList.length; i++) {
+        let mesh = renderTarget.renderList[i];
+        mesh.material = mesh.__savedMaterial;
+      }
+    };
+
+    //setup post processing
+    let tPass = new BABYLON.PassPostProcess("pass", 1.0, camera);
+
+    let tDisplayPass = new BABYLON.DisplayPassPostProcess("displayRenderTarget", 1.0, camera);
+    tDisplayPass.onApply = function (pEffect) {
+      pEffect.setTexture("passSampler", renderTarget);
+    };
+
+    // Create blur
+    new BABYLON.BlurPostProcess("blurH", new BABYLON.Vector2(1.0, 0), 0.85, 0.25, camera);
+    new BABYLON.BlurPostProcess("blurV", new BABYLON.Vector2(0, 1.0), 0.85, 0.25, camera);
+
+    let tCombine = new BABYLON.PostProcess("combine", "Outline", null, ["passSampler", "maskSampler", "blurSampler"], 1.0, camera);
+
+    tCombine.onApply = function (pEffect) {
+      pEffect.setTexture("maskSampler", renderTarget);
+      pEffect.setTextureFromPostProcess("passSampler", tPass);
+    };
   },
 
   roomInfo ( uroomID ) {
@@ -479,7 +713,10 @@ export const ViewModel = Map.extend({
   },
 
   meshesLoaded ( itemInfo, babylonName, meshes ) {
-    var item = {
+    /**
+     * @type EgowallItem
+     */
+    let item = {
       // Children items, what items should have same changes done as this item
       children: [],
       name: babylonName,
@@ -1837,6 +2074,8 @@ export default Component.extend({
       vm.homeLoad( 1083, 110000 );
 
       vm.initLights();
+
+      vm.initOutline(scene);
 
       var renderCount = 0;
       engine.runRenderLoop(function () {

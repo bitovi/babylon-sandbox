@@ -108,9 +108,8 @@ export const ViewModel = Map.extend({
   placeCameraAtCollisionBody () {
     var camera = this.attr( "camera" );
     var collisionBody = camera.collisionBody;
-    var pos = collisionBody.position.clone();
-    pos.y -= this.attr( "collisionBodyCenterOffsetFromCam" );
-    camera.position = pos;
+    camera.position.copyFrom( collisionBody.position);
+    camera.position.y -= this.attr( "collisionBodyCenterOffsetFromCam" );
   },
 
   newGroundYCamPos ( requestedPos, noFall ) {
@@ -239,7 +238,7 @@ export const ViewModel = Map.extend({
 
           requestAnimationFrame(animationFunction);
         } else {
-          camera.position = newCoords;
+          camera.position.copyFrom( newCoords );
           resolve();
         }
       };

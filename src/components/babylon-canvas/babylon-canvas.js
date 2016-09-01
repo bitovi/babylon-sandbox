@@ -94,7 +94,9 @@ export const ViewModel = Map.extend({
   // The outline color when colliding
   outlineCollisionColor: BABYLON.Color3.Red(),
   // The outline color when not colliding
-  outlineOKColor: BABYLON.Color3.Blue(),
+  outlineOKColor: new BABYLON.Color3(0.0274509803921569, 0.6666666666666667, 0.9607843137254902),
+  // The current color in use by outline shader
+  outlineCurrentColor: null,
   // This creates and positions a free camera
   initCamera () {
     var scene = this.attr( "scene" );
@@ -127,6 +129,7 @@ export const ViewModel = Map.extend({
   },
 
   pickingEvent ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
+    // If mouse is not on the canvas then don't even bother picking
     if ($ev.target.nodeName.toLowerCase() === "canvas") {
       if (this.selectedItem){
         this.selectedItemMovePicking( controlsVM.curMousePos() );
@@ -178,7 +181,6 @@ export const ViewModel = Map.extend({
    * @returns {PickingInfo|*}
    */
   getPickingFromMouse( mousePos, predicate ){
-    // If mouse is not on the canvas then don't even bother picking
     const scene = this.attr( "scene" );
     return scene.pick( mousePos.x, mousePos.y, predicate );
   },
@@ -240,7 +242,7 @@ export const ViewModel = Map.extend({
     if ( !scene.postProcessesEnabled ){
       scene.postProcessesEnabled = true;
       // Set the outline RT to refreshRate every 2 frames
-      this.outlineRT.refreshRate = 2;
+      this.outlineRT.refreshRate = 1;
     }
 
     for ( let i = 0; i < groupedMeshes.length; ++i ) {
@@ -497,17 +499,22 @@ export const ViewModel = Map.extend({
       "vec4 mask = texture2D(maskSampler, vUV);"+
       "vec4 blur = texture2D(textureSampler, vUV);"+
       "float blurOutline = clamp((blur.r - mask.r) * 2.5, 0.0, 1.0);"+
-      "vec3 color = orig.rgb * (1.0 - blurOutline) + blurOutline * vec3(0.0274509803921569, 0.6666666666666667, 0.9607843137254902);"+
+      "vec3 color = orig.rgb * (1.0 - blurOutline) + blurOutline * uOutlineColor;"+
       "gl_FragColor = vec4( color, 1.0 );"+
       "}";
 
     /*********** END OF SHADERSTORE ***********************/
+    let engine = scene.getEngine();
     let camera = this.attr( "camera" );
 
     // setup render target
     let renderTarget = new BABYLON.RenderTargetTexture( "outlineRT" , 1024, scene, false);
     renderTarget.refreshRate = 0;
     this.attr( "outlineRT" , renderTarget);
+    // Default to OK blue!
+    this.outlineCurrentColor = this.outlineOKColor;
+    // this.outlineCurrentColor = this.outlineCollisionColor;
+
     // Disable postProcess so the setMeshOutline function knows its disabled
     scene.postProcessesEnabled = false;
     scene.customRenderTargets.push(renderTarget);
@@ -537,21 +544,32 @@ export const ViewModel = Map.extend({
     //setup post processing
     let tPass = new BABYLON.PassPostProcess("pass", 1.0, camera);
 
-    let tDisplayPass = new BABYLON.DisplayPassPostProcess("displayRenderTarget", 1.0, camera);
+    let tDisplayPass = new BABYLON.DisplayPassPostProcess("displayRenderTarget", 1.0, camera );
     tDisplayPass.onApply = function (pEffect) {
+
       pEffect.setTexture("passSampler", renderTarget);
     };
 
     // Create blur
-    new BABYLON.BlurPostProcess("blurH", new BABYLON.Vector2(1.0, 0), 0.85, 0.25, camera);
-    new BABYLON.BlurPostProcess("blurV", new BABYLON.Vector2(0, 1.0), 0.85, 0.25, camera);
+    new BABYLON.BlurPostProcess("blurH", new BABYLON.Vector2(1.0, 0), 1, 0.25, camera);
+    new BABYLON.BlurPostProcess("blurW", new BABYLON.Vector2(0, 1.0), 1, 0.25, camera);
 
-    let tCombine = new BABYLON.PostProcess("combine", "Outline", null, ["passSampler", "maskSampler", "blurSampler"], 1.0, camera);
+    let tCombine = new BABYLON.PostProcess("combine", "Outline", null, ["passSampler", "maskSampler", "blurSampler", "uOutlineColor"], 1.0, camera);
 
-    tCombine.onApply = function (pEffect) {
+    tCombine.onApply = (pEffect) => {
       pEffect.setTexture("maskSampler", renderTarget);
       pEffect.setTextureFromPostProcess("passSampler", tPass);
+      pEffect.setColor3( "uOutlineColor", this.outlineCurrentColor );
     };
+
+    // tCombine.onBeforeRender = function () {
+    //   engine.setAlphaMode(BABYLON.Engine.ALPHA_COMBINE);
+    // };
+    //
+    // tCombine.onAfterRender = function () {
+    //   engine.setAlphaMode(BABYLON.Engine.ALPHA_DISABLE);
+    // };
+
   },
 
   roomInfo ( uroomID ) {

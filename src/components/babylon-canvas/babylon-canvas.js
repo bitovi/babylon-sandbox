@@ -486,90 +486,101 @@ export const ViewModel = Map.extend({
    * @param {BABYLON.Scene} scene
    */
   initOutline( scene ) {
+      BABYLON.Effect.ShadersStore["OutlineFragmentShader"]=
+        "uniform sampler2D passSampler;"+
+        "uniform sampler2D textureSampler;"+
+        "uniform sampler2D maskSampler;"+
+        "uniform vec3 uOutlineColor;"+
+        "varying vec2 vUV;"+
+        "void main(void)"+
+        "{"+
+        "vec4 orig = texture2D(passSampler, vUV);"+
+        "vec4 mask = texture2D(maskSampler, vUV);"+
+        "vec4 blur = texture2D(textureSampler, vUV);"+
+        "float blurOutline = clamp((blur.r - mask.r) * 2.5, 0.0, 1.0);"+
+        "vec3 color = blurOutline * uOutlineColor;"+
+        "gl_FragColor = vec4( color, blurOutline );"+
+        "}";
 
-    BABYLON.Effect.ShadersStore["OutlineFragmentShader"]=
-      "uniform sampler2D passSampler;"+
-      "uniform sampler2D textureSampler;"+
-      "uniform sampler2D maskSampler;"+
-      "uniform vec3 uOutlineColor;"+
-      "varying vec2 vUV;"+
-      "void main(void)"+
-      "{"+
-      "vec4 orig = texture2D(passSampler, vUV);"+
-      "vec4 mask = texture2D(maskSampler, vUV);"+
-      "vec4 blur = texture2D(textureSampler, vUV);"+
-      "float blurOutline = clamp((blur.r - mask.r) * 2.5, 0.0, 1.0);"+
-      "vec3 color = orig.rgb * (1.0 - blurOutline) + blurOutline * uOutlineColor;"+
-      "gl_FragColor = vec4( color, 1.0 );"+
-      "}";
+      /*********** END OF SHADERSTORE ***********************/
+      let engine = scene.getEngine();
+      let camera = this.attr( "camera" );
 
-    /*********** END OF SHADERSTORE ***********************/
-    let engine = scene.getEngine();
-    let camera = this.attr( "camera" );
+      let outlineCamera = new BABYLON.TargetCamera( "outlineCamera", new BABYLON.Vector3( 0, 0, 0), scene );
 
-    // setup render target
-    let renderTarget = new BABYLON.RenderTargetTexture( "outlineRT" , 1024, scene, false);
-    renderTarget.refreshRate = 0;
-    this.attr( "outlineRT" , renderTarget);
-    // Default to OK blue!
-    this.outlineCurrentColor = this.outlineOKColor;
-    // this.outlineCurrentColor = this.outlineCollisionColor;
+      // Need to set the Field of View the same
+      outlineCamera.fov = camera.fov;
 
-    // Disable postProcess so the setMeshOutline function knows its disabled
-    scene.postProcessesEnabled = false;
-    scene.customRenderTargets.push(renderTarget);
-    renderTarget.activeCamera = camera;
+      outlineCamera.position = camera.position;
+      outlineCamera.rotation = camera.rotation;
 
-    renderTarget.onBeforeRender = function () {
-      for (let i = 0; i < renderTarget.renderList.length; i++) {
-        let mesh = renderTarget.renderList[i];
+      outlineCamera.setTarget( new BABYLON.Vector3( 0, 1.25, 0 ) );
 
-        if (mesh.__outlineMat) {
-          mesh.__savedMaterial = mesh.material;
-          mesh.material = mesh.__outlineMat;
-        } else {
-          // TODO: Remove after some more tests
-          console.log( "NO OUTLINE MATERIAL FOUND" );
+      scene.activeCameras.push( camera, outlineCamera );
+
+      // setup render target
+      let renderTarget = new BABYLON.RenderTargetTexture( "outlineRT" , 1024, scene, false);
+      renderTarget.refreshRate = 0;
+      this.attr( "outlineRT" , renderTarget);
+      // Default to OK blue!
+      this.outlineCurrentColor = this.outlineOKColor;
+      // this.outlineCurrentColor = this.outlineCollisionColor;
+
+      // Disable postProcess so the setMeshOutline function knows its disabled
+      scene.postProcessesEnabled = false;
+      scene.customRenderTargets.push(renderTarget);
+      renderTarget.activeCamera = outlineCamera;
+
+      renderTarget.onBeforeRender = function () {
+        for (let i = 0; i < renderTarget.renderList.length; i++) {
+          let mesh = renderTarget.renderList[i];
+
+          if (mesh.__outlineMat) {
+            mesh.__savedMaterial = mesh.material;
+            mesh.material = mesh.__outlineMat;
+          } else {
+            // TODO: Remove after some more tests
+            console.log( "NO OUTLINE MATERIAL FOUND" );
+          }
         }
-      }
-    };
+      };
 
-    renderTarget.onAfterRender = function () {
-      for (let i = 0; i < renderTarget.renderList.length; i++) {
-        let mesh = renderTarget.renderList[i];
-        mesh.material = mesh.__savedMaterial;
-      }
-    };
+      renderTarget.onAfterRender = function () {
+        for (let i = 0; i < renderTarget.renderList.length; i++) {
+          let mesh = renderTarget.renderList[i];
+          mesh.material = mesh.__savedMaterial;
+        }
+      };
 
-    //setup post processing
-    let tPass = new BABYLON.PassPostProcess("pass", 1.0, camera);
+      //setup post processing
+      let tPass = new BABYLON.PassPostProcess("pass", 1.0, outlineCamera);
 
-    let tDisplayPass = new BABYLON.DisplayPassPostProcess("displayRenderTarget", 1.0, camera );
-    tDisplayPass.onApply = function (pEffect) {
+      let tDisplayPass = new BABYLON.DisplayPassPostProcess("displayRenderTarget", 1.0, outlineCamera );
+      tDisplayPass.onApply = function (pEffect) {
 
-      pEffect.setTexture("passSampler", renderTarget);
-    };
+        pEffect.setTexture("passSampler", renderTarget);
+      };
 
-    // Create blur
-    new BABYLON.BlurPostProcess("blurH", new BABYLON.Vector2(1.0, 0), 1, 0.25, camera);
-    new BABYLON.BlurPostProcess("blurW", new BABYLON.Vector2(0, 1.0), 1, 0.25, camera);
+      // Create blur
+      new BABYLON.BlurPostProcess("blurH", new BABYLON.Vector2(1.0, 0), 1, 0.25, outlineCamera);
+      new BABYLON.BlurPostProcess("blurW", new BABYLON.Vector2(0, 1.0), 1, 0.25, outlineCamera);
 
-    let tCombine = new BABYLON.PostProcess("combine", "Outline", null, ["passSampler", "maskSampler", "blurSampler", "uOutlineColor"], 1.0, camera);
+      let tCombine = new BABYLON.PostProcess("combine", "Outline", null, ["passSampler", "maskSampler", "blurSampler", "uOutlineColor"], 1.0, outlineCamera);
 
-    tCombine.onApply = (pEffect) => {
-      pEffect.setTexture("maskSampler", renderTarget);
-      pEffect.setTextureFromPostProcess("passSampler", tPass);
-      pEffect.setColor3( "uOutlineColor", this.outlineCurrentColor );
-    };
+      tCombine.onApply = (pEffect) => {
+        pEffect.setTexture("maskSampler", renderTarget);
+        pEffect.setTextureFromPostProcess("passSampler", tPass);
+        pEffect.setColor3( "uOutlineColor", this.outlineCurrentColor );
+      };
 
-    // tCombine.onBeforeRender = function () {
-    //   engine.setAlphaMode(BABYLON.Engine.ALPHA_COMBINE);
-    // };
-    //
-    // tCombine.onAfterRender = function () {
-    //   engine.setAlphaMode(BABYLON.Engine.ALPHA_DISABLE);
-    // };
+      // This is needed otherwise the screen goes white while outlining
+      tCombine.onBeforeRender = function () {
+        engine.setAlphaMode(BABYLON.Engine.ALPHA_COMBINE);
+      };
 
+      tCombine.onAfterRender = function () {
+        engine.setAlphaMode(BABYLON.Engine.ALPHA_DISABLE);
+      };
   },
 
   roomInfo ( uroomID ) {

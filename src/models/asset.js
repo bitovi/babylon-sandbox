@@ -73,39 +73,25 @@ var unzipCache = {};
 var texturesDropped = {};
 var textureAlreadyUnpacked = {};
 
-var newTextureResolution = function ( textureName, data ) {
+var commonFileResolution = function ( type, zipFileName, data ) {
   return {
-    type: "texture",
-    name: textureName,
-    data: data
-  };
-};
-
-var babylonResolution = function ( zipFileName, data ) {
-  return {
-    type: "babylon",
+    type,
     name: zipFileName,
-    data: data
-  };
-};
-
-var jsonResolution = function ( zipFileName, data ) {
-  return {
-    type: "json",
-    name: zipFileName,
-    data: JSON.parse( data )
-  };
+    data: type === "json" ? JSON.parse( data ) : data
+  }
 };
 
 var unzipPromise = function ( zipbuffer ) {
   var jszip = new JSZip();
 
   return jszip.loadAsync( zipbuffer ).then( function ( zip ) {
-    var babylonFile, jsonFile;
+    var babylonFile, jsonFile, collisionFile;
     var textures = [];
 
     for ( var key in zip.files ) {
-      if ( key.endsWith( ".babylon" ) ) {
+      if ( key === "collision.babylon" ) {
+        collisionFile = zip.files[ key ];
+      } else if ( key.endsWith( ".babylon" ) ) {
         babylonFile = zip.files[ key ];
       } else if ( key.endsWith( ".json" ) ) {
         jsonFile = zip.files[ key ];
@@ -119,19 +105,24 @@ var unzipPromise = function ( zipbuffer ) {
       let texture = textures[ i ];
       // textureAlreadyUnpacked assumes all textures have a unique name and will be loaded 
       if ( !textureAlreadyUnpacked[ texture.name ] ) {
-        let newTextureResolutionBound = newTextureResolution.bind( null, texture.name );
+        let newTextureResolutionBound = commonFileResolution.bind( null, "texture", texture.name );
         newFiles.push( texture.async( "base64" ).then( newTextureResolutionBound ) );
         textureAlreadyUnpacked[ texture.name ] = true;
       }
     }
 
+    if ( collisionFile ) {
+      let collisionResolutionBound = commonFileResolution.bind( null, "collision", collisionFile.name )
+      newFiles.push( collisionFile.async( "string" ).then( collisionResolutionBound ) );
+    }
+
     if ( babylonFile ) {
-      let babylonResolutionBound = babylonResolution.bind( null, babylonFile.name )
+      let babylonResolutionBound = commonFileResolution.bind( null, "babylon", babylonFile.name )
       newFiles.push( babylonFile.async( "string" ).then( babylonResolutionBound ) );
     }
 
     if ( jsonFile ) {
-      let jsonResolutionBound = jsonResolution.bind( null, jsonFile.name )
+      let jsonResolutionBound = commonFileResolution.bind( null, "json", jsonFile.name )
       newFiles.push( jsonFile.async( "string" ).then( jsonResolutionBound ) );
     }
 
@@ -158,11 +149,14 @@ var getAndUnzip = function ( url ) {
   return unzipCache[ url ];
 };
 
-var babyloneFileOnly = function ( unzippedFiles ) {
-  // changes 'unzippedFiles' to only have the babylon file without the textures
+var filterFiles = function ( unzippedFiles ) {
+  // changes 'unzippedFiles' to be without the textures
   var ret = [];
-  if ( unzippedFiles.length && unzippedFiles[ unzippedFiles.length - 1 ].type === "babylon" ) {
-    ret.push( unzippedFiles[ unzippedFiles.length - 1 ] );
+  for ( let i = 0; i < unzippedFiles.length; i++ ) {
+    let fileInfo = unzippedFiles[ i ];
+    if ( fileInfo.type === "collision" || fileInfo.type === "babylon" || fileInfo.type === "json" ) {
+      ret.push( fileInfo );
+    }
   }
   return ret;
 };
@@ -198,7 +192,7 @@ var options = {
         // already been called for this object, only resolve with the .babylon file ( no textures )
         if ( !texturesDropped[ url ] ) {
           texturesDropped[ url ] = true;
-          prom = prom.then( babyloneFileOnly );
+          prom = prom.then( filterFiles );
           unzipCache[ url ] = prom;
         }
       }

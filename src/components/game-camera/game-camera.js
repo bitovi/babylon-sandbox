@@ -115,17 +115,16 @@ export const ViewModel = Map.extend({
   newGroundYCamPos ( requestedPos, noFall ) {
     var camera = this.attr( "camera" );
     var scene = camera._scene;
-    var collisionBody = camera.collisionBody;
     var cameraHeadRadius = 0.25;
     var defaultHeight = this.attr( "defaultHeight" );
     var vectorDown = new BABYLON.Vector3( 0, -1, 0 );
     var topOfNewPos = new BABYLON.Vector3( requestedPos.x, requestedPos.y + cameraHeadRadius, requestedPos.z );
     var rayTopDown = new BABYLON.Ray( topOfNewPos, vectorDown );
     var rayTopDownPickingInfo = scene.pickWithRay( rayTopDown, ( hitMesh ) => {
-      return hitMesh !== collisionBody; //hit anything
+      return this.meshIsValidForCollision( hitMesh, true );
     });
 
-    var curY = collisionBody.position.y - this.attr( "collisionBodyCenterOffsetFromCam" );
+    var curY = camera.position.y;
     var pickedPoint = rayTopDownPickingInfo && rayTopDownPickingInfo.pickedPoint || {};
     var newY = fixedDecimals( pickedPoint.y );
 
@@ -159,13 +158,12 @@ export const ViewModel = Map.extend({
 
   verifyNewPosition ( projectedCamPos ) {
     var camera = this.attr( "camera" );
-    var collisionBody = camera.collisionBody;
     var scene = camera._scene;
     var direction = projectedCamPos.subtract( camera.position ).normalize();
     var distance = BABYLON.Vector3.Distance( camera.position, projectedCamPos ) + ( 1.25 / 2 );
     var rayToPoint = new BABYLON.Ray( camera.position, direction, distance );
     var rayPickingInfo = scene.pickWithRay( rayToPoint, ( hitMesh ) => {
-      return hitMesh !== collisionBody; // hit anything else
+      return this.meshIsValidForCollision( hitMesh, true );
     });
 
     if ( rayPickingInfo.hit ) {
@@ -177,7 +175,7 @@ export const ViewModel = Map.extend({
     distance = this.attr( "defaultHeight" ) - 0.1; // give a little play room for the distance down
     rayToPoint = new BABYLON.Ray( projectedCamPos, direction, distance );
     rayPickingInfo = scene.pickWithRay( rayToPoint, ( hitMesh ) => {
-      return hitMesh !== collisionBody; // hit anything else
+      return this.meshIsValidForCollision( hitMesh, true );
     });
 
     if ( rayPickingInfo.hit ) {

@@ -224,8 +224,16 @@ export const ViewModel = Map.extend({
    * Outline functions
    *************************/
   clearMeshOutline () {
+
+    let renderList = this.attr( "outlineRT" ).renderList;
+
+    // Set the layerMask to 0x0FFFFFFF so the outlineCamera doesn't render them anymore
+    for (let i = 0; i < renderList.length; ++i){
+      renderList[i].layerMask = 0x0FFFFFFF;
+    }
+
     // Clear the list but keep the array reference, no garbage collections here. We recycle!
-    this.attr( "outlineRT" ).renderList.length = 0;
+    renderList.length = 0;
   },
 
   setMeshOutline ( mesh ) {
@@ -247,6 +255,9 @@ export const ViewModel = Map.extend({
 
     for ( let i = 0; i < groupedMeshes.length; ++i ) {
       let curMesh = groupedMeshes[ i ];
+      // Set layermask to 0x2FFFFFFF so it's found by both cameras.
+      // If setting 0x20000000 the furniture disappears and if using 0x0FFFFFFFF the outline isn't rendered
+      curMesh.layerMask = 0x2FFFFFFF;
 
       // Create the outlineMaterial if it doesn't already exist
       if (!curMesh.__outlineMat){
@@ -507,12 +518,13 @@ export const ViewModel = Map.extend({
       let camera = this.attr( "camera" );
 
       let outlineCamera = new BABYLON.TargetCamera( "outlineCamera", new BABYLON.Vector3( 0, 0, 0), scene );
-
       // Need to set the Field of View the same
       outlineCamera.fov = camera.fov;
 
       outlineCamera.position = camera.position;
       outlineCamera.rotation = camera.rotation;
+      // The layerMask for the outline camera
+      outlineCamera.layerMask = 0x20000000;
 
       outlineCamera.setTarget( new BABYLON.Vector3( 0, 1.25, 0 ) );
 
@@ -824,12 +836,14 @@ export const ViewModel = Map.extend({
 
     // Need to do this after the meshes loop because for the paintings it doesn't work inside the loop.
     for ( let i = 0; i < meshes.length; ++i ) {
+      let mesh = meshes[ i ];
+
       // Add itemRef to all meshes except terrain.
       // Could do this in mainloop too but the mainloop stops for these meshes   if ( !positions )
       if ( !isTerrain ){
-        meshes[i].__itemRef = item;
+        mesh.__itemRef = item;
       }
-      meshes[i].freezeWorldMatrix();
+      mesh.freezeWorldMatrix();
     }
   },
 
@@ -1188,6 +1202,7 @@ export const ViewModel = Map.extend({
 
     for ( let i = 0; i < meshes.length; ++i ) {
       let mesh = meshes[ i ];
+
       mesh.checkCollisions = true;
       mesh.receiveShadows = true;
 

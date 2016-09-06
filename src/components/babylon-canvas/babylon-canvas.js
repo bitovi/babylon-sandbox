@@ -137,8 +137,8 @@ export const ViewModel = Map.extend({
         this.selectedItemMovePicking( controlsVM.curMousePos() );
       // If selected isn't set
       } else {
-        var curMousePos = controlsVM.curMousePos();
-        var customizeMode = this.attr( "customizeMode" );
+        let curMousePos = controlsVM.curMousePos();
+        let customizeMode = this.attr( "customizeMode" );
         let hoveredMesh = this.attr( "hoveredMesh" );
 
         let pickingInfo = this.getPickingFromMouse( curMousePos, ( hitMesh ) => {
@@ -499,102 +499,102 @@ export const ViewModel = Map.extend({
    * @param {BABYLON.Scene} scene
    */
   initOutline( scene ) {
-      BABYLON.Effect.ShadersStore["OutlineFragmentShader"]=
-        "uniform sampler2D passSampler;"+
-        "uniform sampler2D textureSampler;"+
-        "uniform sampler2D maskSampler;"+
-        "uniform vec3 uOutlineColor;"+
-        "varying vec2 vUV;"+
-        "void main(void)"+
-        "{"+
-        "vec4 orig = texture2D(passSampler, vUV);"+
-        "vec4 mask = texture2D(maskSampler, vUV);"+
-        "vec4 blur = texture2D(textureSampler, vUV);"+
-        "float blurOutline = clamp((blur.r - mask.r) * 2.5, 0.0, 1.0);"+
-        "vec3 color = blurOutline * uOutlineColor;"+
-        "gl_FragColor = vec4( color, blurOutline );"+
-        "}";
+    BABYLON.Effect.ShadersStore["OutlineFragmentShader"]=
+      "uniform sampler2D passSampler;"+
+      "uniform sampler2D textureSampler;"+
+      "uniform sampler2D maskSampler;"+
+      "uniform vec3 uOutlineColor;"+
+      "varying vec2 vUV;"+
+      "void main(void)"+
+      "{"+
+      "vec4 orig = texture2D(passSampler, vUV);"+
+      "vec4 mask = texture2D(maskSampler, vUV);"+
+      "vec4 blur = texture2D(textureSampler, vUV);"+
+      "float blurOutline = clamp((blur.r - mask.r) * 2.5, 0.0, 1.0);"+
+      "vec3 color = blurOutline * uOutlineColor;"+
+      "gl_FragColor = vec4( color, blurOutline );"+
+      "}";
 
-      /*********** END OF SHADERSTORE ***********************/
-      let engine = scene.getEngine();
-      let camera = this.attr( "camera" );
+    /*********** END OF SHADERSTORE ***********************/
+    let engine = scene.getEngine();
+    let camera = this.attr( "camera" );
 
-      let outlineCamera = new BABYLON.TargetCamera( "outlineCamera", new BABYLON.Vector3( 0, 0, 0), scene );
-      // Need to set the Field of View the same
-      outlineCamera.fov = camera.fov;
+    let outlineCamera = new BABYLON.TargetCamera( "outlineCamera", new BABYLON.Vector3( 0, 0, 0), scene );
+    // Need to set the Field of View the same
+    outlineCamera.fov = camera.fov;
 
-      outlineCamera.position = camera.position;
-      outlineCamera.rotation = camera.rotation;
-      // The layerMask for the outline camera
-      outlineCamera.layerMask = 0x20000000;
+    outlineCamera.position = camera.position;
+    outlineCamera.rotation = camera.rotation;
+    // The layerMask for the outline camera
+    outlineCamera.layerMask = 0x20000000;
 
-      outlineCamera.setTarget( new BABYLON.Vector3( 0, 1.25, 0 ) );
+    outlineCamera.setTarget( new BABYLON.Vector3( 0, 1.25, 0 ) );
 
-      scene.activeCameras.push( camera, outlineCamera );
+    scene.activeCameras.push( camera, outlineCamera );
 
-      // setup render target
-      let renderTarget = new BABYLON.RenderTargetTexture( "outlineRT" , 1024, scene, false);
-      renderTarget.refreshRate = 0;
-      this.attr( "outlineRT" , renderTarget);
-      // Default to OK blue!
-      this.outlineCurrentColor = this.outlineOKColor;
-      // this.outlineCurrentColor = this.outlineCollisionColor;
+    // setup render target
+    let renderTarget = new BABYLON.RenderTargetTexture( "outlineRT" , 1024, scene, false);
+    renderTarget.refreshRate = 0;
+    this.attr( "outlineRT" , renderTarget);
+    // Default to OK blue!
+    this.outlineCurrentColor = this.outlineOKColor;
+    // this.outlineCurrentColor = this.outlineCollisionColor;
 
-      // Disable postProcess so the setMeshOutline function knows its disabled
-      scene.postProcessesEnabled = false;
-      scene.customRenderTargets.push(renderTarget);
-      renderTarget.activeCamera = outlineCamera;
+    // Disable postProcess so the setMeshOutline function knows its disabled
+    scene.postProcessesEnabled = false;
+    scene.customRenderTargets.push(renderTarget);
+    renderTarget.activeCamera = outlineCamera;
 
-      renderTarget.onBeforeRender = function () {
-        for (let i = 0; i < renderTarget.renderList.length; i++) {
-          let mesh = renderTarget.renderList[i];
+    renderTarget.onBeforeRender = function () {
+      for (let i = 0; i < renderTarget.renderList.length; i++) {
+        let mesh = renderTarget.renderList[i];
 
-          if (mesh.__outlineMat) {
-            mesh.__savedMaterial = mesh.material;
-            mesh.material = mesh.__outlineMat;
-          } else {
-            // TODO: Remove after some more tests
-            console.log( "NO OUTLINE MATERIAL FOUND" );
-          }
+        if (mesh.__outlineMat) {
+          mesh.__savedMaterial = mesh.material;
+          mesh.material = mesh.__outlineMat;
+        } else {
+          // TODO: Remove after some more tests
+          console.log( "NO OUTLINE MATERIAL FOUND" );
         }
-      };
+      }
+    };
 
-      renderTarget.onAfterRender = function () {
-        for (let i = 0; i < renderTarget.renderList.length; i++) {
-          let mesh = renderTarget.renderList[i];
-          mesh.material = mesh.__savedMaterial;
-        }
-      };
+    renderTarget.onAfterRender = function () {
+      for (let i = 0; i < renderTarget.renderList.length; i++) {
+        let mesh = renderTarget.renderList[i];
+        mesh.material = mesh.__savedMaterial;
+      }
+    };
 
-      //setup post processing
-      let tPass = new BABYLON.PassPostProcess("pass", 1.0, outlineCamera);
+    //setup post processing
+    let tPass = new BABYLON.PassPostProcess("pass", 1.0, outlineCamera);
 
-      let tDisplayPass = new BABYLON.DisplayPassPostProcess("displayRenderTarget", 1.0, outlineCamera );
-      tDisplayPass.onApply = function (pEffect) {
+    let tDisplayPass = new BABYLON.DisplayPassPostProcess("displayRenderTarget", 1.0, outlineCamera );
+    tDisplayPass.onApply = function (pEffect) {
 
-        pEffect.setTexture("passSampler", renderTarget);
-      };
+      pEffect.setTexture("passSampler", renderTarget);
+    };
 
-      // Create blur
-      new BABYLON.BlurPostProcess("blurH", new BABYLON.Vector2(1.0, 0), 1, 0.25, outlineCamera);
-      new BABYLON.BlurPostProcess("blurW", new BABYLON.Vector2(0, 1.0), 1, 0.25, outlineCamera);
+    // Create blur
+    new BABYLON.BlurPostProcess("blurH", new BABYLON.Vector2(1.0, 0), 1, 0.25, outlineCamera);
+    new BABYLON.BlurPostProcess("blurW", new BABYLON.Vector2(0, 1.0), 1, 0.25, outlineCamera);
 
-      let tCombine = new BABYLON.PostProcess("combine", "Outline", null, ["passSampler", "maskSampler", "blurSampler", "uOutlineColor"], 1.0, outlineCamera);
+    let tCombine = new BABYLON.PostProcess("combine", "Outline", null, ["passSampler", "maskSampler", "blurSampler", "uOutlineColor"], 1.0, outlineCamera);
 
-      tCombine.onApply = (pEffect) => {
-        pEffect.setTexture("maskSampler", renderTarget);
-        pEffect.setTextureFromPostProcess("passSampler", tPass);
-        pEffect.setColor3( "uOutlineColor", this.outlineCurrentColor );
-      };
+    tCombine.onApply = (pEffect) => {
+      pEffect.setTexture("maskSampler", renderTarget);
+      pEffect.setTextureFromPostProcess("passSampler", tPass);
+      pEffect.setColor3( "uOutlineColor", this.outlineCurrentColor );
+    };
 
-      // This is needed otherwise the screen goes white while outlining
-      tCombine.onBeforeRender = function () {
-        engine.setAlphaMode(BABYLON.Engine.ALPHA_COMBINE);
-      };
+    // This is needed otherwise the screen goes white while outlining
+    tCombine.onBeforeRender = function () {
+      engine.setAlphaMode(BABYLON.Engine.ALPHA_COMBINE);
+    };
 
-      tCombine.onAfterRender = function () {
-        engine.setAlphaMode(BABYLON.Engine.ALPHA_DISABLE);
-      };
+    tCombine.onAfterRender = function () {
+      engine.setAlphaMode(BABYLON.Engine.ALPHA_DISABLE);
+    };
   },
 
   roomInfo ( uroomID ) {
@@ -784,7 +784,6 @@ export const ViewModel = Map.extend({
     let rootMeshes = {};
     const isTerrain = itemInfo.terrain;
 
-
     // This adds the _cid which is our uniqueId for an EgowallItem
     this.attr("items").push( item );
     // Update the item reference since canjs created a new object?
@@ -865,11 +864,17 @@ export const ViewModel = Map.extend({
       let assetInfo = arrayOfLoadedAssets[ i ];
       let unzippedAssets = assetInfo.unzippedFiles;
       let len = unzippedAssets.length;
-      let babylon = len && unzippedAssets[ len - 1 ];
-      if ( babylon && babylon.type === "babylon" ) {
-        // is a babylon file that's been unpacked
-        let meshesLoadedBound = this.meshesLoaded.bind( this, assetInfo, babylon.name );
-        BABYLON.SceneLoader.ImportMesh( "", "", "data:" + babylon.data, scene, meshesLoadedBound );
+      for ( let b = len - 1; b > -1; b-- ) {
+        let fileInfo = unzippedAssets[ b ];
+        if ( fileInfo.type === "babylon" ) {
+          // is a babylon file that's been unpacked
+          let meshesLoadedBound = this.meshesLoaded.bind( this, assetInfo, fileInfo.name );
+          BABYLON.SceneLoader.ImportMesh( "", "", "data:" + fileInfo.data, scene, meshesLoadedBound );
+          break; //only one file of type "babylon" expected
+        }
+        // else if ( fileInfo.type === "collision" ) {
+        //  console.log( fileInfo );
+        //}
       }
     }
 
@@ -1239,12 +1244,15 @@ export const ViewModel = Map.extend({
     }
 
     for ( let i = 0; i < unzippedMeshFiles.length; i++ ) {
-      let assetInfo = unzippedMeshFiles[ i ];
-      if ( assetInfo && assetInfo.type === "babylon" ) {
+      let assetInfo = unzippedMeshFiles[ i ] || {};
+      if ( assetInfo.type === "babylon" ) {
         // is a babylon file that's been unpacked
         let bgMeshLoadedBound = this.bgMeshLoaded.bind( this, assetInfo, assetInfo.name );
         BABYLON.SceneLoader.ImportMesh( "", "", "data:" + assetInfo.data, scene, bgMeshLoadedBound );
       }
+      //else if ( assetInfo.type === "collision" ) {
+      //  console.log( assetInfo );
+      //}
     }
   },
 
@@ -1253,12 +1261,12 @@ export const ViewModel = Map.extend({
    * Also sets the attr skydomeMaterial so it can be animated
    */
   applyTerrainMaterials () {
-    let meshes = this.attr("terrainMeshes");
-    const lightmaps = this.attr("lightmaps");
+    let meshes = this.attr( "terrainMeshes" );
+    const lightmaps = this.attr( "lightmaps" );
 
     let materialGroups = {};
 
-    for (let i = 0; i < meshes.length; ++i){
+    for ( let i = 0; i < meshes.length; ++i ) {
       let mesh = meshes[i];
 
       // 1. Check if material exists
@@ -1267,16 +1275,16 @@ export const ViewModel = Map.extend({
       // 4. Check materialId + lightmapId already exists ( If parentId is null then use meshId )
       //    4a. If exists then add mesh to meshes
       //    4b. If not then create new group
-      if ( mesh.material ){
+      if ( mesh.material ) {
         const lightmapId = this.getTagValue( mesh, "lightmap" );
 
-        if ( lightmapId != "" ){
+        if ( lightmapId != "" ) {
           // Check if the lightmap exists as a file
           if ( lightmaps[ lightmapId ] ) {
             // Creates a key like "xxxx-xxxx-xxxx-xxxxxxterrainfloor (GUID + lmId)
             const key = mesh.material.id + lightmapId;
             // If the group already exists then just add the mesh
-            if ( materialGroups[ key ] ){
+            if ( materialGroups[ key ] ) {
               materialGroups[ key ].meshes.push( mesh );
             } else {
               // Otherwise create the group
@@ -1344,7 +1352,7 @@ export const ViewModel = Map.extend({
     }
 
     // Finally remove the array:
-    this.attr("terrainMeshes", null);
+    this.attr( "terrainMeshes", null );
   },
 
   loadLightmaps ( lightmapBundleURL ) {
@@ -1507,7 +1515,7 @@ export const ViewModel = Map.extend({
    * @param {EgowallItem} item
    * @param {BABYLON.Vector3} positionDelta
    */
-  updatePositions( item, positionDelta ){
+  updatePositions ( item, positionDelta ) {
     for (let i = 0; i < item.rootMeshes.length; ++i ){
       let rootMesh = item.rootMeshes[ i ];
 
@@ -1523,7 +1531,7 @@ export const ViewModel = Map.extend({
    * @param {BABYLON.Vector3} positionDelta How much object has translated
    * @param {BABYLON.Quaternion} rotation The delta rotation, could for example be the rotation of a wall.
    */
-  updatePositionRotation(item, positionDelta, rotation ){
+  updatePositionRotation ( item, positionDelta, rotation ) {
     for (let i = 0; i < item.rootMeshes.length; ++i ){
       let rootMesh = item.rootMeshes[ i ];
 
@@ -1540,7 +1548,7 @@ export const ViewModel = Map.extend({
    * Updates a root mesh's world matrix and the child meshes' matrices.
    * @param {BABYLON.Mesh} rootMesh
    */
-  updateMeshMatrices( rootMesh ){
+  updateMeshMatrices ( rootMesh ) {
     let children = rootMesh.getChildMeshes();
     // freezeWorldMatrix re-updates the world matrix so the position is correct
     rootMesh.freezeWorldMatrix();
@@ -1559,7 +1567,7 @@ export const ViewModel = Map.extend({
    * @param {EgowallItem} item
    * @param {EgowallItem} parent
    */
-  addItemParent( item, parent ){
+  addItemParent ( item, parent ) {
     if ( item.parent ) {
       if ( parent === null ){
         this.removeChild( item );
@@ -1580,7 +1588,7 @@ export const ViewModel = Map.extend({
    * @param {EgowallItem} item
    * @param {EgowallItem} parent
    */
-  setItemParent( item, parent ){
+  setItemParent ( item, parent ) {
     item.parent = parent;
     parent.children.push( item );
 
@@ -1625,7 +1633,7 @@ export const ViewModel = Map.extend({
    * Cleanup code when removing a child from an item
    * @param {EgowallItem} child
    */
-  removeChild( child ){
+  removeChild ( child ) {
     let parent = child.parent;
     if ( parent ) {
       let found = false;
@@ -1667,7 +1675,7 @@ export const ViewModel = Map.extend({
    * Activate gravity for an item by adding it to the gravityItems list. RenderLoop will now update it's position
    * @param {EgowallItem} item
    */
-  activateGravity( item ){
+  activateGravity ( item ) {
     this.gravityItems.push ( item );
     // TODO: Temporary code to update the position slightly so gravity can be observed.
     // Will later for rotations add a fixed position so it doesn't collide
@@ -1686,7 +1694,7 @@ export const ViewModel = Map.extend({
    * @param {CollisionResult[]} collisions
    * @param {float} deltaY How much the gravity moved an object since last frame
    */
-  adjustCollisionPos( item, collisions, deltaY ){
+  adjustCollisionPos ( item, collisions, deltaY ) {
 
     // -1 = against gravity
     let direction = -1;
@@ -1739,7 +1747,7 @@ export const ViewModel = Map.extend({
    * @param {EgowallItem} item
    * @param {BABYLON.Vector3}gravityDistance
    */
-  applyGravity(item, gravityDistance ){
+  applyGravity ( item, gravityDistance ) {
     // Start by adding the gravity distance
     this.updatePositions( item, gravityDistance );
 
@@ -1770,7 +1778,7 @@ export const ViewModel = Map.extend({
    * @param {EgowallItem} item
    * @returns {CollisionResult[]}
    */
-  checkFurnitureCollisions(item ){
+  checkFurnitureCollisions ( item ) {
     const id = item._cid;
     // Lazy load the array and store until a new selection happens
     if (!this.selectedFurnitureMeshes[ id ]  ){
@@ -1810,7 +1818,7 @@ export const ViewModel = Map.extend({
    * @param {EgowallItem} item
    * @returns {BABYLON.Mesh[]}
    */
-  getChildMeshes( item ){
+  getChildMeshes ( item ) {
     let result = [];
 
     let rootMeshes = item.rootMeshes;
@@ -1828,7 +1836,7 @@ export const ViewModel = Map.extend({
    * @param {BABYLON.Mesh[]} selectedMeshes
    * @param {BABYLON.Mesh[]} collisionMeshes
    */
-  getCollidableMeshes( selectedMeshes, collisionMeshes ){
+  getCollidableMeshes ( selectedMeshes, collisionMeshes ) {
 
     let collidableMeshes = [];
 
@@ -1858,7 +1866,7 @@ export const ViewModel = Map.extend({
    * If 2 parents has same count the first one that occured is the parent
    * @param {CollisionResult[]} collisions
    */
-  getParentFromCollisions( collisions ){
+  getParentFromCollisions ( collisions ) {
     // Get count of how often a parent occurs
     let parentCount = {};
 
@@ -1894,7 +1902,7 @@ export const ViewModel = Map.extend({
    * Also attempts to remove cached furniture collision values
    * @param {EgowallItem} item
    */
-  removeGravity( item ){
+  removeGravity ( item ) {
     for( let i = 0; i < this.gravityItems.length; ++i ){
       if (this.gravityItems[ i ] === item ){
         this.gravityItems.splice(i, 1);
@@ -1926,7 +1934,7 @@ export const ViewModel = Map.extend({
    * The picking when cursor is moved
    * @param {Vector2} mousePos
    */
-  selectedItemMovePicking( mousePos ){
+  selectedItemMovePicking ( mousePos ) {
     let selectedItem = this.selectedItem;
 
     const pickingResult = this.getPickingFromMouse( mousePos, (hitMesh ) => {
@@ -1962,7 +1970,7 @@ export const ViewModel = Map.extend({
    * @param {EgowallItem} selectedItem
    * @param {BABYLON.PickingInfo}pickingResult
    */
-  moveRotateSelectedItem( selectedItem, pickingResult){
+  moveRotateSelectedItem ( selectedItem, pickingResult ) {
     /*
      BABYLON.Tmp.Vector indices:
      8: deltaPosition
@@ -2005,7 +2013,7 @@ export const ViewModel = Map.extend({
   /**
    * Unselect the selected item and do cleanup
    */
-  unselectItem(){
+  unselectItem () {
     let item = this.selectedItem;
     if ( item ){
       this.selectedItem = null;
@@ -2017,12 +2025,12 @@ export const ViewModel = Map.extend({
   },
   // Constant stored for the upVector
   upVector3: BABYLON.Vector3.Up(),
-
   /**
    * Sets the base rotation of an object before moving.
    * Removes the surfaceRotation when setting the rotation
    * @param item
    */
+
   setBaseRotation( item ){
     const rotation = item.rootMeshes[ 0 ].rotationQuaternion;
     item.inverseSurfaceRotation.multiplyToRef( rotation, item.baseRotation );

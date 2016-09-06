@@ -162,11 +162,12 @@ export const ViewModel = Map.extend({
 
   /**
    * Unset the hovered mesh if mouseover the canvas or no picking result
+   * This also clears the outline of items
    */
   unsetHoveredMesh(){
     let hoveredMesh = this.attr( "hoveredMesh" );
     if ( hoveredMesh ) {
-      this.clearMeshOutline();
+      this.clearItemsOutline();
       getTooltip().clear( "meshHover" );
       this.attr( "hoveredMesh", null );
       // Disable postProcess since outline is no longer needed,  otherwise the outline stays in screen.
@@ -193,7 +194,7 @@ export const ViewModel = Map.extend({
     var message = mesh.name + " (" + mesh.__backgroundMeshInfo.meshID + ")";
 
     if ( hoveredMesh !== mesh ) {
-      this.setMeshOutline( mesh );
+      this.setHoveredOutline( mesh );
     }
 
     getTooltip().set( "meshHover", title, null, message, curMousePos.x, curMousePos.y );
@@ -204,7 +205,7 @@ export const ViewModel = Map.extend({
     var name = mesh.name;
 
     if ( hoveredMesh !== mesh ) {
-      this.setMeshOutline( mesh );
+      this.setHoveredOutline( mesh );
     }
 
     getTooltip().set( "meshHover", name, "fa-archive", "Click to Manage", curMousePos.x, curMousePos.y );
@@ -216,7 +217,7 @@ export const ViewModel = Map.extend({
     var name = itemInfo.egoName || mesh.name;
 
     if ( hoveredMesh !== mesh ) {
-      this.setMeshOutline( mesh );
+      this.setHoveredOutline( mesh );
     }
 
     getTooltip().set( "meshHover", name, "fa-picture-o", "Click to Manage", curMousePos.x, curMousePos.y );
@@ -225,7 +226,11 @@ export const ViewModel = Map.extend({
   /**************************
    * Outline functions
    *************************/
-  clearMeshOutline () {
+
+  /**
+   * Sets the layerMask to 0x0FFFFFFF for all meshes and clears the outline rendertarget's renderlist
+   */
+  clearItemsOutline () {
 
     let renderList = this.attr( "outlineRT" ).renderList;
 
@@ -238,16 +243,41 @@ export const ViewModel = Map.extend({
     renderList.length = 0;
   },
 
-  setMeshOutline ( mesh ) {
+  /**
+   * Set the outline for a group of items
+   * The item and all its children
+   * @param {EgowallItem} item
+   */
+  setGroupOutline ( item ){
+    let meshes = this.getChildMeshes( item );
+
+    this.clearItemsOutline();
+    this.setMeshesOutline( meshes );
+  },
+
+  /**
+   * Set the outline for the hovered mesh
+   * @param {BABYLON.Mesh} mesh
+   */
+  setHoveredOutline ( mesh ) {
     let hoveredMesh = this.attr( "hoveredMesh" );
 
     if ( hoveredMesh ){
-      this.clearMeshOutline();
+      this.clearItemsOutline();
     }
 
     let groupedMeshes = this.getGroupedMeshesFromMesh( mesh );
-    let scene = this.attr("scene");
+    this.setMeshesOutline( groupedMeshes );
 
+    this.attr( "hoveredMesh", mesh );
+  },
+
+  /**
+   * Set the outline for a group of meshes
+   * @param {BABYLON.Mesh[]} meshes
+   */
+  setMeshesOutline ( meshes ){
+    let scene = this.attr("scene");
     // Enable the post process if it's disabled also enable renderTarget refresh rate
     if ( !scene.postProcessesEnabled ){
       scene.postProcessesEnabled = true;
@@ -255,8 +285,8 @@ export const ViewModel = Map.extend({
       this.outlineRT.refreshRate = 1;
     }
 
-    for ( let i = 0; i < groupedMeshes.length; ++i ) {
-      let curMesh = groupedMeshes[ i ];
+    for ( let i = 0; i < meshes.length; ++i ) {
+      let curMesh = meshes[ i ];
       // Set layermask to 0x2FFFFFFF so it's found by both cameras.
       // If setting 0x20000000 the furniture disappears and if using 0x0FFFFFFFF the outline isn't rendered
       curMesh.layerMask = 0x2FFFFFFF;
@@ -269,8 +299,6 @@ export const ViewModel = Map.extend({
 
       this.outlineRT.renderList.push(curMesh);
     }
-
-    this.attr( "hoveredMesh", mesh );
   },
 
   /**
@@ -2030,7 +2058,6 @@ export const ViewModel = Map.extend({
    * Removes the surfaceRotation when setting the rotation
    * @param item
    */
-
   setBaseRotation( item ){
     const rotation = item.rootMeshes[ 0 ].rotationQuaternion;
     item.inverseSurfaceRotation.multiplyToRef( rotation, item.baseRotation );
@@ -2094,6 +2121,9 @@ export const controls = {
         if (this.selectedItem.parent){
           this.removeChild( this.selectedItem )
         }
+
+        // Set outline for all children
+        this.setGroupOutline( this.selectedItem );
 
         // Clone the reference because otherwise it'd get updated when changes are done to the selectedItem
         this.setBaseRotation( this.selectedItem );

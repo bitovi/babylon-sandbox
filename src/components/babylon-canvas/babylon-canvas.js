@@ -20,9 +20,10 @@ import Asset from '../../models/asset.js';
  * @typedef {{
  * _cid: undefined|String,
  * activeGravity: undefined|Boolean,
- * baseRotation:undefined|BABYLON.Quaternion,
+ * baseRotation:BABYLON.Quaternion,
  * children: EgowallItem[],
- * lastSurfaceNormal: undefined|BABYLON.Vector3,
+ * surfaceNormal: BABYLON.Vector3,
+ * inverseSurfaceRotation: BABYLON.Quaternion,
  * meshes: BABYLON.Mesh[],
  * name: string,
  * options: *,
@@ -61,6 +62,7 @@ export const ViewModel = Map.extend({
     homeLoadFinished: {
       set ( newVal ) {
         if ( newVal ) {
+
           this.freezeShadowCalculations();
           // Fixes unity's lightmap displacement
           // Need to do this here because ambientTexture.getBaseSize()  is 0 if done too early.
@@ -728,6 +730,7 @@ export const ViewModel = Map.extend({
 
       // To currently show the paintings before they get the rotation from the walls
       if ( isPainting ){
+
         // rootMesh.rotation.y = Math.PI;
         // rootMesh.rotation.x = Math.PI / -2;
         rootMesh.rotationQuaternion.multiplyInPlace( BABYLON.Quaternion.RotationYawPitchRoll( 0, Math.PI * 1.5, Math.PI ) );
@@ -758,6 +761,9 @@ export const ViewModel = Map.extend({
      * @type EgowallItem
      */
     let item = {
+      // The base rotation of the item when moving it along surfaces.
+      // Base rotation = rotation - current surfaceRotation
+      baseRotation: BABYLON.Quaternion.Identity(),
       // Children items, what items should have same changes done as this item
       children: [],
       name: babylonName,
@@ -765,6 +771,11 @@ export const ViewModel = Map.extend({
       meshes: [],
       // RootMeshes to easily update all positions when moving an item
       rootMeshes: [],
+      // The surface normal of the floor / furniture / something else that this item is attached to
+      surfaceNormal: BABYLON.Vector3.Zero(),
+      // The surface rotation of the item. The inverse is used to remove its rotation before applying the new rotation.
+      // Is the inverse but when creating we can use identity still since identity has no impact or the inverse of an identity
+      inverseSurfaceRotation: BABYLON.Quaternion.Identity(),
       // The parent item of this item.
       parent:null
     };
@@ -1517,11 +1528,9 @@ export const ViewModel = Map.extend({
       let rootMesh = item.rootMeshes[ i ];
 
       rootMesh.position.addInPlace( positionDelta );
+
       // Use the baseRotation and
       rotation.multiplyToRef( item.baseRotation, rootMesh.rotationQuaternion );
-
-      // rootMesh.rotationQuaternion = BABYLON.Quaternion.Identity();
-      // rootMesh.rotationQuaternion.multiplyInPlace( a_rotation );
 
       this.updateMeshMatrices( rootMesh );
     }
@@ -1968,50 +1977,29 @@ export const ViewModel = Map.extend({
     // Need to get world normal or the wall rotation calculation is wrong.
     const normal = pickingResult.getNormal(true);
     let tmpPositionDelta = BABYLON.Tmp.Vector3[ 8 ];
-
     pickingResult.pickedPoint.subtractToRef(rootMesh.position, tmpPositionDelta );
 
     let doRotation = true;
-    const lastSurfaceNormal = selectedItem.lastSurfaceNormal;
-    // TODO: Evaluate if upvector of selectedItem should also be checked
-    if (lastSurfaceNormal){
-      if (lastSurfaceNormal.x === normal.x && lastSurfaceNormal.y === normal.y && lastSurfaceNormal.z === normal.z){
-        doRotation = false;
-      }
+    const lastSurfaceNormal = selectedItem.surfaceNormal;
+    // If the surface normal is the same then there is no point doing expensive surface computation
+    if (lastSurfaceNormal.x === normal.x && lastSurfaceNormal.y === normal.y && lastSurfaceNormal.z === normal.z){
+      doRotation = false;
     }
+
     // For now store the normal to not redo rotations if same normal as last time
-    selectedItem.lastSurfaceNormal = normal;
+    selectedItem.surfaceNormal.copyFrom( normal );
     // If there is no need to do rotation then
     if (!doRotation){
       // pickingResult.pickedPoint.subtractToRef(rootMesh.position, tmpPositionDelta );
       this.updatePositions( selectedItem, tmpPositionDelta);
     } else {
-      const upVector = this.upVector3;
+      // Uses Tmp.Quaternion[ 0 ]
+      const surfaceRotation = this.getSurfaceRotation( normal );
 
-      // TODO: Check if normal is the same as last time because if it is there is no need to update rotation
-      // The wall rotation quaternion
-      let wallRotation;
+      // Copy the surface rotation before it has the old surface rotation removed from it
+      surfaceRotation.conjugateToRef( selectedItem.inverseSurfaceRotation );
 
-      // For normal.y = 1 return identity quaternion
-      if (normal.y === 1){
-        wallRotation = BABYLON.Tmp.Quaternion[ 0 ].copyFromFloats(0, 0, 0, 1);
-      }
-      // For normal.y == 1 then return a quaternion to turn it upside down
-      else if (normal.y === -1){
-        wallRotation = BABYLON.Tmp.Quaternion[ 0 ].copyFromFloats(0, 0, 1, 0);
-      } else {
-        let tmpAxis = BABYLON.Tmp.Vector3[ 7 ];
-        // Axis is [ 0, 0, 0 ] for y == 1 and y == -1
-        BABYLON.Vector3.CrossToRef(upVector, normal, tmpAxis );
-        tmpAxis.normalize();
-        const angle = Math.acos(BABYLON.Vector3.Dot(upVector, normal));
-        // TODO: in Babylon 2.5 change to use RotationAxisToRef
-        // This normalizes tmpAxis
-        wallRotation = BABYLON.Quaternion.RotationAxis( tmpAxis, angle);
-        wallRotation.normalize();
-      }
-
-      this.updatePositionRotation( selectedItem, tmpPositionDelta, wallRotation );
+      this.updatePositionRotation( selectedItem, tmpPositionDelta, surfaceRotation );
     }
   },
   /**
@@ -2032,11 +2020,50 @@ export const ViewModel = Map.extend({
 
   /**
    * Sets the base rotation of an object before moving.
+   * Removes the surfaceRotation when setting the rotation
    * @param item
    */
   setBaseRotation( item ){
-    item.baseRotation = item.rootMeshes[ 0 ].rotationQuaternion.clone();
+    const rotation = item.rootMeshes[ 0 ].rotationQuaternion;
+    item.inverseSurfaceRotation.multiplyToRef( rotation, item.baseRotation );
+  },
+
+  /***********************************
+   * Find surface rotations with rays
+   **********************************/
+
+  /**
+   * Get the surface rotation.
+   * NOTE: This uses BABYLON.Tmp.Quaternion[ 0 ]
+   * @param {BABYLON.Vector3} normal
+   * @returns {BABYLON.Quaternion}
+   */
+  getSurfaceRotation( normal ){
+    const upVector = this.upVector3;
+
+    // The wall rotation quaternion
+    let surfaceRotation;
+
+    // For normal.y = 1 return identity quaternion
+    if (normal.y === 1){
+      surfaceRotation = BABYLON.Tmp.Quaternion[ 0 ].copyFromFloats(0, 0, 0, 1);
+    }
+    // For normal.y == 1 then return a quaternion to turn it upside down
+    else if (normal.y === -1){
+      surfaceRotation = BABYLON.Tmp.Quaternion[ 0 ].copyFromFloats(0, 0, 1, 0);
+    } else {
+      let tmpAxis = BABYLON.Tmp.Vector3[ 7 ];
+      // Axis is [ 0, 0, 0 ] for y == 1 and y == -1
+      BABYLON.Vector3.CrossToRef(upVector, normal, tmpAxis );
+      const angle = Math.acos(BABYLON.Vector3.Dot(upVector, normal));
+      // TODO: in Babylon 2.5 change to use RotationAxisToRef
+      // This normalizes tmpAxis
+      surfaceRotation = BABYLON.Quaternion.RotationAxis( tmpAxis, angle);
+      surfaceRotation.normalize();
+    }
+    return surfaceRotation;
   }
+
 });
 
 export const controls = {
@@ -2112,6 +2139,21 @@ export default Component.extend({
         "engine": engine,
         "scene": scene
       });
+
+      // Create a tmp quaternion if it doesn't already exist
+      // Babylon 2.4 only has 1 tmp quaternion
+      // We use it for lastSurfaceNormal
+      // TODO: Remove? :)
+      if (!BABYLON.Tmp.Quaternion[1]){
+        BABYLON.Tmp.Quaternion[1] = BABYLON.Quaternion.Identity();
+      }
+
+      if (!BABYLON.Tmp.Ray){
+        BABYLON.Tmp.Ray = [];
+      }
+      if (!BABYLON.Tmp.Ray[0]){
+        BABYLON.Tmp.Ray[0] = new BABYLON.Ray( BABYLON.Vector3.Zero(), BABYLON.Vector3.Zero() );
+      }
 
       vm.initScene();
 

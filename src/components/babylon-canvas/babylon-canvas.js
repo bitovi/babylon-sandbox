@@ -2130,11 +2130,11 @@ export const ViewModel = Map.extend({
 
   /**
    *
-   * @param {EgowallItem} furniture
+   * @param {EgowallItem} furnitureItem
    * @param {BABYLON.PickingInfo} pickingResult
    * @returns PlacementResult
    */
-  canFurnitureBePlaced( furniture, pickingResult ){
+  canFurnitureBePlaced( furnitureItem, pickingResult ){
     /**
      * @type PlacementResult
      */
@@ -2145,13 +2145,15 @@ export const ViewModel = Map.extend({
     const pickedMesh = pickingResult.pickedMesh;
     const pickedType = this.bgMeshGetType( pickedMesh );
 
-    const validTypes = this.getValidBgTypes( furniture.options );
+    const validTypes = this.getValidBgTypes( furnitureItem.options );
 
     if ( validTypes[ pickedType ]  ) {
       // Check collisions
       // this.checkFurnitureCollisions();
+      const collisions = this.checkFurnitureCollisions( furnitureItem );
 
-      result.valid = true;
+
+      result.valid = collisions.length === 0;
     // The pickedType is not a valid type
     } else {
 
@@ -2206,6 +2208,11 @@ export const ViewModel = Map.extend({
     const normal = pickingResult.getNormal(true);
     let tmpPositionDelta = BABYLON.Tmp.Vector3[ 8 ];
     pickingResult.pickedPoint.subtractToRef(rootMesh.position, tmpPositionDelta );
+
+    let tmpNormal = BABYLON.Tmp.Vector3[6].copyFrom( normal );
+    // Translate a tiny portion of normal to not collide with ground
+    tmpNormal.scaleInPlace( 0.02 );
+    tmpPositionDelta.addInPlace( tmpNormal );
 
     let doRotation = true;
     const lastSurfaceNormal = selectedItem.surfaceNormal;
@@ -2273,21 +2280,25 @@ export const ViewModel = Map.extend({
    * @param $ev
    */
   setupSelectedItem( $ev ) {
+
+
     let hoveredMesh = this.attr( "hoveredMesh" );
 
     if ( hoveredMesh ) {
       // don't execute camera click on ground
       $ev.controlPropagationStopped = true;
 
-      if ( this.attr( "customizeMode" ) ){
-        this.setupSelectedBackground( hoveredMesh );
-      } else {
-        // Check for egoId
-        let item = hoveredMesh.__itemRef;
-        if (item.options.egoID){
-          this.setupSelectedEgoId( item );
+      if ( !this.selectedItem) {
+        if ( this.attr( "customizeMode" ) ){
+          this.setupSelectedBackground( hoveredMesh );
         } else {
-          this.setupSelectedFurniture( item );
+          // Check for egoId
+          let item = hoveredMesh.__itemRef;
+          if (item.options.egoID){
+            this.setupSelectedEgoId( item );
+          } else {
+            this.setupSelectedFurniture( item );
+          }
         }
       }
     }

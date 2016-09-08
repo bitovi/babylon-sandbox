@@ -516,10 +516,10 @@ var roomsResponse9667 = {
         "furnTypeID": "6",
         "furnURL": "https:\/\/cdn.testing.egowall.com\/CDN\/Game\/Assetbundles\/Furniture\/Cont_SiTbl_Met_Silvr_001.unity3d?v=1",
         "furnMatURL": "https:\/\/cdn.testing.egowall.com\/CDN\/Game\/Assetbundles\/Furniture\/Cont_SiTbl_Met_Silvr_001-mat.unity3d?v=1",
-        "floorArg": "0",
+        "floorArg": "1",
         "ceilArg": "0",
         "furnArg": "1",
-        "wallArg": "1",
+        "wallArg": "0",
         "parentID": "0",
         "parentType": "0",
         "snapOnSide": "0",
@@ -532,20 +532,14 @@ var roomsResponse9667 = {
         "mass": "1",
         "position": {
           "x": "-2.131833",
-          "y": "0.42006668",
+          "y": "0.02006668",
           "z": "11.12333"
         },
-        // "rotation": {
-        //   "x": "-0.00000001970329",
-        //   "y": "0.7071108",
-        //   "z": "-0.00000002980232",
-        //   "w": "-0.7071028"
-        // },
-        "rotation":{
-          "x": "0.49999719721982144",
-          "y": "0.5000028209870617",
-          "z": "-0.5000028358673367",
-          "w": "-0.49999719913856133"
+        "rotation": {
+          "x": "-0.00000001970329",
+          "y": "0.7071108",
+          "z": "-0.00000002980232",
+          "w": "-0.7071028"
         },
         "scale": "1",
         "scaleX": "1",

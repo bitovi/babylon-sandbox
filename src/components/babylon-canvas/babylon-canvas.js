@@ -44,12 +44,21 @@ import Asset from '../../models/asset.js';
 
 /**
  * @typedef {{
+ * parent:undefined|EgowallItem
+ * position:BABYLON.Vector3,
+ * rotation: BABYLON.Quaternion,
+ * scale: BABYLON.Vector3
+ * }} SelectedBackup
+ */
+
+/**
+ * @typedef {{
  *  bgtype: BG_TYPES,
  *  meshID: String,
  *  parentBabylonName: String,
  *  ajaxInfo: *
  *  materialID: String
- * }} BackgroundMeshInfo:
+ * }} BackgroundMeshInfo
  */
 
 /*
@@ -142,6 +151,12 @@ export const ViewModel = Map.extend({
   hoveredMesh: null,
   // The selected item if left clicked
   selectedItem: null,
+  // If the selectedItem has a valid position.
+  selectedItemValidPosition: false,
+  /**
+   * @type null|SelectedBackup
+   */
+  selectedItemBackup: null,
   // This creates and positions a free camera
   initCamera () {
     var scene = this.attr( "scene" );
@@ -174,7 +189,15 @@ export const ViewModel = Map.extend({
     // If mouse is not on the canvas then don't even bother picking
     if ($ev.target.nodeName.toLowerCase() === "canvas") {
       if (this.selectedItem){
-        this.selectedItemFurnitureMovePicking( controlsVM.curMousePos() );
+
+        // Check it's not a painting
+        if ( !this.selectedItem.options.egoID ) {
+          this.selectedItemFurnitureMovePicking( controlsVM.curMousePos() );
+        // If egoID is true then it's a painting
+        } else {
+          // Move painting
+          // this.selectedItemPaintingMovePicking( controlsVM.curMousePos() );
+        }
       // If selected isn't set
       } else {
         let curMousePos = controlsVM.curMousePos();
@@ -2078,6 +2101,8 @@ export const ViewModel = Map.extend({
 
       const placementResult = this.canFurnitureBePlaced( selectedItem, pickingResult );
       this.setOutlineColor( placementResult.valid, placementResult.error );
+
+      this.selectedItemValidPosition = placementResult.valid;
     }
   },
 
@@ -2206,19 +2231,152 @@ export const ViewModel = Map.extend({
 
     }
   },
+
+  /**
+   * Reset the values of a selectedItem by using the backup values
+   */
+  resetSelectedItem () {
+    // Check that we're not in customize mode first
+    if ( !this.attr( "customizeMode" ) ) {
+      let backupItem = this.selectedItemBackup;
+      let selectedItem = this.selectedItem;
+      if ( backupItem && selectedItem ) {
+
+        // Add back as parent if it was detached
+        if (backupItem.parent){
+          this.setItemParent( this.selectedItem, backupItem.parent );
+        }
+
+        let rootMeshes = this.selectedItem.rootMeshes;
+        for ( let i = 0; i < rootMeshes.length; ++i ){
+          let rootMesh = rootMeshes[ i ];
+
+          // Reset position
+          rootMesh.position.copyFrom( backupItem.position );
+          // Reset rotation
+          rootMesh._rotationQuaternion.copyFrom( backupItem.rotation );
+          // Reset scale
+          rootMesh.scaling.copyFrom( backupItem.scale );
+
+          this.updateMeshMatrices( rootMesh );
+        }
+
+
+        // Finally unset the selectedItem
+        this.unsetSelectedItem();
+      }
+    }
+  },
+
+  /**
+   * Happens on a leftclick
+   * @param $ev
+   */
+  setupSelectedItem( $ev ) {
+    let hoveredMesh = this.attr( "hoveredMesh" );
+
+    if ( hoveredMesh ) {
+      // don't execute camera click on ground
+      $ev.controlPropagationStopped = true;
+
+      if ( this.attr( "customizeMode" ) ){
+        this.setupSelectedBackground( hoveredMesh );
+      } else {
+        // Check for egoId
+        let item = hoveredMesh.__itemRef;
+        if (item.options.egoID){
+          this.setupSelectedEgoId( item );
+        } else {
+          this.setupSelectedFurniture( item );
+        }
+      }
+    }
+  },
+
+  /**
+   * Setup the selectedItem variables for a selected Background mesh (in customize mode)
+   * @param {BABYLON.Mesh} mesh
+   */
+  setupSelectedBackground( mesh ) {
+
+  },
+
+  /**
+   * Setup the selectedItem for a furniture
+   * @param {EgowallItem} item
+   */
+  setupSelectedFurniture( item ) {
+    this.selectedItem = item;
+
+    let rootMesh = item.rootMeshes[ 0 ];
+
+    this.selectedItemBackup = {
+      position: rootMesh.position.clone(),
+      rotation: rootMesh.rotationQuaternion.clone(),
+      scale: rootMesh.scaling.clone()
+    };
+
+    // Note: Do this before unsetting parent! :)
+    // Check normal length is 0 then calculate it
+    if (item.surfaceNormal.lengthSquared() === 0 ) {
+      this.tryCheckFurnitureSurfaceRotation( item );
+    }
+
+    if ( item.parent){
+      this.selectedItemBackup.parent = item.parent;
+      this.removeChild( item )
+    }
+
+    // this.selectedItemBackup.rotation = rootMesh.rotationQuaternion.clone();
+
+    // Set outline for all children
+    this.setGroupOutline( item );
+
+    // Clone the reference because otherwise it'd get updated when changes are done to the selectedItem
+    this.setBaseRotation( item );
+
+
+    /**
+     * @type SelectedBackup
+     */
+
+  },
+
+  /**
+   * Setup the selectedItem properties for an egoId item / painting
+   * @param {EgowallItem\ item
+   */
+  setupSelectedEgoId ( item ) {
+
+  },
+
   /**
    * Unselect the selected item and do cleanup
    */
   unselectItem () {
     let item = this.selectedItem;
     if ( item ) {
-      this.selectedItem = null;
-
-      this.unsetHoveredMesh();
-      // Reset the color if it was red
-      this.outlineCurrentColor = this.outlineOKColor;
-      this.activateGravity( item );
+      // If selectedItem is set then check if the item can be set
+      if ( this.selectedItemValidPosition ){
+        this.unsetSelectedItem();
+        // Activate gravity
+        this.activateGravity( item );
+      }
     }
+  },
+
+  /**
+   * Unsets the selectedItem and also
+   * unsetsHoveredMesh and resets the outline color.
+   */
+  unsetSelectedItem(){
+    this.selectedItem = null;
+    this.selectedItemBackup = null;
+    this.selectedItemValidPosition = false;
+
+    this.unsetHoveredMesh();
+    // Reset the color if it was red
+    this.outlineCurrentColor = this.outlineOKColor;
   },
 
   /**
@@ -2273,7 +2431,6 @@ export const ViewModel = Map.extend({
     const rotation = item.rootMeshes[ 0 ].rotationQuaternion;
     item.inverseSurfaceRotation.multiplyToRef( rotation, item.baseRotation );
   },
-
   /***********************************
    * Find surface rotations with rays
    **********************************/
@@ -2480,35 +2637,14 @@ export const controls = {
   "context": null,
   "keypress": {
     "`": "toggleBabylonDebugLayer",
-    // Temporary until Escape works
+    // Temporary until Double left click is set up
     "v": "unselectItem"
   },
+  "keyup": {
+    "Escape": "resetSelectedItem"
+  },
   "click": {
-    "Left" ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
-
-      // Temporary solution that needs improving once adding more of the features from unity app
-      if ( this.attr( "hoveredMesh" )) {
-        // don't execute camera click on ground
-        $ev.controlPropagationStopped = true;
-        this.selectedItem = this.attr("hoveredMesh").__itemRef;
-
-        // Note: Do this before unsetting parent! :)
-        // Check normal length is 0 then calculate it
-        if (this.selectedItem.surfaceNormal.lengthSquared() === 0 ){
-          this.tryCheckFurnitureSurfaceRotation( this.selectedItem );
-        }
-
-        if (this.selectedItem.parent){
-          this.removeChild( this.selectedItem )
-        }
-
-        // Set outline for all children
-        this.setGroupOutline( this.selectedItem );
-
-        // Clone the reference because otherwise it'd get updated when changes are done to the selectedItem
-        this.setBaseRotation( this.selectedItem );
-      }
-    }
+    "Left" : "setupSelectedItem"
   },
   "mousemove": {
     "*": "pickingEvent"

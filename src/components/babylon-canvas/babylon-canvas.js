@@ -39,8 +39,12 @@ import Asset from '../../models/asset.js';
  */
 
 /**
+ * @typedef {{valid:Boolean, error:undefined|string}} PlacementResult
+ */
+
+/**
  * @typedef {{
- *  bgtype: Number,
+ *  bgtype: BG_TYPES,
  *  meshID: String,
  *  parentBabylonName: String,
  *  ajaxInfo: *
@@ -56,12 +60,23 @@ import Asset from '../../models/asset.js';
   __savedMaterial: The original mat when not using the outlineMaterial
  */
 
-// 0, 1, 2, 4
+// TODO: Find the best way to not have FURNITURE in there.
+/**
+ * Type
+ * @type {{NOTYPE: number, FLOOR: number, WALL: number, CEILING: number, FURNITURE:number}} BG_TYPES
+ */
 const BG_TYPES = {
+  // 0
   NOTYPE: 0b0000,
+  // 1
   FLOOR: 0b0001,
+  // 2
   WALL: 0b0010,
-  CEILING: 0b0100
+  // 4
+  CEILING: 0b0100,
+  // 8
+  // Temporary should be refactored elsewhere or BG_TYPES renamed.
+  FURNITURE: 0b1000
 };
 
 export const ViewModel = Map.extend({
@@ -86,7 +101,7 @@ export const ViewModel = Map.extend({
           // Fixes unity's lightmap displacement
           // Need to do this here because ambientTexture.getBaseSize()  is 0 if done too early.
           this.bgUpdateLightmapsOffset();
-
+          // Set the child & parent relations now since all meshes has been loaded.
           this.setItemRelations();
 
           // Do a setTimeour because applyTerrainMaterials doesn't work correctly if freezing materials before all the changes has gone through.
@@ -119,6 +134,7 @@ export const ViewModel = Map.extend({
   // The outline color when not colliding
   outlineOKColor: new BABYLON.Color3(0.0274509803921569, 0.6666666666666667, 0.9607843137254902),
   // The current color in use by outline shader
+  // Uses the reference directly of either OK or Collision color
   outlineCurrentColor: null,
   // Constant stored for the upVector
   upVector3: BABYLON.Vector3.Up(),
@@ -158,7 +174,7 @@ export const ViewModel = Map.extend({
     // If mouse is not on the canvas then don't even bother picking
     if ($ev.target.nodeName.toLowerCase() === "canvas") {
       if (this.selectedItem){
-        this.selectedItemMovePicking( controlsVM.curMousePos() );
+        this.selectedItemFurnitureMovePicking( controlsVM.curMousePos() );
       // If selected isn't set
       } else {
         let curMousePos = controlsVM.curMousePos();
@@ -472,6 +488,7 @@ export const ViewModel = Map.extend({
     for ( let i = 0; i < multiMaterials.length; ++i ){
       let material = multiMaterials[i];
       if (material.subMaterials){
+        // Freeze all the submaterials,  although they should already be frozen by previous for loop
         for (let j = 0; j < material.subMaterials.length; ++j){
           material.subMaterials[ j ].freeze();
         }
@@ -1276,6 +1293,22 @@ export const ViewModel = Map.extend({
     }
   },
 
+
+  /**
+   *
+   * @param mesh
+   * @returns {*}
+   */
+  bgMeshGetType ( mesh ) {
+    if ( mesh.__backgroundMeshInfo ) {
+      return mesh.__backgroundMeshInfo.bgtype;
+    } else if ( mesh.__itemRef ) {
+      return BG_TYPES.FURNITURE;
+    } else {
+      return BG_TYPES.NOTYPE;
+    }
+  },
+
   /**
    * The function fixes the UV offset that unity has added in its lightmap.exr file.
    * Unity uses a displacement of 0.5 pixels and I tried 0.5 pixels first but it still had tiny hard surface
@@ -2010,10 +2043,10 @@ export const ViewModel = Map.extend({
    ************************************/
 
   /**
-   * When the mouse has moved do picking on mousePos to move selectedItem and possibly rotate it.
+   * Function to move & possibly rotate a selected furniture object.
    * @param {Vector2} mousePos
    */
-  selectedItemMovePicking ( mousePos ) {
+  selectedItemFurnitureMovePicking ( mousePos ) {
     let selectedItem = this.selectedItem;
 
     const pickingResult = this.getPickingFromMouse( mousePos, (hitMesh ) => {
@@ -2039,9 +2072,92 @@ export const ViewModel = Map.extend({
       return false;
     });
 
+    // Technically this should always happen
     if ( pickingResult.hit ){
       this.moveRotateSelectedItem( selectedItem, pickingResult );
+
+      const placementResult = this.canFurnitureBePlaced( selectedItem, pickingResult );
+      this.setOutlineColor( placementResult.valid, placementResult.error );
     }
+  },
+
+  /**
+   * Set the outline color of the selectedItem
+   * Also set the error message
+   * @param isValid
+   * @param errorMsg
+   */
+  setOutlineColor( isValid, errorMsg ){
+
+    if ( isValid ){
+      // Check if
+      if (this.outlineCurrentColor.r === 1){
+        this.outlineCurrentColor = this.outlineOKColor;
+      }
+    } else {
+      if (this.outlineCurrentColor.r !== 1){
+        this.outlineCurrentColor = this.outlineCollisionColor;
+      }
+
+      // Set error mesasge
+    }
+  },
+
+  /**
+   *
+   * @param {EgowallItem} furniture
+   * @param {BABYLON.PickingInfo} pickingResult
+   * @returns PlacementResult
+   */
+  canFurnitureBePlaced( furniture, pickingResult ){
+    /**
+     * @type PlacementResult
+     */
+    let result = {
+      valid: false
+    };
+
+    const pickedMesh = pickingResult.pickedMesh;
+    const pickedType = this.bgMeshGetType( pickedMesh );
+
+    const validTypes = this.getValidBgTypes( furniture.options );
+
+    if ( validTypes[ pickedType ]  ) {
+      // Check collisions
+      // this.checkFurnitureCollisions();
+
+      result.valid = true;
+    // The pickedType is not a valid type
+    } else {
+
+    }
+
+    return result;
+  },
+
+  /**
+   * Get what BG_TYPES are allowed
+   * @param {*} options
+   * @returns {Boolean[]}
+   */
+  getValidBgTypes ( options ) {
+
+    let result = [];
+
+    if ( anyTruthy(options.floorArg ) ) {
+      result[ BG_TYPES.FLOOR ] = true;
+    }
+    if ( anyTruthy( options.ceilArg ) ) {
+      result[ BG_TYPES.CEILING ] = true;
+    }
+    if ( anyTruthy( options.wallArg ) ) {
+      result[ BG_TYPES.WALL ] = true;
+    }
+    if ( anyTruthy( options.furnArg ) ) {
+      result[ BG_TYPES.FURNITURE ] = true;
+    }
+
+    return result;
   },
 
   /**
@@ -2069,7 +2185,7 @@ export const ViewModel = Map.extend({
     let doRotation = true;
     const lastSurfaceNormal = selectedItem.surfaceNormal;
     // If the surface normal is the same then there is no point doing expensive surface computation
-    if (lastSurfaceNormal.x === normal.x && lastSurfaceNormal.y === normal.y && lastSurfaceNormal.z === normal.z){
+    if (lastSurfaceNormal.x === normal.x && lastSurfaceNormal.y === normal.y && lastSurfaceNormal.z === normal.z) {
       doRotation = false;
     }
 
@@ -2095,11 +2211,12 @@ export const ViewModel = Map.extend({
    */
   unselectItem () {
     let item = this.selectedItem;
-    if ( item ){
+    if ( item ) {
       this.selectedItem = null;
 
       this.unsetHoveredMesh();
-
+      // Reset the color if it was red
+      this.outlineCurrentColor = this.outlineOKColor;
       this.activateGravity( item );
     }
   },
@@ -2214,22 +2331,17 @@ export const ViewModel = Map.extend({
     let meshesToCheck = [];
 
     if ( !item.parent ) {
-      const allowFloor = anyTruthy( itemInfo.floorArg );
-      const allowWall = anyTruthy( itemInfo.wallArg );
-      const allowCeiling = anyTruthy( itemInfo.ceilArg );
+
+      const validTypes = this.getValidBgTypes( itemInfo );
 
       // Iterate over bgmeshes to find
       let bgMeshes = this.attr( "bgMeshes" );
 
       for ( let i = 0; i < bgMeshes.length; ++i ) {
         const bgMesh = bgMeshes[ i ];
-        const bgMeshInfo = bgMesh.__backgroundMeshInfo;
+        const bgType = bgMesh.__backgroundMeshInfo.bgtype;
 
-        if ( allowFloor && bgMeshInfo.bgtype === BG_TYPES.FLOOR ) {
-          meshesToCheck.push( bgMesh );
-        } else if ( allowWall && bgMeshInfo.bgtype === BG_TYPES.WALL ) {
-          meshesToCheck.push( bgMesh );
-        } else if ( allowCeiling && bgMeshInfo.bgtype === BG_TYPES.WALL ) {
+        if (validTypes[ bgType ]  ){
           meshesToCheck.push( bgMesh );
         }
       }

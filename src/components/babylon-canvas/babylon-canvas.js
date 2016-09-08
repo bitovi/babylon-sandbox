@@ -19,7 +19,6 @@ import Asset from '../../models/asset.js';
 /**
  * @typedef {{
  * _cid: undefined|String,
- * activeGravity: undefined|Boolean,
  * baseRotation:BABYLON.Quaternion,
  * children: EgowallItem[],
  * surfaceNormal: BABYLON.Vector3,
@@ -38,12 +37,47 @@ import Asset from '../../models/asset.js';
 /**
  * @typedef {{x:Number, y:Number}} Vector2
  */
+
+/**
+ * @typedef {{valid:Boolean, error:undefined|string}} PlacementResult
+ */
+
+/**
+ * @typedef {{
+ *  bgtype: BG_TYPES,
+ *  meshID: String,
+ *  parentBabylonName: String,
+ *  ajaxInfo: *
+ *  materialID: String
+ * }} BackgroundMeshInfo:
+ */
+
 /*
-  Added BABYLON.Mesh properties:
+  Added properties to a BABYLON.Mesh:
+  __backgroundMeshInfo: For background meshes information.
   __itemRef: For the EgowallItem reference
   __outlineMat: Stored outline material for on/after render and also if it gets outlined again
   __savedMaterial: The original mat when not using the outlineMaterial
  */
+
+// TODO: Find the best way to not have FURNITURE in there.
+/**
+ * Type
+ * @type {{NOTYPE: number, FLOOR: number, WALL: number, CEILING: number, FURNITURE:number}} BG_TYPES
+ */
+const BG_TYPES = {
+  // 0
+  NOTYPE: 0b0000,
+  // 1
+  FLOOR: 0b0001,
+  // 2
+  WALL: 0b0010,
+  // 4
+  CEILING: 0b0100,
+  // 8
+  // Temporary should be refactored elsewhere or BG_TYPES renamed.
+  FURNITURE: 0b1000
+};
 
 export const ViewModel = Map.extend({
   define: {
@@ -67,6 +101,8 @@ export const ViewModel = Map.extend({
           // Fixes unity's lightmap displacement
           // Need to do this here because ambientTexture.getBaseSize()  is 0 if done too early.
           this.bgUpdateLightmapsOffset();
+          // Set the child & parent relations now since all meshes has been loaded.
+          this.setItemRelations();
 
           // Do a setTimeour because applyTerrainMaterials doesn't work correctly if freezing materials before all the changes has gone through.
           setTimeout( () => {
@@ -98,7 +134,14 @@ export const ViewModel = Map.extend({
   // The outline color when not colliding
   outlineOKColor: new BABYLON.Color3(0.0274509803921569, 0.6666666666666667, 0.9607843137254902),
   // The current color in use by outline shader
+  // Uses the reference directly of either OK or Collision color
   outlineCurrentColor: null,
+  // Constant stored for the upVector
+  upVector3: BABYLON.Vector3.Up(),
+  // The mesh that mouse is mouseovered if not null.
+  hoveredMesh: null,
+  // The selected item if left clicked
+  selectedItem: null,
   // This creates and positions a free camera
   initCamera () {
     var scene = this.attr( "scene" );
@@ -110,9 +153,6 @@ export const ViewModel = Map.extend({
 
     return camera;
   },
-
-  hoveredMesh: null,
-
   getPickingFn ( mesh, customizeMode ) {
     var pickingFn = null;
     var isBGMesh = customizeMode && ( mesh.__backgroundMeshInfo ? true : false );
@@ -134,7 +174,7 @@ export const ViewModel = Map.extend({
     // If mouse is not on the canvas then don't even bother picking
     if ($ev.target.nodeName.toLowerCase() === "canvas") {
       if (this.selectedItem){
-        this.selectedItemMovePicking( controlsVM.curMousePos() );
+        this.selectedItemFurnitureMovePicking( controlsVM.curMousePos() );
       // If selected isn't set
       } else {
         let curMousePos = controlsVM.curMousePos();
@@ -448,6 +488,7 @@ export const ViewModel = Map.extend({
     for ( let i = 0; i < multiMaterials.length; ++i ){
       let material = multiMaterials[i];
       if (material.subMaterials){
+        // Freeze all the submaterials,  although they should already be frozen by previous for loop
         for (let j = 0; j < material.subMaterials.length; ++j){
           material.subMaterials[ j ].freeze();
         }
@@ -463,7 +504,7 @@ export const ViewModel = Map.extend({
     this.attr( "objDirLightShadowGen" ).getShadowMap().refreshRate = 0;
     this.updateShadowmap = false;
   },
-  // TODO: Update logic to do this every 2 frames instead of every frame, should lower RT usage by a bit while moving an object
+
   /**
    * Unfreeze the shadowmap so the shadows can be updated. Happens when something moves/rotates
    */
@@ -471,7 +512,9 @@ export const ViewModel = Map.extend({
     let shadowmap =  this.attr( "objDirLightShadowGen" ).getShadowMap();
 
     // Only do this once
-    if ( shadowmap.refreshRate === 0 ){
+    if ( shadowmap.refreshRate === 0 ) {
+      // Note: It has been tested using refreshRate = 2 for performance
+      // but the shadow lags behind when doing fast movements creating a trailing effect
       shadowmap.refreshRate = 1;
 
       // After the shadowmap as updated then freeze it again
@@ -580,9 +623,6 @@ export const ViewModel = Map.extend({
         if (mesh.__outlineMat) {
           mesh.__savedMaterial = mesh.material;
           mesh.material = mesh.__outlineMat;
-        } else {
-          // TODO: Remove after some more tests
-          console.log( "NO OUTLINE MATERIAL FOUND" );
         }
       }
     };
@@ -763,6 +803,8 @@ export const ViewModel = Map.extend({
         // rootMesh.rotation.x = Math.PI / -2;
         rootMesh.rotationQuaternion.multiplyInPlace( BABYLON.Quaternion.RotationYawPitchRoll( 0, Math.PI * 1.5, Math.PI ) );
       }
+
+      rootMesh.rotationQuaternion.normalize();
     }
   },
 
@@ -815,7 +857,7 @@ export const ViewModel = Map.extend({
     // This adds the _cid which is our uniqueId for an EgowallItem
     this.attr("items").push( item );
     // Update the item reference since canjs created a new object?
-    item = this.attr("items")[ this.attr("items").length -1 ];
+    item = this.attr("items")[ this.attr("items").length - 1 ];
 
     for ( let i = 0; i < meshes.length; ++i ) {
       let mesh = meshes[ i ];
@@ -1144,6 +1186,12 @@ export const ViewModel = Map.extend({
     }
   },
 
+  /**
+   * Creates the __backgroundMeshInfo
+   * Sets the material of the background mesh
+   * @param mesh
+   * @param roomInfo
+   */
   bgMeshSetMaterial ( mesh, roomInfo ) {
     var materialConstants = this.attr( "materialConstants" );
 
@@ -1153,13 +1201,18 @@ export const ViewModel = Map.extend({
     var rs = roomInfo.roomStatus || {};
     var key = ( rs.roomTypeName || "" ).replace( /[^a-z]/gi, "" ).toLowerCase();
 
+    /**
+     * @type BackgroundMeshInfo
+     */
     mesh.__backgroundMeshInfo = {
+      bgtype: BG_TYPES.NOTYPE,
       meshID: meshID,
       parentBabylonName: parentBabylonName,
       ajaxInfo: {},
       materialID: ""
     };
 
+    // If material is set already then dispose of it because it will be discarded automatically
     if ( mesh.material ) {
       mesh.material.dispose();
     }
@@ -1221,6 +1274,42 @@ export const ViewModel = Map.extend({
   },
 
   /**
+   * Try and parse the name of the mesh to get the BG_TYPES
+   * @param {BABYLON.Mesh} mesh
+   * @returns {number}
+   */
+  bgMeshSetType (mesh ) {
+    const name = mesh.name.toLowerCase();
+    let bgMeshInfo = mesh.__backgroundMeshInfo;
+    // TODO: Use tags on mesh instead of name?
+    if (name.startsWith("floor_")){
+      bgMeshInfo.bgtype = BG_TYPES.FLOOR;
+    } else if ( name.startsWith( "wall_" ) ){
+      bgMeshInfo.bgtype = BG_TYPES.WALL;
+    } else if ( name.startsWith( "ceiling_" ) ) {
+      bgMeshInfo.bgtype = BG_TYPES.CEILING;
+    } else {
+      bgMeshInfo.bgtype = BG_TYPES.NOTYPE;
+    }
+  },
+
+
+  /**
+   *
+   * @param mesh
+   * @returns {*}
+   */
+  bgMeshGetType ( mesh ) {
+    if ( mesh.__backgroundMeshInfo ) {
+      return mesh.__backgroundMeshInfo.bgtype;
+    } else if ( mesh.__itemRef ) {
+      return BG_TYPES.FURNITURE;
+    } else {
+      return BG_TYPES.NOTYPE;
+    }
+  },
+
+  /**
    * The function fixes the UV offset that unity has added in its lightmap.exr file.
    * Unity uses a displacement of 0.5 pixels and I tried 0.5 pixels first but it still had tiny hard surface
    * The magic number for this was 0.75 pixel displacement to fix the livingspace's corners
@@ -1253,6 +1342,7 @@ export const ViewModel = Map.extend({
       this.collisionMeshes.push( mesh );
 
       this.bgMeshSetMaterial ( mesh, roomInfo );
+      this.bgMeshSetType( mesh );
     }
   },
 
@@ -1948,21 +2038,15 @@ export const ViewModel = Map.extend({
     }
   },
 
+  /*************************************
+   * Item handling
+   ************************************/
 
-  /***************************************
-   Temporary functions
-   **************************************/
-
-  /*******
-   * SelectedItem stuff
-   *******/
-  selectedItem: null,
-  selectedItemPos: null,
   /**
-   * The picking when cursor is moved
+   * Function to move & possibly rotate a selected furniture object.
    * @param {Vector2} mousePos
    */
-  selectedItemMovePicking ( mousePos ) {
+  selectedItemFurnitureMovePicking ( mousePos ) {
     let selectedItem = this.selectedItem;
 
     const pickingResult = this.getPickingFromMouse( mousePos, (hitMesh ) => {
@@ -1988,15 +2072,98 @@ export const ViewModel = Map.extend({
       return false;
     });
 
+    // Technically this should always happen
     if ( pickingResult.hit ){
       this.moveRotateSelectedItem( selectedItem, pickingResult );
+
+      const placementResult = this.canFurnitureBePlaced( selectedItem, pickingResult );
+      this.setOutlineColor( placementResult.valid, placementResult.error );
     }
+  },
+
+  /**
+   * Set the outline color of the selectedItem
+   * Also set the error message
+   * @param isValid
+   * @param errorMsg
+   */
+  setOutlineColor( isValid, errorMsg ){
+
+    if ( isValid ){
+      // Check if
+      if (this.outlineCurrentColor.r === 1){
+        this.outlineCurrentColor = this.outlineOKColor;
+      }
+    } else {
+      if (this.outlineCurrentColor.r !== 1){
+        this.outlineCurrentColor = this.outlineCollisionColor;
+      }
+
+      // Set error mesasge
+    }
+  },
+
+  /**
+   *
+   * @param {EgowallItem} furniture
+   * @param {BABYLON.PickingInfo} pickingResult
+   * @returns PlacementResult
+   */
+  canFurnitureBePlaced( furniture, pickingResult ){
+    /**
+     * @type PlacementResult
+     */
+    let result = {
+      valid: false
+    };
+
+    const pickedMesh = pickingResult.pickedMesh;
+    const pickedType = this.bgMeshGetType( pickedMesh );
+
+    const validTypes = this.getValidBgTypes( furniture.options );
+
+    if ( validTypes[ pickedType ]  ) {
+      // Check collisions
+      // this.checkFurnitureCollisions();
+
+      result.valid = true;
+    // The pickedType is not a valid type
+    } else {
+
+    }
+
+    return result;
+  },
+
+  /**
+   * Get what BG_TYPES are allowed
+   * @param {*} options
+   * @returns {Boolean[]}
+   */
+  getValidBgTypes ( options ) {
+
+    let result = [];
+
+    if ( anyTruthy(options.floorArg ) ) {
+      result[ BG_TYPES.FLOOR ] = true;
+    }
+    if ( anyTruthy( options.ceilArg ) ) {
+      result[ BG_TYPES.CEILING ] = true;
+    }
+    if ( anyTruthy( options.wallArg ) ) {
+      result[ BG_TYPES.WALL ] = true;
+    }
+    if ( anyTruthy( options.furnArg ) ) {
+      result[ BG_TYPES.FURNITURE ] = true;
+    }
+
+    return result;
   },
 
   /**
    * Calculate the new position and rotation for a selectedItem based off the pickingResult
    * @param {EgowallItem} selectedItem
-   * @param {BABYLON.PickingInfo}pickingResult
+   * @param {BABYLON.PickingInfo} pickingResult
    */
   moveRotateSelectedItem ( selectedItem, pickingResult ) {
     /*
@@ -2005,7 +2172,7 @@ export const ViewModel = Map.extend({
      7: Axis for rotation
 
      Babylon.Tmp.Quaternion indices:
-     0: Quaternion for y == 1 || -1
+     0: Quaternion for function getSurfaceRotation
      */
     // Can use the first rootMesh to calculate how much the object has to move
     // TODO: Evaluate if center between two rootMeshes would be neccesary for proper position
@@ -2018,7 +2185,7 @@ export const ViewModel = Map.extend({
     let doRotation = true;
     const lastSurfaceNormal = selectedItem.surfaceNormal;
     // If the surface normal is the same then there is no point doing expensive surface computation
-    if (lastSurfaceNormal.x === normal.x && lastSurfaceNormal.y === normal.y && lastSurfaceNormal.z === normal.z){
+    if (lastSurfaceNormal.x === normal.x && lastSurfaceNormal.y === normal.y && lastSurfaceNormal.z === normal.z) {
       doRotation = false;
     }
 
@@ -2036,6 +2203,7 @@ export const ViewModel = Map.extend({
       surfaceRotation.conjugateToRef( selectedItem.inverseSurfaceRotation );
 
       this.updatePositionRotation( selectedItem, tmpPositionDelta, surfaceRotation );
+
     }
   },
   /**
@@ -2043,22 +2211,65 @@ export const ViewModel = Map.extend({
    */
   unselectItem () {
     let item = this.selectedItem;
-    if ( item ){
+    if ( item ) {
       this.selectedItem = null;
 
       this.unsetHoveredMesh();
-
+      // Reset the color if it was red
+      this.outlineCurrentColor = this.outlineOKColor;
       this.activateGravity( item );
     }
   },
-  // Constant stored for the upVector
-  upVector3: BABYLON.Vector3.Up(),
+
+  /**
+   * Checks the ajax data for parentID and then sets up the proper relations if a parent is found.
+   */
+  setItemRelations () {
+    let items = this.attr( "items" );
+
+    for ( let i = 0; i < items.length; ++i ) {
+      let item = items[ i ];
+      const itemInfo = item.options.roomInfo || item.options;
+
+      // TODO: Create new loadMeshes function for terrain specifically
+      if ( !item.options.terrain ){
+        // Check if parentID is not 0
+        if ( itemInfo.parentID !== "0" ) {
+          // Find the parent with the Id
+          let parent = this.getFurnitureItemFromId( itemInfo.parentID );
+          if ( parent ){
+            this.setItemParent( item, parent );
+          }
+        }
+      }
+    }
+  },
+
+  /**
+   * Get a furniture from an id.
+   * It loops through all items checking if ufurnID == id
+   * @param {String} id
+   * @returns {EgowallItem}
+   */
+  getFurnitureItemFromId( id ){
+    let items = this.attr( "items" );
+    for (let i = 0; i < items.length; ++i ){
+      let item = items[ i ];
+      let options = item.options;
+      // Check that ufurnID exists and is equal to id
+      if ( options.ufurnID && options.ufurnID === id ) {
+        return item;
+      }
+    }
+
+    return null;
+  },
   /**
    * Sets the base rotation of an object before moving.
    * Removes the surfaceRotation when setting the rotation
    * @param item
    */
-  setBaseRotation( item ){
+  setBaseRotation ( item ){
     const rotation = item.rootMeshes[ 0 ].rotationQuaternion;
     item.inverseSurfaceRotation.multiplyToRef( rotation, item.baseRotation );
   },
@@ -2067,24 +2278,28 @@ export const ViewModel = Map.extend({
    * Find surface rotations with rays
    **********************************/
 
+  // Source of base implementation: http://www.html5gamedevs.com/topic/11172-rotate-an-object-perpendicular-to-the-surface-of-a-sphere/
   /**
-   * Get the surface rotation.
-   * NOTE: This uses BABYLON.Tmp.Quaternion[ 0 ]
+   * Get the surface rotation based of input normal.
    * @param {BABYLON.Vector3} normal
+   * @param {undefined|BABYLON.Quaternion} quatRef Uses Tmp.Quaternion[ 0 ] if undefined
    * @returns {BABYLON.Quaternion}
    */
-  getSurfaceRotation( normal ){
+  getSurfaceRotation ( normal, quatRef ) {
+    if (!quatRef){
+      quatRef = BABYLON.Tmp.Quaternion[ 0 ];
+    }
     const upVector = this.upVector3;
 
     // The wall rotation quaternion
     let surfaceRotation;
 
     // For normal.y = 1 return identity quaternion
-    if (normal.y === 1){
+    if ( normal.y === 1 ) {
       surfaceRotation = BABYLON.Tmp.Quaternion[ 0 ].copyFromFloats(0, 0, 0, 1);
     }
     // For normal.y == 1 then return a quaternion to turn it upside down
-    else if (normal.y === -1){
+    else if ( normal.y === -1 ) {
       surfaceRotation = BABYLON.Tmp.Quaternion[ 0 ].copyFromFloats(0, 0, 1, 0);
     } else {
       let tmpAxis = BABYLON.Tmp.Vector3[ 7 ];
@@ -2096,9 +2311,168 @@ export const ViewModel = Map.extend({
       surfaceRotation = BABYLON.Quaternion.RotationAxis( tmpAxis, angle);
       surfaceRotation.normalize();
     }
-    return surfaceRotation;
-  }
 
+    return surfaceRotation;
+  },
+
+  /************************************************
+   * Furniture surface checking when selected
+   ************************************************/
+
+  /**
+   * Get the meshes for a furniture that can be used by tryCheckFurnitureSurfaceRotation()
+   * If item.parent is undefined then get bgMeshes that fit the critera of furniture.options
+   * If item.parent is set then get the parent.meshes to check against
+   * @param {EgowallItem} item
+   */
+  getMeshesForFurnitureSurfaceCheck( item ) {
+    const itemInfo = item.options;
+
+    let meshesToCheck = [];
+
+    if ( !item.parent ) {
+
+      const validTypes = this.getValidBgTypes( itemInfo );
+
+      // Iterate over bgmeshes to find
+      let bgMeshes = this.attr( "bgMeshes" );
+
+      for ( let i = 0; i < bgMeshes.length; ++i ) {
+        const bgMesh = bgMeshes[ i ];
+        const bgType = bgMesh.__backgroundMeshInfo.bgtype;
+
+        if (validTypes[ bgType ]  ){
+          meshesToCheck.push( bgMesh );
+        }
+      }
+    } else {
+      // Get all meshes for parent to raycast against
+      meshesToCheck = item.parent.meshes;
+      // TODO: Get the closest mesh? Alternatively move the
+
+
+    }
+
+    return meshesToCheck;
+
+  },
+
+  /**
+   * Attempt to find the surface rotation. If it's not found then reset the rotation of the item.
+   * @param item
+   */
+  tryCheckFurnitureSurfaceRotation( item ){
+    const meshesToCheck = this.getMeshesForFurnitureSurfaceCheck( item );
+
+    const axises = [
+      [ 0, 1, 0 ],
+      [ 0, -1, 0 ],
+      [ 0, 0, 1 ],
+      [ 0, 0, -1 ],
+      [ 1, 0, 0 ],
+      [ -1, 0, 0 ]
+    ];
+
+    let rootMesh = item.rootMeshes[ 0 ];
+
+    const position = rootMesh.position;
+    let found = false;
+    // TODO: Evaluate performance if testing more than 6 axises can be done. (Can start combining axises)
+    // Try alll 6 axises
+    for ( let i = 0; i < axises.length; ++i ) {
+      let direction = BABYLON.Tmp.Vector3[ 8 ];
+      direction.copyFromFloats( axises[i][0], axises[i][1], axises[i][2] );
+      // TODO multiply with items rotation if parent exists
+      if ( item.parent ){
+        this.multiplyVector3( rootMesh.rotationQuaternion, direction, direction );
+      }
+
+      if ( this.checkFurnitureSurfaceRotation( item, position, direction, meshesToCheck ) ) {
+        found = true;
+        break;
+      }
+    }
+    // If the surface normal could not be found then reset the rotation
+    if (!found) {
+      for( let i = 0; i < item.rootMeshes.length; ++i ) {
+        // Reset rotation by setting identity quaternion
+        item.rootMeshes[ i ].rotationQuaternion.copyFromFloats( 0, 0, 0, 1 );
+      }
+    }
+
+    return found;
+  },
+
+  /**
+   * Checks with a picking ray if the ray collides with any of the meshes to check
+   * @param {EgowallItem} item
+   * @param {BABYLON.Vector3} position
+   * @param {BABYLON.Vector3} direction
+   * @param {BABYLON.Mesh[]} meshesToCheck
+   * @returns {boolean}
+   */
+  checkFurnitureSurfaceRotation( item, position, direction, meshesToCheck ){
+    let scene = this.attr("scene");
+
+    let tmpRay = BABYLON.Tmp.Ray[ 0 ];
+    tmpRay.direction.copyFrom( direction );
+    tmpRay.origin.copyFrom( position);
+    // Shoot a short ray
+    tmpRay.length = 50;
+
+    const pickingResult = scene.pickWithRay( tmpRay, ( mesh ) => {
+      // Check if mesh is meshesToCheck
+      for ( let i = 0; i < meshesToCheck.length; ++i ) {
+        if (mesh === meshesToCheck[i]){
+          return true;
+        }
+      }
+
+      return false;
+    });
+
+    if (pickingResult.hit){
+      const normal = pickingResult.getNormal( true );
+      const rotation = this.getSurfaceRotation( normal );
+
+      // Inverse the rotation
+      rotation.conjugateToRef( item.inverseSurfaceRotation );
+      item.surfaceNormal.copyFrom( normal );
+
+      return true;
+    }
+
+    return false;
+  },
+
+  /**
+   * Multiply quat quaternion with vector3
+   * @param {BABYLON.Quaternion} quat
+   * @param {BABYLON.Vector3} vec3
+   * @param {undefined|BABYLON.Vector3} ref Uses Tmp.Vector3[ 5 ] if undefined
+   * @returns {BABYLON.Vector3}
+   */
+  multiplyVector3 (quat, vec3, ref ) {
+    if (!ref){
+      ref = BABYLON.Tmp.Vector3[ 5 ];
+    }
+
+    var vx = vec3.x,
+      vy = vec3.y,
+      vz = vec3.z,
+      qx = quat.x,
+      qy = quat.y,
+      qz = quat.z,
+      qw = quat.w,
+      i = qw * vx + qy * vz - qz * vy,
+      j = qw * vy + qz * vx - qx * vz,
+      k = qw * vz + qx * vy - qy * vx,
+      l = -qx * vx - qy * vy - qz * vz;
+    ref.x = i * qw + l * -qx + j * -qz - k * -qy;
+    ref.y = j * qw + l * -qy + k * -qx - i * -qz;
+    ref.z = k * qw + l * -qz + i * -qy - j * -qx;
+    return ref;
+  }
 });
 
 export const controls = {
@@ -2117,6 +2491,12 @@ export const controls = {
         // don't execute camera click on ground
         $ev.controlPropagationStopped = true;
         this.selectedItem = this.attr("hoveredMesh").__itemRef;
+
+        // Note: Do this before unsetting parent! :)
+        // Check normal length is 0 then calculate it
+        if (this.selectedItem.surfaceNormal.lengthSquared() === 0 ){
+          this.tryCheckFurnitureSurfaceRotation( this.selectedItem );
+        }
 
         if (this.selectedItem.parent){
           this.removeChild( this.selectedItem )

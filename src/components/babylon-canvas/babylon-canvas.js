@@ -44,10 +44,12 @@ import Asset from '../../models/asset.js';
 
 /**
  * @typedef {{
+ * inverseSurfaceRotation: BABYLON.Quaternion,
  * parent:undefined|EgowallItem
  * position:BABYLON.Vector3,
  * rotation: BABYLON.Quaternion,
- * scale: BABYLON.Vector3
+ * scale: BABYLON.Vector3,
+ * surfaceNormal: BABYLON.Vector3
  * }} SelectedBackup
  */
 
@@ -2151,8 +2153,6 @@ export const ViewModel = Map.extend({
       // Check collisions
       // this.checkFurnitureCollisions();
       const collisions = this.checkFurnitureCollisions( furnitureItem );
-
-
       result.valid = collisions.length === 0;
     // The pickedType is not a valid type
     } else {
@@ -2254,6 +2254,9 @@ export const ViewModel = Map.extend({
           this.setItemParent( this.selectedItem, backupItem.parent );
         }
 
+        selectedItem.surfaceNormal.copyFrom( backupItem.surfaceNormal );
+        selectedItem.inverseSurfaceRotation.copyFrom( backupItem.inverseSurfaceRotation );
+
         let rootMeshes = this.selectedItem.rootMeshes;
         for ( let i = 0; i < rootMeshes.length; ++i ){
           let rootMesh = rootMeshes[ i ];
@@ -2320,11 +2323,15 @@ export const ViewModel = Map.extend({
     this.selectedItem = item;
 
     let rootMesh = item.rootMeshes[ 0 ];
-
+    /**
+     * @type SelectedBackup
+     */
     this.selectedItemBackup = {
+      inverseSurfaceRotation: item.inverseSurfaceRotation.clone(),
       position: rootMesh.position.clone(),
       rotation: rootMesh.rotationQuaternion.clone(),
-      scale: rootMesh.scaling.clone()
+      scale: rootMesh.scaling.clone(),
+      surfaceNormal: item.surfaceNormal.clone()
     };
 
     // Note: Do this before unsetting parent! :)
@@ -2335,10 +2342,8 @@ export const ViewModel = Map.extend({
 
     if ( item.parent){
       this.selectedItemBackup.parent = item.parent;
-      this.removeChild( item )
+      this.removeChild( item );
     }
-
-    // this.selectedItemBackup.rotation = rootMesh.rotationQuaternion.clone();
 
     // Set outline for all children
     this.setGroupOutline( item );
@@ -2347,9 +2352,7 @@ export const ViewModel = Map.extend({
     this.setBaseRotation( item );
 
 
-    /**
-     * @type SelectedBackup
-     */
+
 
   },
 
@@ -2517,8 +2520,6 @@ export const ViewModel = Map.extend({
       // Get all meshes for parent to raycast against
       meshesToCheck = item.parent.meshes;
       // TODO: Get the closest mesh? Alternatively move the
-
-
     }
 
     return meshesToCheck;

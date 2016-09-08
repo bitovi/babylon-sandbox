@@ -49,7 +49,7 @@ import Asset from '../../models/asset.js';
  */
 
 /*
-  Added BABYLON.Mesh properties:
+  Added properties to a BABYLON.Mesh:
   __backgroundMeshInfo: For background meshes information.
   __itemRef: For the EgowallItem reference
   __outlineMat: Stored outline material for on/after render and also if it gets outlined again
@@ -120,6 +120,12 @@ export const ViewModel = Map.extend({
   outlineOKColor: new BABYLON.Color3(0.0274509803921569, 0.6666666666666667, 0.9607843137254902),
   // The current color in use by outline shader
   outlineCurrentColor: null,
+  // Constant stored for the upVector
+  upVector3: BABYLON.Vector3.Up(),
+  // The mesh that mouse is mouseovered if not null.
+  hoveredMesh: null,
+  // The selected item if left clicked
+  selectedItem: null,
   // This creates and positions a free camera
   initCamera () {
     var scene = this.attr( "scene" );
@@ -131,9 +137,6 @@ export const ViewModel = Map.extend({
 
     return camera;
   },
-
-  hoveredMesh: null,
-
   getPickingFn ( mesh, customizeMode ) {
     var pickingFn = null;
     var isBGMesh = customizeMode && ( mesh.__backgroundMeshInfo ? true : false );
@@ -484,7 +487,7 @@ export const ViewModel = Map.extend({
     this.attr( "objDirLightShadowGen" ).getShadowMap().refreshRate = 0;
     this.updateShadowmap = false;
   },
-  // TODO: Update logic to do this every 2 frames instead of every frame, should lower RT usage by a bit while moving an object
+
   /**
    * Unfreeze the shadowmap so the shadows can be updated. Happens when something moves/rotates
    */
@@ -492,7 +495,9 @@ export const ViewModel = Map.extend({
     let shadowmap =  this.attr( "objDirLightShadowGen" ).getShadowMap();
 
     // Only do this once
-    if ( shadowmap.refreshRate === 0 ){
+    if ( shadowmap.refreshRate === 0 ) {
+      // Note: It has been tested using refreshRate = 2 for performance
+      // but the shadow lags behind when doing fast movements creating a trailing effect
       shadowmap.refreshRate = 1;
 
       // After the shadowmap as updated then freeze it again
@@ -601,9 +606,6 @@ export const ViewModel = Map.extend({
         if (mesh.__outlineMat) {
           mesh.__savedMaterial = mesh.material;
           mesh.material = mesh.__outlineMat;
-        } else {
-          // TODO: Remove after some more tests
-          console.log( "NO OUTLINE MATERIAL FOUND" );
         }
       }
     };
@@ -784,6 +786,8 @@ export const ViewModel = Map.extend({
         // rootMesh.rotation.x = Math.PI / -2;
         rootMesh.rotationQuaternion.multiplyInPlace( BABYLON.Quaternion.RotationYawPitchRoll( 0, Math.PI * 1.5, Math.PI ) );
       }
+
+      rootMesh.rotationQuaternion.normalize();
     }
   },
 
@@ -2001,18 +2005,12 @@ export const ViewModel = Map.extend({
     }
   },
 
+  /*************************************
+   * Item handling
+   ************************************/
 
-  /***************************************
-   Temporary functions
-   **************************************/
-
-  /*******
-   * SelectedItem stuff
-   *******/
-  selectedItem: null,
-  selectedItemPos: null,
   /**
-   * The picking when cursor is moved
+   * When the mouse has moved do picking on mousePos to move selectedItem and possibly rotate it.
    * @param {Vector2} mousePos
    */
   selectedItemMovePicking ( mousePos ) {
@@ -2049,7 +2047,7 @@ export const ViewModel = Map.extend({
   /**
    * Calculate the new position and rotation for a selectedItem based off the pickingResult
    * @param {EgowallItem} selectedItem
-   * @param {BABYLON.PickingInfo}pickingResult
+   * @param {BABYLON.PickingInfo} pickingResult
    */
   moveRotateSelectedItem ( selectedItem, pickingResult ) {
     /*
@@ -2090,10 +2088,6 @@ export const ViewModel = Map.extend({
 
       this.updatePositionRotation( selectedItem, tmpPositionDelta, surfaceRotation );
 
-      // setTimeout( function(){
-      //   console.log( selectedItem.rootMeshes[0].rotationQuaternion );
-      // }, 100);
-
     }
   },
   /**
@@ -2109,8 +2103,50 @@ export const ViewModel = Map.extend({
       this.activateGravity( item );
     }
   },
-  // Constant stored for the upVector
-  upVector3: BABYLON.Vector3.Up(),
+
+  /**
+   * Checks the ajax data for parentID and then sets up the proper relations if a parent is found.
+   */
+  setItemRelations () {
+    let items = this.attr( "items" );
+
+    for ( let i = 0; i < items.length; ++i ) {
+      let item = items[ i ];
+      const itemInfo = item.options.roomInfo || item.options;
+
+      // TODO: Create new loadMeshes function for terrain specifically
+      if ( !item.options.terrain ){
+        // Check if parentID is not 0
+        if ( itemInfo.parentID !== "0" ) {
+          // Find the parent with the Id
+          let parent = this.getFurnitureItemFromId( itemInfo.parentID );
+          if ( parent ){
+            this.setItemParent( item, parent );
+          }
+        }
+      }
+    }
+  },
+
+  /**
+   * Get a furniture from an id.
+   * It loops through all items checking if ufurnID == id
+   * @param {String} id
+   * @returns {EgowallItem}
+   */
+  getFurnitureItemFromId( id ){
+    let items = this.attr( "items" );
+    for (let i = 0; i < items.length; ++i ){
+      let item = items[ i ];
+      let options = item.options;
+      // Check that ufurnID exists and is equal to id
+      if ( options.ufurnID && options.ufurnID === id ) {
+        return item;
+      }
+    }
+
+    return null;
+  },
   /**
    * Sets the base rotation of an object before moving.
    * Removes the surfaceRotation when setting the rotation
@@ -2161,11 +2197,18 @@ export const ViewModel = Map.extend({
 
     return surfaceRotation;
   },
+
+  /************************************************
+   * Furniture surface checking when selected
+   ************************************************/
+
   /**
    * Get the meshes for a furniture that can be used by tryCheckFurnitureSurfaceRotation()
+   * If item.parent is undefined then get bgMeshes that fit the critera of furniture.options
+   * If item.parent is set then get the parent.meshes to check against
    * @param {EgowallItem} item
    */
-  getBgMeshesForFurniture( item ){
+  getMeshesForFurnitureSurfaceCheck( item ) {
     const itemInfo = item.options;
 
     let meshesToCheck = [];
@@ -2182,18 +2225,19 @@ export const ViewModel = Map.extend({
         const bgMesh = bgMeshes[ i ];
         const bgMeshInfo = bgMesh.__backgroundMeshInfo;
 
-        if ( allowFloor && bgMeshInfo.bgtype === BG_TYPES.FLOOR ){
+        if ( allowFloor && bgMeshInfo.bgtype === BG_TYPES.FLOOR ) {
           meshesToCheck.push( bgMesh );
-        } else if ( allowWall && bgMeshInfo.bgtype === BG_TYPES.WALL ){
+        } else if ( allowWall && bgMeshInfo.bgtype === BG_TYPES.WALL ) {
           meshesToCheck.push( bgMesh );
-        } else if ( allowCeiling && bgMeshInfo.bgtype === BG_TYPES.WALL ){
+        } else if ( allowCeiling && bgMeshInfo.bgtype === BG_TYPES.WALL ) {
           meshesToCheck.push( bgMesh );
         }
-
-        // TODO: Cull meshes that are too far away? Realistically only 3 bgMeshes if you're at a corner will be returned
       }
     } else {
       // Get all meshes for parent to raycast against
+      meshesToCheck = item.parent.meshes;
+      // TODO: Get the closest mesh? Alternatively move the
+
 
     }
 
@@ -2206,7 +2250,7 @@ export const ViewModel = Map.extend({
    * @param item
    */
   tryCheckFurnitureSurfaceRotation( item ){
-    const meshesToCheck = this.getBgMeshesForFurniture( item );
+    const meshesToCheck = this.getMeshesForFurnitureSurfaceCheck( item );
 
     const axises = [
       [ 0, 1, 0 ],
@@ -2217,31 +2261,34 @@ export const ViewModel = Map.extend({
       [ -1, 0, 0 ]
     ];
 
-    const position = item.rootMeshes[0].position;
+    let rootMesh = item.rootMeshes[ 0 ];
+
+    const position = rootMesh.position;
     let found = false;
     // TODO: Evaluate performance if testing more than 6 axises can be done. (Can start combining axises)
     // Try alll 6 axises
-    for (let i = 0; i < axises.length; ++i){
+    for ( let i = 0; i < axises.length; ++i ) {
       let direction = BABYLON.Tmp.Vector3[ 8 ];
       direction.copyFromFloats( axises[i][0], axises[i][1], axises[i][2] );
       // TODO multiply with items rotation if parent exists
       if ( item.parent ){
-        this.multiplyVector3( item.rootMeshes[ 0 ], direction, direction );
+        this.multiplyVector3( rootMesh.rotationQuaternion, direction, direction );
       }
 
-      if ( this.checkFurnitureSurfaceRotation( item, position, direction, meshesToCheck )) {
+      if ( this.checkFurnitureSurfaceRotation( item, position, direction, meshesToCheck ) ) {
         found = true;
         break;
       }
     }
     // If the surface normal could not be found then reset the rotation
     if (!found) {
-      console.log("resetting rotation");
       for( let i = 0; i < item.rootMeshes.length; ++i ) {
         // Reset rotation by setting identity quaternion
         item.rootMeshes[ i ].rotationQuaternion.copyFromFloats( 0, 0, 0, 1 );
       }
     }
+
+    return found;
   },
 
   /**
@@ -2263,7 +2310,7 @@ export const ViewModel = Map.extend({
 
     const pickingResult = scene.pickWithRay( tmpRay, ( mesh ) => {
       // Check if mesh is meshesToCheck
-      for (let i = 0; i < meshesToCheck.length; ++i){
+      for ( let i = 0; i < meshesToCheck.length; ++i ) {
         if (mesh === meshesToCheck[i]){
           return true;
         }
@@ -2313,50 +2360,6 @@ export const ViewModel = Map.extend({
     ref.y = j * qw + l * -qy + k * -qx - i * -qz;
     ref.z = k * qw + l * -qz + i * -qy - j * -qx;
     return ref;
-  },
-  /**
-   * Checks the ajax data for parentID and then sets up the proper relations if a parent is found.
-   */
-  setItemRelations () {
-    let items = this.attr( "items" );
-
-    for ( let i = 0; i < items.length; ++i ){
-      let item = items[ i ];
-      const itemInfo = item.options.roomInfo || item.options;
-
-      // TODO: Create new loadMeshes function for terrain specifically
-      if ( !item.options.terrain ){
-        // Check if parentID is not 0
-        if ( itemInfo.parentID !== "0" ) {
-          // Find the parent with the Id
-          let parent = this.getFurnitureItemFromId( itemInfo.parentID );
-          if ( parent ){
-            this.setItemParent( item, parent );
-          }
-        }
-      }
-
-    }
-  },
-
-  /**
-   * Get a furniture from an id.
-   * It loops through all items checking if ufurnID == id
-   * @param {String} id
-   * @returns {EgowallItem}
-   */
-  getFurnitureItemFromId(id ){
-    let items = this.attr( "items" );
-    for (let i = 0; i < items.length; ++i ){
-      let item = items[ i ];
-      let options = item.options;
-      // Check that ufurnID exists and is equal to id
-      if (options.ufurnID && options.ufurnID === id) {
-        return item;
-      }
-    }
-
-    return null;
   }
 });
 

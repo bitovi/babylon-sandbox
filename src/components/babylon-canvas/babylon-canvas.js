@@ -119,6 +119,8 @@ export const ViewModel = Map.extend({
           setTimeout( () => {
             this.freezeMaterials();
           }, 1);
+
+          this.initStickySurfaceMaterial();
         }
         return newVal;
       }
@@ -159,6 +161,10 @@ export const ViewModel = Map.extend({
    * @type null|SelectedBackup
    */
   selectedItemBackup: null,
+  // The stickySurface material used to ceate a blue gridded surface
+  stickySurfaceMaterial: null,
+  // What meshis currently bluegridded
+  stickyMesh: null,
   // This creates and positions a free camera
   initCamera () {
     var scene = this.attr( "scene" );
@@ -190,7 +196,7 @@ export const ViewModel = Map.extend({
   pickingEvent ( $ev, normalizedKey, heldInfo, deltaTime, controlsVM ) {
     // If mouse is not on the canvas then don't even bother picking
     if ($ev.target.nodeName.toLowerCase() === "canvas") {
-      if (this.selectedItem){
+      if ( this.selectedItem ){
         // TODO: Either us if statement or a function variable to differentiate between furniture & painting movement
         // Currently this is for furniture only as painting isn't added as a selectedItem
         this.selectedItemFurnitureMovePicking( controlsVM.curMousePos() );
@@ -294,10 +300,12 @@ export const ViewModel = Map.extend({
     let renderList = this.attr( "outlineRT" ).renderList;
 
     // Set the layerMask to 0x0FFFFFFF so the outlineCamera doesn't render them anymore
-    for (let i = 0; i < renderList.length; ++i){
-      renderList[i].layerMask = 0x0FFFFFFF;
+    for ( let i = 0; i < renderList.length; ++i ) {
+      let mesh = renderList[ i ];
+      mesh.layerMask = 0x0FFFFFFF;
+      // Delete the savedMaterial but keep the outline material
+      delete mesh.__savedMaterial;
     }
-
     // Clear the list but keep the array reference, no garbage collections here. We recycle!
     renderList.length = 0;
   },
@@ -684,6 +692,21 @@ export const ViewModel = Map.extend({
     };
   },
 
+  /**
+   * Initialize the blue gridded sticky surface material.
+   */
+  initStickySurfaceMaterial: function() {
+    let scene = this.attr("scene");
+    let material = new BABYLON.StandardMaterial( "stickysurface", scene );
+
+    material.disableLighting = true;
+    // TODO: When the grid texture is on CDN add use this instead.
+    // material.emissiveTexture = new BABYLON.Texture( "/src/static/3d/textures/grid.png", scene );
+    material.emissiveColor = new BABYLON.Color3.FromHexString("#4FAEE5");
+
+    this.stickySurfaceMaterial = material;
+  },
+
   roomInfo ( uroomID ) {
     var homeLoad = this.attr( "homeLoad" );
     var roomStatus = homeLoad.roomStatus;
@@ -754,8 +777,8 @@ export const ViewModel = Map.extend({
 
   /**
    * Get the rootMesh for a mesh. Recursively go through all parents until root parent.
-   * @param mesh
-   * @returns {*}
+   * @param {BABYLON.Mesh} mesh
+   * @returns {BABYLON.Mesh}
    */
   getRootMesh( mesh ){
     let parent = mesh.parent || mesh;
@@ -768,8 +791,8 @@ export const ViewModel = Map.extend({
   /**
    * Get the root item from a group of items.
    * So if you do getRootItem( item ) and it has a parent you'll get the parent item instead of input item.
-   * @param item
-   * @returns EgowallItem
+   * @param {EgowallItem} item
+   * @returns {EgowallItem}
    */
   getRootItem (item ){
     const rootMesh = this.getRootMesh( item.rootMeshes[ 0 ] );
@@ -1208,7 +1231,7 @@ export const ViewModel = Map.extend({
   /**
    * Creates the __backgroundMeshInfo
    * Sets the material of the background mesh
-   * @param mesh
+   * @param {BABYLON.Mesh} mesh
    * @param roomInfo
    */
   bgMeshSetMaterial ( mesh, roomInfo ) {
@@ -1315,8 +1338,8 @@ export const ViewModel = Map.extend({
 
   /**
    *
-   * @param mesh
-   * @returns {*}
+   * @param {BABYLON.Mesh} mesh
+   * @returns {BG_TYPES}
    */
   bgMeshGetType ( mesh ) {
     if ( mesh.__backgroundMeshInfo ) {
@@ -2045,7 +2068,7 @@ export const ViewModel = Map.extend({
 
   /**
    * Remove the selectedFurnitureMeshes & meshesToCheck for an item id
-   * @param item
+   * @param {EgowallItem} item
    */
   removeCollisionItemCache ( item ) {
     const id = item._cid;
@@ -2091,6 +2114,8 @@ export const ViewModel = Map.extend({
       return false;
     });
 
+
+
     // Technically this should always happen
     if ( pickingResult.hit ){
       this.moveRotateSelectedItem( selectedItem, pickingResult );
@@ -2099,6 +2124,58 @@ export const ViewModel = Map.extend({
       this.setOutlineColor( placementResult.valid, placementResult.error );
 
       this.selectedItemValidPosition = placementResult.valid;
+    }
+
+    this.tryUpdateStickySurface( pickingResult );
+  },
+
+  /**
+   *
+   * @param {undefined|BABYLON.PickingInfo} pickingResult
+   */
+  tryUpdateStickySurface ( pickingResult ) {
+
+    if ( pickingResult && pickingResult.hit ) {
+      let pickedMesh = pickingResult.pickedMesh;
+
+      let pickedType = this.bgMeshGetType( pickedMesh );
+
+      // Check if the stickyMesh is different
+      if (this.stickyMesh !== pickedMesh) {
+        // If the pickedMesh is a notype mesh then clear it
+        if ( pickedType !== BG_TYPES.FURNITURE ) {
+          this.clearStickySurface();
+
+          // Set stickyMesh as pickedMesh
+          this.stickyMesh = pickedMesh;
+        }
+      }
+
+      if ( pickedType !== BG_TYPES.NOTYPE && pickedType !== BG_TYPES.FURNITURE ){
+        // Check if the material isn't stickySurface to change it
+        if (pickedMesh.material !== this.stickySurfaceMaterial){
+          pickedMesh.__savedMaterial = pickedMesh.material;
+          pickedMesh.material = this.stickySurfaceMaterial;
+        }
+      }
+
+    } else {
+      this.clearStickySurface();
+    }
+
+  },
+
+  /**
+   * Set the material back  to what it was
+   */
+  clearStickySurface () {
+    if ( this.stickyMesh !== null){
+      // Set the old material back
+      this.stickyMesh.material = this.stickyMesh.__savedMaterial;
+      // Delete it, no need to have extra reference
+      delete this.stickyMesh.__savedMaterial;
+
+      this.stickyMesh = null;
     }
   },
 
@@ -2382,6 +2459,8 @@ export const ViewModel = Map.extend({
     this.selectedItemValidPosition = false;
 
     this.unsetHoveredMesh();
+    // Clear the sticky surface when you're unselecting too
+    this.clearStickySurface();
     // Reset the color if it was red
     this.outlineCurrentColor = this.outlineOKColor;
   },
@@ -2432,7 +2511,7 @@ export const ViewModel = Map.extend({
   /**
    * Sets the base rotation of an object before moving.
    * Removes the surfaceRotation when setting the rotation
-   * @param item
+   * @param {EgowallItem} item
    */
   setBaseRotation ( item ){
     const rotation = item.rootMeshes[ 0 ].rotationQuaternion;
@@ -2521,7 +2600,7 @@ export const ViewModel = Map.extend({
 
   /**
    * Attempt to find the surface rotation. If it's not found then reset the rotation of the item.
-   * @param item
+   * @param {EgowallItem} item
    */
   tryCheckFurnitureSurfaceRotation( item ){
     const meshesToCheck = this.getMeshesForFurnitureSurfaceCheck( item );

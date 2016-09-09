@@ -1820,12 +1820,6 @@ export const ViewModel = Map.extend({
    */
   activateGravity ( item ) {
     this.gravityItems.push ( item );
-    // TODO: Temporary code to update the position slightly so gravity can be observed.
-    // Will later for rotations add a fixed position so it doesn't collide
-    // For furniture movement it slightly puts it above ground when moving so it doesn't collide with rugs.
-    let tmpVector = BABYLON.Tmp.Vector3[ 8 ];
-    BABYLON.Vector3.FromFloatsToRef( 0, 0.5, 0, tmpVector );
-    this.updatePositions( item, tmpVector);
   },
 
   // TODO: Evaluate if deltaY should be a vector incase of objects moving in more directions than just 1.
@@ -2052,8 +2046,14 @@ export const ViewModel = Map.extend({
       }
     }
 
-    // TODO: Change so it tries to remove selectedFurnitureMeshes since that is useful for outline functionality aswell.
-    // Remove the cached meshes & collision meshes arrays when removing gravity
+    this.removeCollisionItemCache( item );
+  },
+
+  /**
+   * Remove the selectedFurnitureMeshes & meshesToCheck for an item id
+   * @param item
+   */
+  removeCollisionItemCache ( item ) {
     const id = item._cid;
     if (this.selectedFurnitureMeshes[ id ]){
       delete this.selectedFurnitureMeshes[ id ];
@@ -2168,7 +2168,6 @@ export const ViewModel = Map.extend({
    * @returns {Boolean[]}
    */
   getValidBgTypes ( options ) {
-
     let result = [];
 
     if ( anyTruthy(options.floorArg ) ) {
@@ -2210,7 +2209,8 @@ export const ViewModel = Map.extend({
     pickingResult.pickedPoint.subtractToRef(rootMesh.position, tmpPositionDelta );
 
     let tmpNormal = BABYLON.Tmp.Vector3[6].copyFrom( normal );
-    // Translate a tiny portion of normal to not collide with ground
+    // TODO: Evaluate the height scale needed to avoid rugs
+    // Translate a tiny portion of surface normal to not collide with rugs
     tmpNormal.scaleInPlace( 0.02 );
     tmpPositionDelta.addInPlace( tmpNormal );
 
@@ -2247,6 +2247,10 @@ export const ViewModel = Map.extend({
     if ( !this.attr( "customizeMode" ) ) {
       let backupItem = this.selectedItemBackup;
       let selectedItem = this.selectedItem;
+
+      // Remove the collision item cache if resetting
+      this.removeCollisionItemCache( selectedItem );
+
       if ( backupItem && selectedItem ) {
 
         // Add back as parent if it was detached
@@ -2270,7 +2274,6 @@ export const ViewModel = Map.extend({
 
           this.updateMeshMatrices( rootMesh );
         }
-
 
         // Finally unset the selectedItem
         this.unsetSelectedItem();
@@ -2350,10 +2353,6 @@ export const ViewModel = Map.extend({
 
     // Clone the reference because otherwise it'd get updated when changes are done to the selectedItem
     this.setBaseRotation( item );
-
-
-
-
   },
 
   /**

@@ -191,15 +191,9 @@ export const ViewModel = Map.extend({
     // If mouse is not on the canvas then don't even bother picking
     if ($ev.target.nodeName.toLowerCase() === "canvas") {
       if (this.selectedItem){
-
-        // Check it's not a painting
-        if ( !this.selectedItem.options.egoID ) {
-          this.selectedItemFurnitureMovePicking( controlsVM.curMousePos() );
-        // If egoID is true then it's a painting
-        } else {
-          // Move painting
-          // this.selectedItemPaintingMovePicking( controlsVM.curMousePos() );
-        }
+        // TODO: Either us if statement or a function variable to differentiate between furniture & painting movement
+        // Currently this is for furniture only as painting isn't added as a selectedItem
+        this.selectedItemFurnitureMovePicking( controlsVM.curMousePos() );
       // If selected isn't set
       } else {
         let curMousePos = controlsVM.curMousePos();

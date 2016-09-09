@@ -120,7 +120,7 @@ export const ViewModel = Map.extend({
             this.freezeMaterials();
           }, 1);
 
-          this.initStickySurfaceMaterial();
+          this.initPlacementGridMaterial();
         }
         return newVal;
       }
@@ -161,10 +161,10 @@ export const ViewModel = Map.extend({
    * @type null|SelectedBackup
    */
   selectedItemBackup: null,
-  // The stickySurface material used to ceate a blue gridded surface
-  stickySurfaceMaterial: null,
+  // The placement grid material used to ceate the blue gridded surface
+  placementGridMaterial: null,
   // What meshis currently bluegridded
-  stickyMesh: null,
+  placementGridMesh: null,
   // This creates and positions a free camera
   initCamera () {
     var scene = this.attr( "scene" );
@@ -693,18 +693,18 @@ export const ViewModel = Map.extend({
   },
 
   /**
-   * Initialize the blue gridded sticky surface material.
+   * Initialize the blue gridded material.
    */
-  initStickySurfaceMaterial: function() {
+  initPlacementGridMaterial: function() {
     let scene = this.attr("scene");
-    let material = new BABYLON.StandardMaterial( "stickysurface", scene );
+    let material = new BABYLON.StandardMaterial( "placementgrid", scene );
 
     material.disableLighting = true;
     // TODO: When the grid texture is on CDN add use this instead.
-    // material.emissiveTexture = new BABYLON.Texture( "/src/static/3d/textures/grid.png", scene );
-    material.emissiveColor = new BABYLON.Color3.FromHexString("#4FAEE5");
+    material.emissiveTexture = new BABYLON.Texture( "https://cdn.testing.egowall.com//CDN_new/Game/PlacementGrid.png", scene );
+    // material.emissiveColor = new BABYLON.Color3.FromHexString("#4FAEE5");
 
-    this.stickySurfaceMaterial = material;
+    this.placementGridMaterial = material;
   },
 
   roomInfo ( uroomID ) {
@@ -2126,41 +2126,41 @@ export const ViewModel = Map.extend({
       this.selectedItemValidPosition = placementResult.valid;
     }
 
-    this.tryUpdateStickySurface( pickingResult );
+    this.tryUpdatePlacementGrid( pickingResult );
   },
 
   /**
    *
    * @param {undefined|BABYLON.PickingInfo} pickingResult
    */
-  tryUpdateStickySurface ( pickingResult ) {
+  tryUpdatePlacementGrid ( pickingResult ) {
 
     if ( pickingResult && pickingResult.hit ) {
       let pickedMesh = pickingResult.pickedMesh;
 
       let pickedType = this.bgMeshGetType( pickedMesh );
 
-      // Check if the stickyMesh is different
-      if (this.stickyMesh !== pickedMesh) {
+      // Check if the placement mesh is different
+      if ( this.placementGridMesh !== pickedMesh ) {
         // If the pickedMesh is a notype mesh then clear it
         if ( pickedType !== BG_TYPES.FURNITURE ) {
-          this.clearStickySurface();
+          this.clearPlacementGrid();
 
-          // Set stickyMesh as pickedMesh
-          this.stickyMesh = pickedMesh;
+          // Set placementGridMesh as pickedMesh
+          this.placementGridMesh = pickedMesh;
         }
       }
 
       if ( pickedType !== BG_TYPES.NOTYPE && pickedType !== BG_TYPES.FURNITURE ){
-        // Check if the material isn't stickySurface to change it
-        if (pickedMesh.material !== this.stickySurfaceMaterial){
+        // Check if the material isn't placementGrid material to change it
+        if ( pickedMesh.material !== this.placementGridMaterial ) {
           pickedMesh.__savedMaterial = pickedMesh.material;
-          pickedMesh.material = this.stickySurfaceMaterial;
+          pickedMesh.material = this.placementGridMaterial;
         }
       }
 
     } else {
-      this.clearStickySurface();
+      this.clearPlacementGrid();
     }
 
   },
@@ -2168,14 +2168,14 @@ export const ViewModel = Map.extend({
   /**
    * Set the material back  to what it was
    */
-  clearStickySurface () {
-    if ( this.stickyMesh !== null){
+  clearPlacementGrid () {
+    if ( this.placementGridMesh !== null){
       // Set the old material back
-      this.stickyMesh.material = this.stickyMesh.__savedMaterial;
+      this.placementGridMesh.material = this.placementGridMesh.__savedMaterial;
       // Delete it, no need to have extra reference
-      delete this.stickyMesh.__savedMaterial;
+      delete this.placementGridMesh.__savedMaterial;
 
-      this.stickyMesh = null;
+      this.placementGridMesh = null;
     }
   },
 
@@ -2459,8 +2459,8 @@ export const ViewModel = Map.extend({
     this.selectedItemValidPosition = false;
 
     this.unsetHoveredMesh();
-    // Clear the sticky surface when you're unselecting too
-    this.clearStickySurface();
+    // Clear the placement grid surface when you're unselecting too
+    this.clearPlacementGrid();
     // Reset the color if it was red
     this.outlineCurrentColor = this.outlineOKColor;
   },

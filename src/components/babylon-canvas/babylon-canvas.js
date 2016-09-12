@@ -20,15 +20,20 @@ import Asset from '../../models/asset.js';
  * @typedef {{
  * _cid: undefined|String,
  * baseRotation:BABYLON.Quaternion,
+ * boundsMaximum: BABYLON.Vector3,
+ * boundsMinimum: BABYLON.Vector3,
+ * centerOffset: BABYLON.Vector3,
  * children: EgowallItem[],
- * surfaceNormal: BABYLON.Vector3,
  * inverseSurfaceRotation: BABYLON.Quaternion,
  * meshes: BABYLON.Mesh[],
  * name: string,
  * options: *,
  * parent: EgowallItem|null,
  * parentInitialRotation: undefined|BABYLON.Quaternion,
- * rootMeshes: BABYLON.Mesh[]
+ * rootMeshes: BABYLON.Mesh[],
+ * size: BABYLON.Vector3,
+ * surfaceNormal: BABYLON.Vector3,
+ * surfaceOffset: BABYLON.Vector3
  * }} EgowallItem
  */
 /**
@@ -49,7 +54,8 @@ import Asset from '../../models/asset.js';
  * position:BABYLON.Vector3,
  * rotation: BABYLON.Quaternion,
  * scale: BABYLON.Vector3,
- * surfaceNormal: BABYLON.Vector3
+ * surfaceNormal: BABYLON.Vector3,
+ * surfaceOffset: BABYLON.Vector3
  * }} SelectedBackup
  */
 
@@ -620,6 +626,7 @@ export const ViewModel = Map.extend({
     let outlineCamera = new BABYLON.TargetCamera( "outlineCamera", new BABYLON.Vector3( 0, 0, 0), scene );
     // Need to set the Field of View the same
     outlineCamera.fov = camera.fov;
+    outlineCamera.minZ = camera.minZ;
 
     outlineCamera.position = camera.position;
     outlineCamera.rotation = camera.rotation;
@@ -876,6 +883,13 @@ export const ViewModel = Map.extend({
       // The base rotation of the item when moving it along surfaces.
       // Base rotation = rotation - current surfaceRotation
       baseRotation: BABYLON.Quaternion.Identity(),
+      // The maximum values for the bounds ( bounding box )
+      boundsMaximum: new BABYLON.Vector3( -Number.MAX_VALUE, -Number.MAX_VALUE, -Number.MAX_VALUE ),
+      // The minimum values for the bounds
+      boundsMinimum: new BABYLON.Vector3( Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE),
+      // The center offset of item + children.
+      // Is position + centerOffset = center
+      centerOffset: BABYLON.Vector3.Zero(),
       // Children items, what items should have same changes done as this item
       children: [],
       name: babylonName,
@@ -883,13 +897,19 @@ export const ViewModel = Map.extend({
       meshes: [],
       // RootMeshes to easily update all positions when moving an item
       rootMeshes: [],
-      // The surface normal of the floor / furniture / something else that this item is attached to
-      surfaceNormal: BABYLON.Vector3.Zero(),
+
       // The surface rotation of the item. The inverse is used to remove its rotation before applying the new rotation.
       // Is the inverse but when creating we can use identity still since identity has no impact or the inverse of an identity
       inverseSurfaceRotation: BABYLON.Quaternion.Identity(),
       // The parent item of this item.
-      parent:null
+      parent:null,
+      // The size of the item + children
+      // centerOffset.x + size.x * 0.5 = maximum x
+      size: BABYLON.Vector3.Zero(),
+      // The surface normal of the floor / furniture / something else that this item is attached to
+      surfaceNormal: BABYLON.Vector3.Zero(),
+      // The surface offset when moving the item across surfaces
+      surfaceOffset: BABYLON.Vector3.Zero()
     };
 
     // rootMeshes hashmap to check if already added
@@ -900,6 +920,9 @@ export const ViewModel = Map.extend({
     this.attr("items").push( item );
     // Update the item reference since canjs created a new object?
     item = this.attr("items")[ this.attr("items").length - 1 ];
+
+    // let minX = 0, minY = 0, minZ = 0;
+    // let maxX = 0, maxY = 0, maxZ = 0;
 
     for ( let i = 0; i < meshes.length; ++i ) {
       let mesh = meshes[ i ];
@@ -934,6 +957,8 @@ export const ViewModel = Map.extend({
           rootMeshes[ parent.id ] = true;
           item.rootMeshes.push( parent );
         }
+        const boundingBox = mesh.getBoundingInfo().boundingBox;
+        this.compareMinMax( item.boundsMinimum, item.boundsMaximum, boundingBox.minimumWorld, boundingBox.maximumWorld );
         // Turn off collision & receiveShadows for terrain
       } else {
         mesh.checkCollisions = false;
@@ -945,13 +970,19 @@ export const ViewModel = Map.extend({
       if ( parseInt( itemInfo.furnPhysics, 10 ) ) {
         //vm.testSetPhysicsImpostor( mesh );
       }
-    }
+    } // End for meshes.length
 
     // Check if rootMeshes.length > 0 which it is unless it's terrain
-    if ( item.rootMeshes.length > 0 ){
+    if ( item.rootMeshes.length > 0 ) {
       // For paintings get itemInfo.roomInfo
       // For furniture just itemInfo is fine
       const info = itemInfo.egoID ? itemInfo.roomInfo : itemInfo;
+
+      if (babylonName == "Cont_SiTbl_Plstc_Red_001_LOD0.babylon"){
+        // debugger;
+      }
+
+      this.itemUpdateCenterOffset( item );
       // Set the position for all rootMeshes and rotation
       this.setMeshLocationFromAjaxData( item.rootMeshes, info, !!itemInfo.egoID );
     }
@@ -966,6 +997,92 @@ export const ViewModel = Map.extend({
         mesh.__itemRef = item;
       }
       mesh.freezeWorldMatrix();
+    }
+  },
+  /**
+   * For a mesh it checks the bounding box and tries to set the bounds
+   * @param {BABYLON.Vector3} minimum
+   * @param {BABYLON.Vector3} maximum
+   * @param {BABYLON.Vector3} compareMinimum
+   * @param {BABYLON.Vector3} compareMaximum
+   */
+  compareMinMax( minimum, maximum, compareMinimum, compareMaximum ) {
+
+    if ( minimum.x > compareMinimum.x ) {
+      minimum.x = compareMinimum.x;
+    }
+    if ( minimum.y > compareMinimum.y ) {
+      minimum.y = compareMinimum.y;
+    }
+    if ( minimum.z > compareMinimum.z ) {
+      minimum.z = compareMinimum.z;
+    }
+
+    if ( maximum.x < compareMaximum.x ) {
+      maximum.x = compareMaximum.x;
+    }
+    if ( maximum.y < compareMaximum.y ) {
+      maximum.y = compareMaximum.y;
+    }
+    if ( maximum.z < compareMaximum.z ) {
+      maximum.z = compareMaximum.z;
+    }
+  },
+
+  /**
+   * Update what the center offset is to center an item's meshes
+   * This is called onload and when setting a new parent / removing as child to re-calculate the center offset
+   * @param {EgowallItem} item
+   */
+  itemUpdateCenterOffset( item ) {
+    // get the minimum & maximum
+    let tmpMinimum = BABYLON.Tmp.Vector3[ 8 ].copyFrom( item.boundsMinimum );
+    let tmpMaximum = BABYLON.Tmp.Vector3[ 7 ].copyFrom( item.boundsMaximum );
+
+    // TODO: Loop over item's children and compare against their bounds min & max
+    for ( let i = 0; i < item.children.length; ++i ) {
+      // Do recursive stuff
+      this.itemCompareChildBounds( item.children[ i ], tmpMinimum, tmpMaximum );
+    }
+
+    item.size.x = (tmpMaximum.x - tmpMinimum.x);
+    item.size.y = (tmpMaximum.y - tmpMinimum.y);
+    item.size.z = (tmpMaximum.z - tmpMinimum.z);
+
+    // Get the center pos of the bounds
+    const centerX = item.size.x * 0.5 + tmpMinimum.x;
+    const centerY = item.size.y * 0.5 + tmpMinimum.y;
+    const centerZ = item.size.z * 0.5 + tmpMinimum.z;
+
+    // Since position (pivot point) is always 0, 0, 0 this is the offset to place an object in the center when setting position
+    // If center is at 0, 1, 0 then we need to remove 0, -1 , 0  to put pivot point at center
+    // Otherwise if we use positive offset we push the object up in the world
+    item.centerOffset.copyFromFloats( -centerX, -centerY, -centerZ );
+  },
+
+  /**
+   * Comapres the bounds to input minimum & maximum
+   * Then does the same for all children
+   * @param {EgowallItem} item
+   * @param {BABYLON.Vector3} minimum
+   * @param {BABYLON.Vector3} maximum
+   */
+  itemCompareChildBounds ( item, minimum, maximum ) {
+    let tmpMinimum = BABYLON.Tmp.Vector3[ 6 ].copyFrom(item.boundsMinimum);
+    let tmpMaximum = BABYLON.Tmp.Vector3[ 5 ].copyFrom(item.boundsMaximum);
+
+    const rootMesh = item.rootMeshes[ 0 ];
+    let tmpPosition = BABYLON.Tmp.Vector3[ 4 ].copyFrom( rootMesh.position );
+
+    this.multiplyVector3( rootMesh.rotationQuaternion, tmpPosition, tmpPosition );
+
+    // Compare bounds
+    this.compareMinMax( minimum, maximum, tmpMinimum, tmpMaximum );
+
+    // Compare children bounds
+    for ( let i = 0; i < item.children.length; ++i ) {
+      // Do recursive stuff
+      this.itemCompareChildBounds( item.children[ i ], minimum, maximum );
     }
   },
 
@@ -1675,7 +1792,7 @@ export const ViewModel = Map.extend({
    * @param {EgowallItem} item
    * @param {BABYLON.Vector3} positionDelta
    */
-  updatePositions ( item, positionDelta ) {
+  updatePositionsDelta ( item, positionDelta ) {
     for (let i = 0; i < item.rootMeshes.length; ++i ){
       let rootMesh = item.rootMeshes[ i ];
 
@@ -1685,22 +1802,63 @@ export const ViewModel = Map.extend({
     }
   },
 
+  updatePositions( item, position, skipMatrices ){
+    for (let i = 0; i < item.rootMeshes.length; ++i ){
+      let rootMesh = item.rootMeshes[ i ];
+
+      rootMesh.position.copyFrom( position );
+
+      if ( !skipMatrices ) {
+        this.updateMeshMatrices( rootMesh );
+      }
+    }
+  },
+
+
   /**
    * Update position and rotation of an item
    * @param {EgowallItem} item The item to do changes to, changes will affect children automatically
    * @param {BABYLON.Vector3} positionDelta How much object has translated
    * @param {BABYLON.Quaternion} rotation The delta rotation, could for example be the rotation of a wall.
    */
-  updatePositionRotation ( item, positionDelta, rotation ) {
+  updatePositionRotationDelta ( item, positionDelta, rotation, skipMatrices ) {
     for (let i = 0; i < item.rootMeshes.length; ++i ){
       let rootMesh = item.rootMeshes[ i ];
 
+      // rootMesh.position.addInPlace( positionDelta );
       rootMesh.position.addInPlace( positionDelta );
+
+      // Use the baseRotation and
+      rotation.multiplyToRef( item.baseRotation, rootMesh.rotationQuaternion );
+      if ( !skipMatrices ) {
+        this.updateMeshMatrices( rootMesh );
+      }
+    }
+  },
+
+  updatePositionRotation ( item, position, rotation ) {
+    for (let i = 0; i < item.rootMeshes.length; ++i ){
+      let rootMesh = item.rootMeshes[ i ];
+
+      // rootMesh.position.addInPlace( positionDelta );
+      rootMesh.position.copyFrom( position );
 
       // Use the baseRotation and
       rotation.multiplyToRef( item.baseRotation, rootMesh.rotationQuaternion );
 
       this.updateMeshMatrices( rootMesh );
+    }
+  },
+
+  updateRotation ( item, rotation, skipMatrices ) {
+    for (let i = 0; i < item.rootMeshes.length; ++i ){
+      let rootMesh = item.rootMeshes[ i ];
+
+      // Use the baseRotation and
+      rotation.multiplyToRef( item.baseRotation, rootMesh.rotationQuaternion );
+      if ( !skipMatrices ) {
+        this.updateMeshMatrices( rootMesh );
+      }
     }
   },
 
@@ -1786,6 +1944,9 @@ export const ViewModel = Map.extend({
       // My guess is the poseMatrix changes the local space
       rootMesh.setAbsolutePosition( tmpVector );
     }
+
+    // TODO: Update the bounds & center offset
+    this.itemUpdateCenterOffset( parent );
   },
 
   /**
@@ -1846,9 +2007,10 @@ export const ViewModel = Map.extend({
    * If it's not colliding it tries to move closer towards collision
    * @param {EgowallItem} item
    * @param {CollisionResult[]} collisions
-   * @param {float} deltaY How much the gravity moved an object since last frame
+   * @param {BABYLON.Vector3} deltaPos How much the gravity moved an object since last frame
+   * @param {number} steps How many steps to check. The more the closer to 0. Default is 6 that gives 98.4375% accuracy
    */
-  adjustCollisionPos ( item, collisions, deltaY ) {
+  adjustCollisionPos ( item, collisions, deltaPos, steps = 6 ) {
 
     // -1 = against gravity
     let direction = -1;
@@ -1856,32 +2018,38 @@ export const ViewModel = Map.extend({
     let tempVec = BABYLON.Tmp.Vector3[ 7 ];
     // Need to set x & z to 0 since it's a tmp variable
     tempVec.x = 0;
+    tempVec.y = 0;
     tempVec.z = 0;
     let isColliding = true;
     let multiplierValue = 0;
 
-    for ( let i = 1; i < 6; ++i ) {
+    let alwaysColliding = true;
+
+    for ( let i = 1; i < steps; ++i ) {
       // Half the distance until finished!
-      // 0.5, 0.75, 0.875, 0.9375, 0.96875
+      // 0.5, 0.75, 0.875, 0.9375, 0.96875, 0.984375
       let multiplier = direction * ( 1 / Math.pow( 2, i) );
 
       multiplierValue += multiplier;
 
-      tempVec.y = deltaY * multiplier;
+      tempVec.x = deltaPos.x * multiplier;
+      tempVec.y = deltaPos.y * multiplier;
+      tempVec.z = deltaPos.z * multiplier;
 
-      this.updatePositions( item, tempVec );
+      this.updatePositionsDelta( item, tempVec );
 
       isColliding = false;
 
       // Check all collisions if they still collide or not
       for ( let j = 0; j < collisions.length; ++j ){
         let collision = collisions[ j ];
-        if ( collision.furniture.intersectsMesh( collision.hit )){
+        if ( collision.furniture.intersectsMesh( collision.hit, true )){
           isColliding = true;
         }
       }
       // If it's not colliding then try and get closer towards collision
       if ( !isColliding ){
+        alwaysColliding = false;
         // If no collision and moving against gravity start moving towards gravity
         if ( direction == -1 ){
           direction = -direction;
@@ -1894,6 +2062,17 @@ export const ViewModel = Map.extend({
         }
       }
     }
+
+    // If it always collided
+    if (alwaysColliding) {
+      const remaining = 1 - multiplierValue;
+
+      tempVec.x = deltaPos.x * remaining;
+      tempVec.y = deltaPos.y * remaining;
+      tempVec.z = deltaPos.z * remaining;
+
+      this.updatePositionsDelta( item, tempVec );
+    }
   },
 
   /**
@@ -1903,14 +2082,14 @@ export const ViewModel = Map.extend({
    */
   applyGravity ( item, gravityDistance ) {
     // Start by adding the gravity distance
-    this.updatePositions( item, gravityDistance );
+    this.updatePositionsDelta( item, gravityDistance );
 
     // Check collision and get result
     let collisions = this.checkFurnitureCollisions( item );
     // If colliding try and figure out where!
     if ( collisions.length > 0 ){
       // Adjust the position by moving object ~6 times to get as near as possible
-      this.adjustCollisionPos( item, collisions, gravityDistance.y );
+      this.adjustCollisionPos( item, collisions, gravityDistance );
       // If the collisions is an EgowallItem then add item as child to which had highest count or first occurence if same count
       const parent = this.getParentFromCollisions( collisions );
 
@@ -1937,7 +2116,7 @@ export const ViewModel = Map.extend({
     // Lazy load the array and store until a new selection happens
     if (!this.selectedFurnitureMeshes[ id ]  ){
       // calculate the meshes
-      this.selectedFurnitureMeshes[ id ] = this.getChildMeshes( item );
+      this.selectedFurnitureMeshes[ id ] = this.getCollisionMeshesForItem( item );
     }
 
     let selectedFurnitureMeshes = this.selectedFurnitureMeshes[ id ];
@@ -1948,18 +2127,47 @@ export const ViewModel = Map.extend({
     }
 
     let collidableMeshes = this.meshesToCheckFurniture[ id ];
+
+    return this.checkMeshCollisions( selectedFurnitureMeshes, collidableMeshes );
+
     // The collisions result,  if empty no collisions occured
+    // let collisions = [];
+    // // Go over all collidables
+    // for ( let i = 0; i < collidableMeshes.length; ++i ){
+    //   let collidableMesh = collidableMeshes[ i ];
+    //
+    //   for ( let j = 0; j < selectedFurnitureMeshes.length; ++j ){
+    //     let furnitureMesh = selectedFurnitureMeshes[ j ];
+    //
+    //     if (furnitureMesh.intersectsMesh( collidableMesh, true )){
+    //       // Add the collision result to collisions array if colliding
+    //       collisions.push( { hit:collidableMesh, furniture: furnitureMesh } );
+    //     }
+    //   }
+    // }
+
+    // return collisions;
+  },
+
+  /**
+   *
+   * @param {BABYLON.Mesh[]} meshes
+   * @param {BABYLON.Mesh[]} collidableMeshes
+   * @returns {CollisionResult[]}
+   */
+  checkMeshCollisions( meshes, collidableMeshes ) {
     let collisions = [];
     // Go over all collidables
     for ( let i = 0; i < collidableMeshes.length; ++i ){
-      let collidableMesh = collidableMeshes[ i ];
+      const collidableMesh = collidableMeshes[ i ];
 
-      for ( let j = 0; j < selectedFurnitureMeshes.length; ++j ){
-        let furnitureMesh = selectedFurnitureMeshes[ j ];
+      // Check the collidable against all meshes and see if they intersect
+      for ( let j = 0; j < meshes.length; ++j ){
+        const mesh = meshes[ j ];
 
-        if (furnitureMesh.intersectsMesh( collidableMesh, true )){
+        if (mesh.intersectsMesh( collidableMesh, true )){
           // Add the collision result to collisions array if colliding
-          collisions.push( { hit:collidableMesh, furniture: furnitureMesh } );
+          collisions.push( { hit:collidableMesh, furniture: mesh } );
         }
       }
     }
@@ -2267,6 +2475,9 @@ export const ViewModel = Map.extend({
      BABYLON.Tmp.Vector indices:
      8: deltaPosition
      7: Axis for rotation
+     6: tmpCenterOffset: The centerOffset rotated by the rotationQuaternion to get proper xys coords
+     5: maxOffset: How much the max distance offset would be if colliding all the way to the end
+     4: tmpNormal: small offset to not collide with rugs e.t.c.
 
      Babylon.Tmp.Quaternion indices:
      0: Quaternion for function getSurfaceRotation
@@ -2277,13 +2488,8 @@ export const ViewModel = Map.extend({
     // Need to get world normal or the wall rotation calculation is wrong.
     const normal = pickingResult.getNormal(true);
     let tmpPositionDelta = BABYLON.Tmp.Vector3[ 8 ];
-    pickingResult.pickedPoint.subtractToRef(rootMesh.position, tmpPositionDelta );
-
-    let tmpNormal = BABYLON.Tmp.Vector3[6].copyFrom( normal );
-    // TODO: Evaluate the height scale needed to avoid rugs
-    // Translate a tiny portion of surface normal to not collide with rugs
-    tmpNormal.scaleInPlace( 0.02 );
-    tmpPositionDelta.addInPlace( tmpNormal );
+    // pickingResult.pickedPoint.subtractToRef( rootMesh.position, tmpPositionDelta );
+    tmpPositionDelta.copyFrom( pickingResult.pickedPoint );
 
     let doRotation = true;
     const lastSurfaceNormal = selectedItem.surfaceNormal;
@@ -2292,21 +2498,95 @@ export const ViewModel = Map.extend({
       doRotation = false;
     }
 
+    /***
+     * Part 1: Get the rotation
+     ***/
+    let surfaceRotation = BABYLON.Tmp.Quaternion[ 0 ];
+    let tmpItemRotation = BABYLON.Tmp.Quaternion[ 1 ];
     // For now store the normal to not redo rotations if same normal as last time
     selectedItem.surfaceNormal.copyFrom( normal );
     // If there is no need to do rotation then
     if (!doRotation){
-      // pickingResult.pickedPoint.subtractToRef(rootMesh.position, tmpPositionDelta );
-      this.updatePositions( selectedItem, tmpPositionDelta);
+      // Copy the saved offset
+      if (selectedItem.surfaceOffset.lengthSquared() !== 0) {
+        tmpPositionDelta.addInPlace( selectedItem.surfaceOffset );
+
+        // Add saved offset to position
+        this.updatePositions( selectedItem, tmpPositionDelta );
+      } else {
+        tmpItemRotation.copyFrom( rootMesh.rotationQuaternion );
+      }
     } else {
       // Uses Tmp.Quaternion[ 0 ]
-      const surfaceRotation = this.getSurfaceRotation( normal );
-
+      this.getSurfaceRotation( normal, surfaceRotation );
+      // Add base rotation
+      surfaceRotation.multiplyToRef( selectedItem.baseRotation, tmpItemRotation );
       // Copy the surface rotation before it has the old surface rotation removed from it
       surfaceRotation.conjugateToRef( selectedItem.inverseSurfaceRotation );
+      // No need to update the matrices it will happen when calculating surfaceOffset
+      this.updateRotation( selectedItem, surfaceRotation, true );
+    }
 
-      this.updatePositionRotation( selectedItem, tmpPositionDelta, surfaceRotation );
+    // Surface offset should never be 0,0,0 except first time
+    if (doRotation || selectedItem.surfaceOffset.lengthSquared() === 0) {
 
+      console.log("recalculating");
+      let tmpCenterOffset = BABYLON.Tmp.Vector3[ 6 ].copyFrom( selectedItem.centerOffset );
+      this.multiplyVector3( tmpItemRotation, tmpCenterOffset, tmpCenterOffset );
+      tmpPositionDelta.addInPlace( tmpCenterOffset );
+
+      // Add center offset and other stuff
+      this.getValidPosition( selectedItem, tmpPositionDelta, normal, pickingResult.pickedMesh );
+
+      tmpPositionDelta.copyFrom( rootMesh.position );
+      // Get the difference between position and the pickedPoint
+      tmpPositionDelta.subtractInPlace( pickingResult.pickedPoint );
+
+      selectedItem.surfaceOffset.copyFrom( tmpPositionDelta );
+    }
+  },
+
+  /**
+   * Add centerOffset,
+   * Then move item along normal until it doesn't collide with pickedMesh
+   * @param {EgowallItem} selectedItem
+   * @param {BABYLON.Vector3} position
+   * @param {BABYLON.Vector3} normal
+   * @param {BABYLON.AbstractMesh} pickedMesh
+   */
+  getValidPosition( selectedItem, position, normal, pickedMesh ) {
+
+    const sizeLength = selectedItem.size.length() * -0.5;
+    const maxOffset = BABYLON.Tmp.Vector3[ 5 ].copyFrom( normal ).scaleInPlace( sizeLength );
+
+    this.tryValidPositions( selectedItem, position, maxOffset, pickedMesh );
+
+    let tmpNormal = BABYLON.Tmp.Vector3[ 4 ].copyFrom( normal );
+    // TODO: Evaluate the height scale needed to avoid rugs
+    // Translate a tiny portion of surface normal to not collide with rugs
+    tmpNormal.scaleInPlace( 0.05 );
+
+    for ( let i = 0; i < selectedItem.rootMeshes.length; ++i ) {
+      this.updatePositionsDelta( selectedItem, tmpNormal );
+    }
+  },
+
+  /**
+   * Get the collisionMeshes and try adjust the position until it doesn't collide with the binary search technique.
+   * @param {EgowallItem} selectedItem
+   * @param {BABYLON.Vector3} startPosition
+   * @param {BABYLON.Vector3} maxOffset
+   * @param {BABYLON.AbstractMesh} pickedMesh
+   */
+  tryValidPositions ( selectedItem, startPosition, maxOffset, pickedMesh ) {
+    // Set the position as center of collision
+    this.updatePositions( selectedItem, startPosition );
+
+    const furnitureCollisionMeshes = this.getCollisionMeshesForItem( selectedItem );
+    let collisioResults = this.checkMeshCollisions( furnitureCollisionMeshes, [ pickedMesh ] );
+
+    if ( collisioResults.length > 0 ) {
+        this.adjustCollisionPos( selectedItem, collisioResults, maxOffset );
     }
   },
 
@@ -2330,6 +2610,7 @@ export const ViewModel = Map.extend({
         }
 
         selectedItem.surfaceNormal.copyFrom( backupItem.surfaceNormal );
+        selectedItem.surfaceOffset.copyFrom( backupItem.surfaceOffset );
         selectedItem.inverseSurfaceRotation.copyFrom( backupItem.inverseSurfaceRotation );
 
         let rootMeshes = this.selectedItem.rootMeshes;
@@ -2339,7 +2620,7 @@ export const ViewModel = Map.extend({
           // Reset position
           rootMesh.position.copyFrom( backupItem.position );
           // Reset rotation
-          rootMesh._rotationQuaternion.copyFrom( backupItem.rotation );
+          rootMesh.rotationQuaternion.copyFrom( backupItem.rotation );
           // Reset scale
           rootMesh.scaling.copyFrom( backupItem.scale );
 
@@ -2357,8 +2638,6 @@ export const ViewModel = Map.extend({
    * @param $ev
    */
   setupSelectedItem( $ev ) {
-
-
     let hoveredMesh = this.attr( "hoveredMesh" );
 
     if ( hoveredMesh ) {
@@ -2405,7 +2684,8 @@ export const ViewModel = Map.extend({
       position: rootMesh.position.clone(),
       rotation: rootMesh.rotationQuaternion.clone(),
       scale: rootMesh.scaling.clone(),
-      surfaceNormal: item.surfaceNormal.clone()
+      surfaceNormal: item.surfaceNormal.clone(),
+      surfaceOffset: item.surfaceOffset.clone()
     };
 
     // Note: Do this before unsetting parent! :)
@@ -2418,6 +2698,8 @@ export const ViewModel = Map.extend({
       this.selectedItemBackup.parent = item.parent;
       this.removeChild( item );
     }
+
+
 
     // Set outline for all children
     this.setGroupOutline( item );
@@ -2525,25 +2807,25 @@ export const ViewModel = Map.extend({
   /**
    * Get the surface rotation based of input normal.
    * @param {BABYLON.Vector3} normal
-   * @param {undefined|BABYLON.Quaternion} quatRef Uses Tmp.Quaternion[ 0 ] if undefined
+   * @param {undefined|BABYLON.Quaternion} rotationRef Uses Tmp.Quaternion[ 0 ] if undefined
    * @returns {BABYLON.Quaternion}
    */
-  getSurfaceRotation ( normal, quatRef ) {
-    if (!quatRef){
-      quatRef = BABYLON.Tmp.Quaternion[ 0 ];
+  getSurfaceRotation ( normal, rotationRef ) {
+    if (!rotationRef){
+      rotationRef = BABYLON.Tmp.Quaternion[ 0 ];
     }
     const upVector = this.upVector3;
 
     // The wall rotation quaternion
-    let surfaceRotation;
+    // let surfaceRotation;
 
     // For normal.y = 1 return identity quaternion
     if ( normal.y === 1 ) {
-      surfaceRotation = BABYLON.Tmp.Quaternion[ 0 ].copyFromFloats(0, 0, 0, 1);
+      rotationRef = BABYLON.Tmp.Quaternion[ 0 ].copyFromFloats(0, 0, 0, 1);
     }
     // For normal.y == 1 then return a quaternion to turn it upside down
     else if ( normal.y === -1 ) {
-      surfaceRotation = BABYLON.Tmp.Quaternion[ 0 ].copyFromFloats(0, 0, 1, 0);
+      rotationRef = BABYLON.Tmp.Quaternion[ 0 ].copyFromFloats(0, 0, 1, 0);
     } else {
       let tmpAxis = BABYLON.Tmp.Vector3[ 7 ];
       // Axis is [ 0, 0, 0 ] for y == 1 and y == -1
@@ -2551,11 +2833,13 @@ export const ViewModel = Map.extend({
       const angle = Math.acos(BABYLON.Vector3.Dot(upVector, normal));
       // TODO: in Babylon 2.5 change to use RotationAxisToRef
       // This normalizes tmpAxis
-      surfaceRotation = BABYLON.Quaternion.RotationAxis( tmpAxis, angle);
-      surfaceRotation.normalize();
+      const rotation = BABYLON.Quaternion.RotationAxis( tmpAxis, angle);
+      rotation.normalize();
+
+      rotationRef.copyFrom( rotation );
     }
 
-    return surfaceRotation;
+    return rotationRef;
   },
 
   /************************************************
@@ -2713,7 +2997,13 @@ export const ViewModel = Map.extend({
     ref.y = j * qw + l * -qy + k * -qx - i * -qz;
     ref.z = k * qw + l * -qz + i * -qy - j * -qx;
     return ref;
+  },
+
+  getCollisionMeshesForItem( item ) {
+    // TODO: Replace with collision meshes and not childMeshes
+    return this.getChildMeshes( item );
   }
+
 });
 
 export const controls = {

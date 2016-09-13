@@ -27,6 +27,7 @@ import Asset from '../../models/asset.js';
  * inverseSurfaceRotation: BABYLON.Quaternion,
  * meshes: BABYLON.Mesh[],
  * name: string,
+ * needSurfaceOffset: boolean,
  * options: *,
  * parent: EgowallItem|null,
  * parentInitialRotation: undefined|BABYLON.Quaternion,
@@ -50,6 +51,7 @@ import Asset from '../../models/asset.js';
 /**
  * @typedef {{
  * inverseSurfaceRotation: BABYLON.Quaternion,
+ * needSurfaceOffset: babylon,
  * parent:undefined|EgowallItem
  * position:BABYLON.Vector3,
  * rotation: BABYLON.Quaternion,
@@ -893,8 +895,8 @@ export const ViewModel = Map.extend({
       // Children items, what items should have same changes done as this item
       children: [],
       name: babylonName,
-      options: itemInfo,
       meshes: [],
+      options: itemInfo,
       // RootMeshes to easily update all positions when moving an item
       rootMeshes: [],
 
@@ -909,7 +911,8 @@ export const ViewModel = Map.extend({
       // The surface normal of the floor / furniture / something else that this item is attached to
       surfaceNormal: BABYLON.Vector3.Zero(),
       // The surface offset when moving the item across surfaces
-      surfaceOffset: BABYLON.Vector3.Zero()
+      surfaceOffset: BABYLON.Vector3.Zero(),
+      needSurfaceOffset: true
     };
 
     // rootMeshes hashmap to check if already added
@@ -920,9 +923,6 @@ export const ViewModel = Map.extend({
     this.attr("items").push( item );
     // Update the item reference since canjs created a new object?
     item = this.attr("items")[ this.attr("items").length - 1 ];
-
-    // let minX = 0, minY = 0, minZ = 0;
-    // let maxX = 0, maxY = 0, maxZ = 0;
 
     for ( let i = 0; i < meshes.length; ++i ) {
       let mesh = meshes[ i ];
@@ -978,10 +978,6 @@ export const ViewModel = Map.extend({
       // For furniture just itemInfo is fine
       const info = itemInfo.egoID ? itemInfo.roomInfo : itemInfo;
 
-      if (babylonName == "Cont_SiTbl_Plstc_Red_001_LOD0.babylon"){
-        // debugger;
-      }
-
       this.itemUpdateCenterOffset( item );
       // Set the position for all rootMeshes and rotation
       this.setMeshLocationFromAjaxData( item.rootMeshes, info, !!itemInfo.egoID );
@@ -1000,11 +996,11 @@ export const ViewModel = Map.extend({
     }
   },
   /**
-   * For a mesh it checks the bounding box and tries to set the bounds
+   * Compares min & max and changes the input if lower/greater
    * @param {BABYLON.Vector3} minimum
    * @param {BABYLON.Vector3} maximum
-   * @param {BABYLON.Vector3} compareMinimum
-   * @param {BABYLON.Vector3} compareMaximum
+   * @param {BABYLON.Vector3} compareMinimum The minimum to compare against
+   * @param {BABYLON.Vector3} compareMaximum The maximum to compare against
    */
   compareMinMax( minimum, maximum, compareMinimum, compareMaximum ) {
 
@@ -1058,6 +1054,8 @@ export const ViewModel = Map.extend({
     // If center is at 0, 1, 0 then we need to remove 0, -1 , 0  to put pivot point at center
     // Otherwise if we use positive offset we push the object up in the world
     item.centerOffset.copyFromFloats( -centerX, -centerY, -centerZ );
+    // Everytime the centerOffset is recalculated the surfaceOffset also has to be recalculated
+    item.needSurfaceOffset = true;
   },
 
   /**
@@ -1966,7 +1964,7 @@ export const ViewModel = Map.extend({
         }
       }
 
-      if ( found ){
+      if ( found ) {
         child.parent = null;
 
         // Fix positions!
@@ -1978,6 +1976,11 @@ export const ViewModel = Map.extend({
           // Remove parentInitialRotation
           delete child.parentInitialRotation;
         }
+
+        // Finally update the centerOffset for the child & parent
+        this.itemUpdateCenterOffset( child );
+        this.itemUpdateCenterOffset( parent );
+
       }
     }
   },
@@ -2065,7 +2068,8 @@ export const ViewModel = Map.extend({
 
     // If it always collided
     if (alwaysColliding) {
-      const remaining = 1 - multiplierValue;
+      // Since base direction is -1 we need to do -1 - value
+      const remaining = -1 - multiplierValue;
 
       tempVec.x = deltaPos.x * remaining;
       tempVec.y = deltaPos.y * remaining;
@@ -2508,7 +2512,7 @@ export const ViewModel = Map.extend({
     // If there is no need to do rotation then
     if (!doRotation){
       // Copy the saved offset
-      if (selectedItem.surfaceOffset.lengthSquared() !== 0) {
+      if (!selectedItem.needSurfaceOffset) {
         tmpPositionDelta.addInPlace( selectedItem.surfaceOffset );
 
         // Add saved offset to position
@@ -2528,7 +2532,7 @@ export const ViewModel = Map.extend({
     }
 
     // Surface offset should never be 0,0,0 except first time
-    if (doRotation || selectedItem.surfaceOffset.lengthSquared() === 0) {
+    if (doRotation || selectedItem.needSurfaceOffset) {
 
       console.log("recalculating");
       let tmpCenterOffset = BABYLON.Tmp.Vector3[ 6 ].copyFrom( selectedItem.centerOffset );
@@ -2543,6 +2547,7 @@ export const ViewModel = Map.extend({
       tmpPositionDelta.subtractInPlace( pickingResult.pickedPoint );
 
       selectedItem.surfaceOffset.copyFrom( tmpPositionDelta );
+      selectedItem.needSurfaceOffset = false;
     }
   },
 
@@ -2611,6 +2616,7 @@ export const ViewModel = Map.extend({
 
         selectedItem.surfaceNormal.copyFrom( backupItem.surfaceNormal );
         selectedItem.surfaceOffset.copyFrom( backupItem.surfaceOffset );
+        selectedItem.needSurfaceOffset = backupItem.needSurfaceOffset;
         selectedItem.inverseSurfaceRotation.copyFrom( backupItem.inverseSurfaceRotation );
 
         let rootMeshes = this.selectedItem.rootMeshes;
@@ -2681,6 +2687,7 @@ export const ViewModel = Map.extend({
      */
     this.selectedItemBackup = {
       inverseSurfaceRotation: item.inverseSurfaceRotation.clone(),
+      needSurfaceOffset: item.needSurfaceOffset,
       position: rootMesh.position.clone(),
       rotation: rootMesh.rotationQuaternion.clone(),
       scale: rootMesh.scaling.clone(),
@@ -2698,9 +2705,6 @@ export const ViewModel = Map.extend({
       this.selectedItemBackup.parent = item.parent;
       this.removeChild( item );
     }
-
-
-
     // Set outline for all children
     this.setGroupOutline( item );
 

@@ -860,18 +860,16 @@ export const ViewModel = Map.extend({
   },
 
   setEgoObjectDetails ( mesh, itemInfo ) {
-    // var itemInfo = this.getItemOptionsFromMesh( mesh );
+    var materialName = mesh.material && mesh.material.name || "";
 
-    var meshName = mesh.material && mesh.material.name || "";
-
-    if ( meshName === "ImagePlane" ) {
-      let mat = mesh.material.subMaterials[ 0 ];
+    if ( materialName.indexOf( "ImagePlane" ) !== -1 ) {
+      let mat = mesh.material;
       mesh.material = mat.clone(); 
       mesh.material.diffuseTexture = new BABYLON.Texture( itemInfo.egoAlbumURL, this.attr( "scene" ) );
       // Make the imageplane a bit backlit. Numbers need tweaking for desired backlitness
       mesh.material.emissiveColor = new BABYLON.Color3( 0.2, 0.2, 0.2 );
-    } else if ( meshName == "ImageBacker" ) {
-      let mat = mesh.material.subMaterials[ 0 ];
+    } else if ( materialName.indexOf( "ImageBacker" ) !== -1 ) {
+      let mat = mesh.material;
       mat.diffuseTexture = null;
       mat.diffuseColor = new BABYLON.Color3( 1, 1, 1 );
     }

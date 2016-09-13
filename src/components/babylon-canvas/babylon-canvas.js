@@ -2008,6 +2008,7 @@ export const ViewModel = Map.extend({
    * Adjust the position by using a binary search approach.
    * Start by checking half the value of deltaY and then half from there 5 times reaching 96.875% of a_deltaY
    * If it's not colliding it tries to move closer towards collision
+   * Uses Tmp.Vector3[ 7 ]
    * @param {EgowallItem} item
    * @param {CollisionResult[]} collisions
    * @param {BABYLON.Vector3} deltaPos How much the gravity moved an object since last frame
@@ -2479,6 +2480,8 @@ export const ViewModel = Map.extend({
      BABYLON.Tmp.Vector indices:
      8: deltaPosition
      7: Axis for rotation
+     ** Used by getValidPosition() **
+     7: Adjustcollision
      6: tmpCenterOffset: The centerOffset rotated by the rotationQuaternion to get proper xys coords
      5: maxOffset: How much the max distance offset would be if colliding all the way to the end
      4: tmpNormal: small offset to not collide with rugs e.t.c.
@@ -2498,7 +2501,7 @@ export const ViewModel = Map.extend({
     let doRotation = true;
     const lastSurfaceNormal = selectedItem.surfaceNormal;
     // If the surface normal is the same then there is no point doing expensive surface computation
-    if (lastSurfaceNormal.x === normal.x && lastSurfaceNormal.y === normal.y && lastSurfaceNormal.z === normal.z) {
+    if ( lastSurfaceNormal.x === normal.x && lastSurfaceNormal.y === normal.y && lastSurfaceNormal.z === normal.z ) {
       doRotation = false;
     }
 
@@ -2506,25 +2509,19 @@ export const ViewModel = Map.extend({
      * Part 1: Get the rotation
      ***/
     let surfaceRotation = BABYLON.Tmp.Quaternion[ 0 ];
-    let tmpItemRotation = BABYLON.Tmp.Quaternion[ 1 ];
     // For now store the normal to not redo rotations if same normal as last time
     selectedItem.surfaceNormal.copyFrom( normal );
     // If there is no need to do rotation then
-    if (!doRotation){
-      // Copy the saved offset
+    if ( !doRotation ){
+      // Copy the saved offset if no need for surfaceOffset calculation
       if (!selectedItem.needSurfaceOffset) {
         tmpPositionDelta.addInPlace( selectedItem.surfaceOffset );
-
         // Add saved offset to position
         this.updatePositions( selectedItem, tmpPositionDelta );
-      } else {
-        tmpItemRotation.copyFrom( rootMesh.rotationQuaternion );
       }
     } else {
       // Uses Tmp.Quaternion[ 0 ]
       this.getSurfaceRotation( normal, surfaceRotation );
-      // Add base rotation
-      surfaceRotation.multiplyToRef( selectedItem.baseRotation, tmpItemRotation );
       // Copy the surface rotation before it has the old surface rotation removed from it
       surfaceRotation.conjugateToRef( selectedItem.inverseSurfaceRotation );
       // No need to update the matrices it will happen when calculating surfaceOffset
@@ -2532,12 +2529,7 @@ export const ViewModel = Map.extend({
     }
 
     // Surface offset should never be 0,0,0 except first time
-    if (doRotation || selectedItem.needSurfaceOffset) {
-
-      console.log("recalculating");
-      let tmpCenterOffset = BABYLON.Tmp.Vector3[ 6 ].copyFrom( selectedItem.centerOffset );
-      this.multiplyVector3( tmpItemRotation, tmpCenterOffset, tmpCenterOffset );
-      tmpPositionDelta.addInPlace( tmpCenterOffset );
+    if ( doRotation || selectedItem.needSurfaceOffset ) {
 
       // Add center offset and other stuff
       this.getValidPosition( selectedItem, tmpPositionDelta, normal, pickingResult.pickedMesh );
@@ -2554,15 +2546,21 @@ export const ViewModel = Map.extend({
   /**
    * Add centerOffset,
    * Then move item along normal until it doesn't collide with pickedMesh
+   * Uses Tmp.Vector3[ 4, 5 ]
    * @param {EgowallItem} selectedItem
    * @param {BABYLON.Vector3} position
    * @param {BABYLON.Vector3} normal
    * @param {BABYLON.AbstractMesh} pickedMesh
    */
   getValidPosition( selectedItem, position, normal, pickedMesh ) {
-
+    let tmpCenterOffset = BABYLON.Tmp.Vector3[ 6 ].copyFrom( selectedItem.centerOffset );
+    // -0.5 because of adjustCollisionPos in tryValidPosition
     const sizeLength = selectedItem.size.length() * -0.5;
     const maxOffset = BABYLON.Tmp.Vector3[ 5 ].copyFrom( normal ).scaleInPlace( sizeLength );
+
+    // this.multiplyVector3( tmpItemRotation, tmpCenterOffset, tmpCenterOffset );
+    this.multiplyVector3( selectedItem.rootMeshes[ 0 ].rotationQuaternion, tmpCenterOffset, tmpCenterOffset );
+    position.addInPlace( tmpCenterOffset );
 
     this.tryValidPositions( selectedItem, position, maxOffset, pickedMesh );
 

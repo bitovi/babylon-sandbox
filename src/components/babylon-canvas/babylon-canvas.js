@@ -2134,24 +2134,6 @@ export const ViewModel = Map.extend({
     let collidableMeshes = this.meshesToCheckFurniture[ id ];
 
     return this.checkMeshCollisions( selectedFurnitureMeshes, collidableMeshes );
-
-    // The collisions result,  if empty no collisions occured
-    // let collisions = [];
-    // // Go over all collidables
-    // for ( let i = 0; i < collidableMeshes.length; ++i ){
-    //   let collidableMesh = collidableMeshes[ i ];
-    //
-    //   for ( let j = 0; j < selectedFurnitureMeshes.length; ++j ){
-    //     let furnitureMesh = selectedFurnitureMeshes[ j ];
-    //
-    //     if (furnitureMesh.intersectsMesh( collidableMesh, true )){
-    //       // Add the collision result to collisions array if colliding
-    //       collisions.push( { hit:collidableMesh, furniture: furnitureMesh } );
-    //     }
-    //   }
-    // }
-
-    // return collisions;
   },
 
   /**

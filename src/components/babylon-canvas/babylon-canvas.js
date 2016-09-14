@@ -3064,14 +3064,14 @@ export const controls = {
     "v": "unselectItem",
     // Rotation keys
     // Left & Right
-    "i": function () { this.rotateSelectedItem( 1, 0, 0  ); },
-    "k": function () { this.rotateSelectedItem( -1, 0, 0  ); },
-    // Up & Down
     "j": function () { this.rotateSelectedItem( 0, 1, 0  ); },
     "l": function () { this.rotateSelectedItem( 0, -1, 0  ); },
+    // Up & Down
+    "i": function () { this.rotateSelectedItem( 1, 0, 0  ); },
+    "k": function () { this.rotateSelectedItem( -1, 0, 0  ); },
     // In & Out
     "u": function () { this.rotateSelectedItem( 0, 0, 1  ); },
-    "o": function () { this.rotateSelectedItem( 0, 0, -1  ); },
+    "o": function () { this.rotateSelectedItem( 0, 0, -1  ); }
   },
   "keyup": {
     "Escape": "resetSelectedItem"

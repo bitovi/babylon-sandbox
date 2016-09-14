@@ -1846,12 +1846,40 @@ export const ViewModel = Map.extend({
     }
   },
 
-  updateRotation ( item, rotation, skipMatrices ) {
+  /**
+   * Add the rotation from base rotation
+   * @param {EgowallItem} item
+   * @param {BABYLON.Quaternion} rotation
+   * @param {Boolean} skipMatrices If something else is updating the matrices there is no need to do it twice.
+   */
+  updateRotationFromSurface ( item, rotation, skipMatrices = false ) {
     for (let i = 0; i < item.rootMeshes.length; ++i ){
       let rootMesh = item.rootMeshes[ i ];
 
       // Use the baseRotation and
       rotation.multiplyToRef( item.baseRotation, rootMesh.rotationQuaternion );
+      if ( !skipMatrices ) {
+        this.updateMeshMatrices( rootMesh );
+      }
+    }
+  },
+
+  /**
+   * Update both base rotation and the rotationQuaternion
+   * @param {EgowallItem} item
+   * @param {BABYLON.Quaternion} rotation
+   * @param {Boolean} skipMatrices If something else is updating the matrices there is no need to do it twice.
+   */
+  updateRotationDelta( item, rotation, skipMatrices = false ) {
+
+    // item.baseRotation.multiplyInPlace( rotation );
+    rotation.multiplyToRef( item.baseRotation, item.baseRotation );
+
+    for (let i = 0; i < item.rootMeshes.length; ++i ){
+      let rootMesh = item.rootMeshes[ i ];
+
+      // rootMesh.rotationQuaternion.multiplyInPlace( rotation );
+      rotation.multiplyToRef( rootMesh.rotationQuaternion, rootMesh.rotationQuaternion );
       if ( !skipMatrices ) {
         this.updateMeshMatrices( rootMesh );
       }
@@ -2355,7 +2383,6 @@ export const ViewModel = Map.extend({
     } else {
       this.clearPlacementGrid();
     }
-
   },
 
   /**
@@ -2378,7 +2405,7 @@ export const ViewModel = Map.extend({
    * @param isValid
    * @param errorMsg
    */
-  setOutlineColor( isValid, errorMsg ){
+  setOutlineColor( isValid, errorMsg ) {
 
     if ( isValid ){
       // Check if
@@ -2390,7 +2417,7 @@ export const ViewModel = Map.extend({
         this.outlineCurrentColor = this.outlineCollisionColor;
       }
 
-      // Set error mesasge
+      // TODO: Set error mesasge
     }
   },
 
@@ -2505,7 +2532,7 @@ export const ViewModel = Map.extend({
       // Copy the surface rotation before it has the old surface rotation removed from it
       surfaceRotation.conjugateToRef( selectedItem.inverseSurfaceRotation );
       // No need to update the matrices it will happen when calculating surfaceOffset
-      this.updateRotation( selectedItem, surfaceRotation, true );
+      this.updateRotationFromSurface( selectedItem, surfaceRotation, true );
     }
 
     // Surface offset should never be 0,0,0 except first time
@@ -2981,9 +3008,49 @@ export const ViewModel = Map.extend({
     return ref;
   },
 
+  /**
+   * Get the collisionMeshes for the input item
+   * @param {EgowallItem} item
+   * @returns {BABYLON.Mesh[]}
+   */
   getCollisionMeshesForItem( item ) {
     // TODO: Replace with collision meshes and not childMeshes
     return this.getChildMeshes( item );
+  },
+
+  /**
+   * Rotate the selectedItem based of the x y z axis input
+   * It then converts the xyz into viewspace to rotate based off camera rotation.
+   * @param {number} x
+   * @param {number} y
+   * @param {number} z
+   */
+  rotateSelectedItem( x, y, z ) {
+    let selectedItem = this.selectedItem;
+    if ( this.selectedItem ) {
+      // The rotation speed is 1 lapse every 3 second
+      // Why it's / 1.5 I am not sure of. ¯\_(ツ)_/¯
+      // Math.PI * 2 = 1 rotation / 2
+      const rotValue = ((Math.PI * 2) / 1.5) * this.attr("deltaTime");
+      const camera = this.attr( "camera" );
+      const viewMatrix = camera.getViewMatrix();
+
+      let axis = BABYLON.Tmp.Vector3[ 0 ].copyFromFloats( x, y, z );
+
+      let viewRotation = BABYLON.Tmp.Quaternion[ 0 ];
+      // const viewRotation = BABYLON.Quaternion.FromRotationMatrix( camera._cameraRotationMatrix );
+      BABYLON.Quaternion.FromRotationMatrixToRef( viewMatrix, viewRotation );
+      // Inverse it to cause the axis to have proper direction.  Otherwise they are flipped
+      viewRotation.conjugateInPlace();
+
+      // Convert axises to viewspace
+      this.multiplyVector3(viewRotation, axis, axis);
+
+      // TODO: In babylon 2.5 change to use RotationAxisRef
+      let rotation = BABYLON.Quaternion.RotationAxis(axis, rotValue);
+
+      this.updateRotationDelta( selectedItem, rotation );
+    }
   }
 
 });
@@ -2994,7 +3061,17 @@ export const controls = {
   "keypress": {
     "`": "toggleBabylonDebugLayer",
     // Temporary until Double left click is set up
-    "v": "unselectItem"
+    "v": "unselectItem",
+    // Rotation keys
+    // Left & Right
+    "i": function () { this.rotateSelectedItem( 1, 0, 0  ); },
+    "k": function () { this.rotateSelectedItem( -1, 0, 0  ); },
+    // Up & Down
+    "j": function () { this.rotateSelectedItem( 0, 1, 0  ); },
+    "l": function () { this.rotateSelectedItem( 0, -1, 0  ); },
+    // In & Out
+    "u": function () { this.rotateSelectedItem( 0, 0, 1  ); },
+    "o": function () { this.rotateSelectedItem( 0, 0, -1  ); },
   },
   "keyup": {
     "Escape": "resetSelectedItem"

@@ -207,7 +207,9 @@ export const ViewModel = Map.extend({
       if ( this.selectedItem ){
         // TODO: Either us if statement or a function variable to differentiate between furniture & painting movement
         // Currently this is for furniture only as painting isn't added as a selectedItem
-        this.selectedItemFurnitureMovePicking( controlsVM.curMousePos() );
+        if (!this.isRotating) {
+          this.selectedItemFurnitureMovePicking( controlsVM.curMousePos() );
+        }
       // If selected isn't set
       } else {
         let curMousePos = controlsVM.curMousePos();
@@ -256,7 +258,7 @@ export const ViewModel = Map.extend({
    * @param {Function} predicate
    * @returns {PickingInfo|*}
    */
-  getPickingFromMouse( mousePos, predicate ){
+  getPickingFromMouse( mousePos, predicate ) {
     const scene = this.attr( "scene" );
     return scene.pick( mousePos.x, mousePos.y, predicate );
   },
@@ -3051,7 +3053,88 @@ export const ViewModel = Map.extend({
 
       this.updateRotationDelta( selectedItem, rotation );
     }
-  }
+  },
+
+  setItemRotationOffset() {
+    let selectedItem = this.selectedItem;
+    if ( selectedItem && !this.isRotating ) {
+
+      this.isRotating = true;
+      // Get the maximum bounds value ( x, y or z )
+      // Get the floor/wall point and get the offset by length
+      let scene = this.attr( "scene" );
+      let rootMesh = this.selectedItem.rootMeshes[ 0 ];
+      let pickingRay = BABYLON.Tmp.Ray[ 0 ];
+
+      const childMeshes = this.getChildMeshes( selectedItem );
+
+      let maxDistance = selectedItem.boundsMaximum.x - selectedItem.boundsMinimum.x;
+      let axisKey = "x";
+
+      const yDistance = selectedItem.boundsMaximum.y - selectedItem.boundsMinimum.y;
+      const zDistance = selectedItem.boundsMaximum.z - selectedItem.boundsMinimum.z;
+
+      if (maxDistance < yDistance) {
+        maxDistance = yDistance;
+        axisKey = "y";
+      }
+      if (maxDistance < zDistance) {
+        maxDistance = zDistance;
+        axisKey = "z";
+      }
+
+      // const maxDistance = Math.max( selectedItem.boundsMaximum.x - selectedItem.boundsMinimum.x,
+      //   selectedItem.boundsMaximum.y - selectedItem.boundsMinimum.y,
+      //   selectedItem.boundsMaximum.z - selectedItem.boundsMinimum.z );
+
+      // Go in the opposite direction of surfaceNormal to find the surface
+      let tmpDirection = BABYLON.Tmp.Vector3[ 8 ].copyFrom( selectedItem.surfaceNormal );
+      tmpDirection.scaleInPlace( -1 );
+
+      pickingRay.direction.copyFrom( tmpDirection );
+      pickingRay.origin.copyFrom( rootMesh.position );
+      // Shoot a short ray
+      pickingRay.length = 50;
+
+      const pickingResult = scene.pickWithRay( pickingRay, ( mesh ) => {
+        let validMesh = true;
+        for ( let i = 0; i < childMeshes.length; ++i ) {
+          if (childMeshes[ i ] === mesh ){
+            validMesh = false;
+            break;
+          }
+        }
+        return validMesh;
+      });
+
+      // This should always happen
+      if (pickingResult.hit) {
+        let tmpPosition = BABYLON.Tmp.Vector3[ 7 ].copyFrom( pickingResult.pickedPoint );
+
+        let tmpOffset = BABYLON.Tmp.Vector3[ 6 ].copyFrom( selectedItem.centerOffset );
+        tmpOffset.multiplyInPlace( tmpDirection );
+
+        // maxDistance += selectedItem.centerOffset[ axisKey ];
+        maxDistance -= ( selectedItem.boundsMaximum[ axisKey ] - selectedItem.boundsMinimum[ axisKey ] ) * 0.5;
+
+        // 0.05 is for the "offset" for rugs
+        // -1 is to scale it back as the surfaceNormal since only direction needed the opposite
+        tmpDirection.scaleInPlace( (maxDistance + 0.05) * -1 );
+        tmpPosition.addInPlace( tmpDirection );
+        tmpPosition.addInPlace( tmpOffset );
+
+        this.updatePositions( selectedItem, tmpPosition );
+
+      } else {
+        // For debug purposes
+        console.log( "No picking hit for setItemRotationOffset()" )
+      }
+    } else {
+      this.isRotating = false;
+    }
+  },
+  // Temporary just to disable selcted mouse movement
+  isRotating: false
 
 });
 
@@ -3071,7 +3154,9 @@ export const controls = {
     "k": function () { this.rotateSelectedItem( -1, 0, 0  ); },
     // In & Out
     "u": function () { this.rotateSelectedItem( 0, 0, 1  ); },
-    "o": function () { this.rotateSelectedItem( 0, 0, -1  ); }
+    "o": function () { this.rotateSelectedItem( 0, 0, -1  ); },
+    // Temporary just to test the rotation offset so item doesn't clip through floor / adjacent surface
+    "r": "setItemRotationOffset"
   },
   "keyup": {
     "Escape": "resetSelectedItem"

@@ -36,6 +36,7 @@
         ground.material.specularColor = BABYLON.Color3.Black();
 
         const size = 2;
+        let height = size * 0.5;
 
         let type = localStorage.getItem("type");
         if ( type ) {
@@ -66,9 +67,8 @@
             }
             item = meshes[0];
           });
-
-
-
+          // For the height!
+          height = 0;
         }
         else {
           item = BABYLON.MeshBuilder.CreateBox( "item", {
@@ -84,7 +84,7 @@
         item.material.specularColor = BABYLON.Color3.Black();
         item.material.alpha = 0.8;
 
-        item.position.y = size * 0.5;
+        item.position.y = height;
         // item.rotation.z = Math.PI * 0.33;
 
         const collisionSize = 1.5;

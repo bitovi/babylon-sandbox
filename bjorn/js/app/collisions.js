@@ -44,11 +44,11 @@
   window.getCollisionResults = function() {
     let collisionResults = [];
 
-    _item.computeWorldMatrix(true);
-
     if ( _item._children && _item._children.length ) {
-      return getCollisionResultsMultiple( _item.getChildMeshes() );
+      return getCollisionResultsMultiple( [ _item, ..._item.getChildMeshes() ] );
     }
+
+    _item.computeWorldMatrix(true);
 
     for ( let i = 0; i < _collisions.length; ++i ){
       let collisionMesh = _collisions[i];
@@ -80,6 +80,8 @@
     for ( let i = 0; i < a_children.length; ++i ) {
       let child = a_children[ i ];
 
+      child.computeWorldMatrix(true);
+
       for ( let j = 0; j < _collisions.length; ++j ) {
         let collisionMesh = _collisions[ j ];
 
@@ -92,7 +94,18 @@
 
           hasCollided[ collisionMesh.uniqueId ] = true;
 
-          collisionResults.push( { item: child, collision:  collisionMesh } );
+          let exists = false;
+
+          collisionResults.forEach( function( result ) {
+            if ( result.collision === collisionMesh ) {
+              exists = true;
+              result.items.push( child );
+            }
+          });
+
+          if ( !exists ) {
+            collisionResults.push( { items: [ child ], collision: collisionMesh } );
+          }
         } else {
           if ( collisionMesh.__oldMat && !hasCollided[ collisionMesh.uniqueId ]  ) {
             collisionMesh.material = collisionMesh.__oldMat;

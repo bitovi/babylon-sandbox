@@ -35,6 +35,8 @@
         ground.material = new BABYLON.StandardMaterial("groundmat", scene);
         ground.material.specularColor = BABYLON.Color3.Black();
 
+        let itemMaterial = new BABYLON.StandardMaterial( "itemMaterial", scene );
+
         const size = 2;
         let height = size * 0.5;
 
@@ -63,7 +65,7 @@
           BABYLON.SceneLoader.ImportMesh("", "", "data:" + JSON.stringify( babylonfile ), scene, ( meshes ) => {
             for ( let i = 0; i < meshes.length; ++i ) {
               meshes[i].isVisible = true;
-
+              meshes[i].material = itemMaterial;
             }
             item = meshes[0];
           });
@@ -79,7 +81,7 @@
         }
 
 
-        item.material = new BABYLON.StandardMaterial( "itemMaterial", scene );
+        item.material = itemMaterial;
         item.material.diffuseColor = BABYLON.Color3.FromHexString( "#BADBAD" );
         item.material.specularColor = BABYLON.Color3.Black();
         item.material.alpha = 0.8;

@@ -44,6 +44,8 @@
   window.getCollisionResults = function() {
     let collisionResults = [];
 
+    _item.__originalPosition = _item.position.clone();
+
     if ( _item._children && _item._children.length ) {
       return getCollisionResultsMultiple( [ _item, ..._item.getChildMeshes() ] );
     }
@@ -95,16 +97,21 @@
           hasCollided[ collisionMesh.uniqueId ] = true;
 
           let exists = false;
+          let rootCollision = collisionMesh.parent || collisionMesh;
+          while ( rootCollision.parent ) {
+            rootCollision = rootCollision.parent;
+          }
 
           collisionResults.forEach( function( result ) {
-            if ( result.collision === collisionMesh ) {
+            if ( result.parent === rootCollision ) {
               exists = true;
+              result.collisions.push( collisionMesh );
               result.items.push( child );
             }
           });
 
           if ( !exists ) {
-            collisionResults.push( { items: [ child ], collision: collisionMesh } );
+            collisionResults.push( { items: [ child ], collisions: [ collisionMesh ], parent:rootCollision } );
           }
         } else {
           if ( collisionMesh.__oldMat && !hasCollided[ collisionMesh.uniqueId ]  ) {

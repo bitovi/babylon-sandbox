@@ -87,7 +87,7 @@
         item.material.alpha = 0.8;
 
         item.position.y = height;
-        // item.rotation.z = Math.PI * 0.33;
+        item.rotation.y = Math.PI * 0.33;
 
         const collisionSize = 1.5;
         const collisionColor = "#1CE1CE";
@@ -105,9 +105,9 @@
 
         let collisionPositions = [
           { x: 0, z: 2 },
-          { x: 0, z: -2 },
+          { x: 2.5, z: 2 },
           { x:2, z: 0 },
-          { x:2.5, z:1 }
+          { x:2, z:1 }
         ];
 
         for ( let i = 0; i < collisionPositions.length; ++i ) {
@@ -121,6 +121,16 @@
           collisionBox.position.z = size * position.z;
 
           collisions.push( collisionBox );
+        }
+
+        let collisionFurniture = item.clone();
+        let collisionMeshes = [ collisionFurniture, ...collisionFurniture.getChildMeshes() ];
+
+        collisionFurniture.position.copyFromFloats( -3, 0, 0 );
+
+        for ( let i = 0; i < collisionMeshes.length; ++i ) {
+          collisionMeshes[ i ].material = collisionMaterial;
+          collisions.push( collisionMeshes[ i ]);
         }
 
         return scene;

@@ -27,6 +27,7 @@ window.initMouseEvents = function ( scene, mesh, ground ) {
       // Calculate collisions
       let collisionResults = window.getCollisionResults();
       if ( collisionResults.length > 0 ) {
+        // console.log( collisionResults );
         for ( let i = 0; i < collisionResults.length; ++i ) {
           // Snap!
           window.snapItem( collisionResults[ i ] );

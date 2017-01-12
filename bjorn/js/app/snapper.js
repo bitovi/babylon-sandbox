@@ -43,28 +43,36 @@
     }
   }
 
-  function placeIntersectionBox( min, max, center ) {
+  function placeIntersectionBox( min, max, center, a_rotation ) {
 
     let xsize = max.x - min.x;
     let ysize = max.y - min.y;
     let zsize = max.z - min.z;
 
-    if ( _intersectionBox ) {
-      _intersectionBox.dispose();
-    }
-
-    _intersectionBox = BABYLON.MeshBuilder.CreateBox( "intersectionBox", {
-      width: xsize,
-      height: ysize,
-      depth: zsize
-    }, scene );
-    _intersectionBox.material = new BABYLON.StandardMaterial( "intersectionMaterial", scene );
-
-    _intersectionBox.material.diffuseColor = BABYLON.Color3.FromHexString("#000");
-    _intersectionBox.material.specularColor = BABYLON.Color3.Black();
+    // if ( _intersectionBox ) {
+    //   _intersectionBox.dispose();
+    // }
+    //
+    // _intersectionBox = BABYLON.MeshBuilder.CreateBox( "intersectionBox", {
+    //   width: xsize,
+    //   height: ysize,
+    //   depth: zsize
+    // }, scene );
+    // _intersectionBox.material = new BABYLON.StandardMaterial( "intersectionMaterial", scene );
+    //
+    // _intersectionBox.material.diffuseColor = BABYLON.Color3.FromHexString("#000");
+    // _intersectionBox.material.specularColor = BABYLON.Color3.Black();
 
     _intersectionBox.position.copyFrom( center );
-    // _intersectionBox.scaling.copyFromFloats( , max.y - min.y, max.z - min.z );
+    // _intersectionBox.rotation.copyFrom( a_rotation );
+    _intersectionBox.scaling.copyFromFloats( max.x - min.x , max.y - min.y, max.z - min.z );
+
+    // _intersectionBox._boundingInfo = new BABYLON.BoundingInfo( min.subtract( center ), max.subtract(center) );
+    // _intersectionBox.computeWorldMatrix(true);
+
+
+
+
   }
 
   function getMinMax ( a, b ) {
@@ -94,7 +102,7 @@
    * @param {BABYLON.BoundingInfo} a_itemBoundingInfo
    * @param {BABYLON.BoundingInfo} a_collisionBoundingInfo
    */
-  function getCollidingPoints( a_itemBoundingInfo, a_collisionBoundingInfo ) {
+  function getCollidingPoints( a_itemBoundingInfo, a_collisionBoundingInfo, a_collisionRoot ) {
     let intersection = getMinMax( a_itemBoundingInfo, a_collisionBoundingInfo );
 
     let minIntersection = intersection.min;
@@ -105,7 +113,7 @@
     center.y = minIntersection.y + ( maxIntersection.y - minIntersection.y ) * 0.5;
     center.z = minIntersection.z + ( maxIntersection.z - minIntersection.z ) * 0.5;
 
-    placeIntersectionBox( minIntersection, maxIntersection, center );
+    placeIntersectionBox( minIntersection, maxIntersection, center, a_collisionRoot.rotation );
 
     var result = {
       boundingbox: new BABYLON.BoundingBox( minIntersection, maxIntersection ),
@@ -134,22 +142,29 @@
     let scene = a_item.getScene();
 
     _intersectionBox.computeWorldMatrix(true);
+    const world = _intersectionBox.getWorldMatrix();
 
     let rayPosition = a_item.getAbsolutePosition().clone();
     rayPosition.y = _intersectionBox.position.y;
 
     let rayDirection = _intersectionBox.position.subtract( rayPosition );
 
+    rayDirection.scaleInPlace( -1 );
+    BABYLON.Vector3.TransformCoordinatesToRef( rayDirection, world, rayPosition );
+
+    rayDirection.scaleInPlace( -1 );
     let rayLength = rayDirection.length() + 0.5;
     rayDirection.normalize();
 
     let ray = new BABYLON.Ray( rayPosition, rayDirection, rayLength );
-    var world = _intersectionBox.getWorldMatrix();
+    // const pickingInfo = ray.intersectsMesh( _intersectionBox );
+    // Code from scene._internalPick & scene.pickWithray
 
     var pickWithRayInverseMatrix = BABYLON.Matrix.Identity();
-
     world.invertToRef( pickWithRayInverseMatrix );
     ray = BABYLON.Ray.Transform( ray, pickWithRayInverseMatrix );
+
+    // ray.show( scene );
 
     const pickingInfo = _intersectionBox.intersects( ray );
 
@@ -163,13 +178,24 @@
     let itemBoundingInfo = a_item.getBoundingInfo();
     let collisionBoundingInfo = a_collisionMesh.getBoundingInfo();
 
-    let collisionPoints = getCollidingPoints( itemBoundingInfo, collisionBoundingInfo );
+    let collisionPoints = getCollidingPoints( itemBoundingInfo, collisionBoundingInfo, a_collisionMesh );
     return collisionPoints;
   }
 
-  function snapItemMultiple( a_items, a_collisionMesh ) {
+  function snapItemMultiple( a_items, a_collisionMeshes ) {
 
-    let collisionBoundingInfo = a_collisionMesh.getBoundingInfo();
+    let minCol = new BABYLON.Vector3( Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE );
+    let maxCol = new BABYLON.Vector3( -Number.MAX_VALUE, -Number.MAX_VALUE, -Number.MAX_VALUE );
+
+    for ( let i = 0; i < a_collisionMeshes.length; ++i ) {
+      let collisionBoundingInfo = a_collisionMeshes[ i ].getBoundingInfo();
+      let bb = collisionBoundingInfo.boundingBox;
+
+      minCol.MinimizeInPlace( bb.minimumWorld );
+      maxCol.MaximizeInPlace( bb.maximumWorld );
+    }
+
+    let collisionBoundingInfo = new BABYLON.BoundingInfo( minCol, maxCol );
 
     let minIntersection = new BABYLON.Vector3( Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE );
     let maxIntersection = new BABYLON.Vector3( -Number.MAX_VALUE, -Number.MAX_VALUE, -Number.MAX_VALUE );
@@ -212,7 +238,7 @@
 
   /**
    *
-   * @param {{item:BABYLON.Mesh, items:BABYLON.Mesh[], collision:BABYLON.Mesh}} a_collisionResult
+   * @param {{item:BABYLON.Mesh, items:BABYLON.Mesh[], collision:BABYLON.Mesh, collisions:BABYLON.Mesh[]}} a_collisionResult
    */
   window.snapItem = function ( a_collisionResult ) {
 
@@ -220,9 +246,11 @@
     let collisionPoints;
     if ( a_collisionResult.item ) {
       item = a_collisionResult.item;
+      createIntersectonBox( item );
       collisionPoints = snapItemSingle( item, a_collisionResult.collision );
     } else {
-      collisionPoints = snapItemMultiple( a_collisionResult.items, a_collisionResult.collision );
+      createIntersectonBox( a_collisionResult.items[ 0 ] );
+      collisionPoints = snapItemMultiple( a_collisionResult.items, a_collisionResult.collisions );
       // Get rootItem
       item = a_collisionResult.items[ 0 ].parent || a_collisionResult.items[ 0 ];
       while ( item.parent ) {
@@ -230,13 +258,41 @@
       }
     }
 
+
+
     let surfaceNormal = getSurfaceNormal( item );
 
     let size = collisionPoints.boundingbox.extendSize.clone();
+    // Remove the y part of size
+    size.y = 0;
     size.scaleInPlace(2);
     size.multiplyInPlace( surfaceNormal );
 
-    item.position.addInPlace( size );
+    let pos = item.__originalPosition.clone();
+
+    pos.addInPlace( size );
+
+    if ( surfaceNormal.x > 0 ) {
+      if ( pos.x > item.position.x ) {
+        item.position.x = pos.x;
+      }
+    } else if ( surfaceNormal.x < 0 ) {
+      if ( pos.x < item.position.x ) {
+        item.position.x = pos.x;
+      }
+    }
+
+    if ( surfaceNormal.z > 0 ) {
+      if ( pos.z > item.position.z ) {
+        item.position.z = pos.z;
+      }
+    } else if ( surfaceNormal.z < 0 ) {
+      if ( pos.z < item.position.z ) {
+        item.position.z = pos.z;
+      }
+    }
+
+    // item.position.copyFrom( pos );
     item.computeWorldMatrix(true);
   }
 }();

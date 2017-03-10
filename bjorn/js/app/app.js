@@ -146,6 +146,7 @@
     var scene = createScene();
 
     window.initMouseEvents( scene, item, ground );
+    window.initCollision( collisions );
 
     // Register a render loop to repeatedly render the scene
     engine.runRenderLoop(function () {

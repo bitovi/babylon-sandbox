@@ -23,6 +23,8 @@ window.initMouseEvents = function ( scene, mesh, ground ) {
     if ( pickingResult.hit ) {
       mesh.position.x = pickingResult.pickedPoint.x;
       mesh.position.z = pickingResult.pickedPoint.z;
+
+      checkCollision( mesh );
     }
   }
 

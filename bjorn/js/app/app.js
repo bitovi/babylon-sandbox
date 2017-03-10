@@ -87,7 +87,7 @@
         item.material.alpha = 0.8;
 
         item.position.y = height;
-        item.rotation.y = Math.PI * 0.33;
+        // item.rotation.y = Math.PI * 0.33;
 
         const collisionSize = 1.5;
         const collisionColor = "#1CE1CE";
@@ -95,7 +95,6 @@
         collisionMaterial.diffuseColor = BABYLON.Color3.FromHexString( collisionColor );
         collisionMaterial.specularColor = BABYLON.Color3.Black();
         collisionMaterial.alpha = 0.7;
-
 
         let collisionOptions = {
           width: collisionSize,
@@ -116,9 +115,13 @@
 
           let position = collisionPositions[ i ];
 
-          collisionBox.position.x = size * position.x;
+          collisionBox.position.x = collisionSize * position.x;
           collisionBox.position.y = collisionSize * 0.5 + 0.25;
-          collisionBox.position.z = size * position.z;
+          collisionBox.position.z = collisionSize * position.z;
+
+          if ( i == 0 ) {
+            collisionBox.rotation.y = Math.PI * 0.33;
+          }
 
           collisions.push( collisionBox );
         }

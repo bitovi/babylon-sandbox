@@ -2,7 +2,7 @@
  * Created on 11.1.2017.
  */
 "use strict";
-window.drawPoint = function( a_position, a_scene, a_options ) {
+window.drawPoint = function( a_position, a_options, a_scene ) {
   // Create the options if it doesn't exist
   if (!a_options) a_options = {};
   // Set the default size
@@ -11,6 +11,8 @@ window.drawPoint = function( a_position, a_scene, a_options ) {
   if (a_options.time === undefined) a_options.time = 5000;
   // And the default red color
   if (!a_options.color) a_options.color = new BABYLON.Color3(1, 0, 0);
+
+  a_scene = a_scene || window.scene;
 
   var sphere = BABYLON.Mesh.CreateSphere("debugpoint", 4, a_options.size, a_scene );
   // Clone the position so it's not tied to a reference from example a mesh

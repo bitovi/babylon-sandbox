@@ -45,33 +45,8 @@
 
   function placeIntersectionBox( min, max, center, a_rotation ) {
 
-    let xsize = max.x - min.x;
-    let ysize = max.y - min.y;
-    let zsize = max.z - min.z;
-
-    // if ( _intersectionBox ) {
-    //   _intersectionBox.dispose();
-    // }
-    //
-    // _intersectionBox = BABYLON.MeshBuilder.CreateBox( "intersectionBox", {
-    //   width: xsize,
-    //   height: ysize,
-    //   depth: zsize
-    // }, scene );
-    // _intersectionBox.material = new BABYLON.StandardMaterial( "intersectionMaterial", scene );
-    //
-    // _intersectionBox.material.diffuseColor = BABYLON.Color3.FromHexString("#000");
-    // _intersectionBox.material.specularColor = BABYLON.Color3.Black();
-
     _intersectionBox.position.copyFrom( center );
-    // _intersectionBox.rotation.copyFrom( a_rotation );
     _intersectionBox.scaling.copyFromFloats( max.x - min.x , max.y - min.y, max.z - min.z );
-
-    // _intersectionBox._boundingInfo = new BABYLON.BoundingInfo( min.subtract( center ), max.subtract(center) );
-    // _intersectionBox.computeWorldMatrix(true);
-
-
-
 
   }
 
@@ -113,7 +88,7 @@
     center.y = minIntersection.y + ( maxIntersection.y - minIntersection.y ) * 0.5;
     center.z = minIntersection.z + ( maxIntersection.z - minIntersection.z ) * 0.5;
 
-    placeIntersectionBox( minIntersection, maxIntersection, center, a_collisionRoot.rotation );
+    placeIntersectionBox( minIntersection, maxIntersection, center );
 
     var result = {
       boundingbox: new BABYLON.BoundingBox( minIntersection, maxIntersection ),
@@ -159,7 +134,6 @@
     let ray = new BABYLON.Ray( rayPosition, rayDirection, rayLength );
     // const pickingInfo = ray.intersectsMesh( _intersectionBox );
     // Code from scene._internalPick & scene.pickWithray
-
     var pickWithRayInverseMatrix = BABYLON.Matrix.Identity();
     world.invertToRef( pickWithRayInverseMatrix );
     ray = BABYLON.Ray.Transform( ray, pickWithRayInverseMatrix );
@@ -272,27 +246,26 @@
 
     pos.addInPlace( size );
 
-    if ( surfaceNormal.x > 0 ) {
-      if ( pos.x > item.position.x ) {
-        item.position.x = pos.x;
-      }
-    } else if ( surfaceNormal.x < 0 ) {
-      if ( pos.x < item.position.x ) {
-        item.position.x = pos.x;
-      }
-    }
+     if ( surfaceNormal.x > 0 ) {
+       if ( pos.x > item.position.x ) {
+         item.position.x = pos.x;
+       }
+     } else if ( surfaceNormal.x < 0 ) {
+       if ( pos.x < item.position.x ) {
+         item.position.x = pos.x;
+       }
+     }
+    
+     if ( surfaceNormal.z > 0 ) {
+       if ( pos.z > item.position.z ) {
+         item.position.z = pos.z;
+       }
+     } else if ( surfaceNormal.z < 0 ) {
+       if ( pos.z < item.position.z ) {
+         item.position.z = pos.z;
+       }
+     }
 
-    if ( surfaceNormal.z > 0 ) {
-      if ( pos.z > item.position.z ) {
-        item.position.z = pos.z;
-      }
-    } else if ( surfaceNormal.z < 0 ) {
-      if ( pos.z < item.position.z ) {
-        item.position.z = pos.z;
-      }
-    }
-
-    // item.position.copyFrom( pos );
     item.computeWorldMatrix(true);
   }
 }();

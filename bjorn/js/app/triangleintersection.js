@@ -5,15 +5,32 @@
 
 !function () {
   var _collisionMeshes = [];
+  var _colMat;
 
-  window.initCollision = function ( meshes ) {
+  window.initCollision = function ( meshes, scene ) {
     _collisionMeshes = meshes;
+
+    for ( let i = 0; i < meshes.length; ++i ) {
+      meshes[ i ]._originalMat = meshes[ i ].material;
+    }
+
+    _colMat = new BABYLON.StandardMaterial( "colmat", scene );
+    _colMat.diffuseColor = new BABYLON.Color3( 1, 0, 0 );
+    _colMat.specularColor = BABYLON.Color3.Black();
+    _colMat.alpha = 0.7;
   };
 
   window.checkCollision = function ( mesh ) {
+
     for ( let i = 0; i < _collisionMeshes.length; ++i ) {
       let collisionMesh = _collisionMeshes[ i ];
-      intersectsTriangle( mesh, collisionMesh );
+      if ( intersectsTriangle( mesh, collisionMesh ) ) {
+        collisionMesh.material = _colMat;
+      } else {
+        if ( collisionMesh.material === _colMat ) {
+          collisionMesh.material = collisionMesh._originalMat;
+        }
+      }
     }
   }
   /**
@@ -23,18 +40,42 @@
    */
   window.intersectsTriangle = function ( a, b ) {
 
+    const aMeshes = [ a, ...a.getChildMeshes() ];
+    const bMeshes = [ b, ...b.getChildMeshes() ];
 
-    const verticesA = getTriangles( a );
-    const verticesB = getTriangles( b );
+    for ( let i = 0; i < aMeshes.length; ++i ) {
+      let aMesh = aMeshes[ i ];
+      for ( let j = 0; j < bMeshes.length; ++j ) {
+        if ( checkMeshes( aMesh, bMeshes[ j ] ) ) {
+          return true;
+        }
+      }
+    }
 
-    console.log( verticesA );
+    return false;
+  }
 
-    for ( let i = 0; i < verticesA.length; i += 3 ) {
-      const p0 = verticesA[ i ];
-      const p1 = verticesA[ i + 1 ];
-      const p2 = verticesA[ i + 2 ];
-      for ( let j = 0; j < verticesB.length; j += 3 ) {
-        triangleIntersects( p0, p1, p2, verticesB[ j ], verticesB[ j + 1 ], verticesB[ j + 2 ] );
+  function checkMeshes( a, b ) {
+    if ( a.intersectsMesh( b, true ) ) {
+      const Av = getTriangles( a );
+      const Bv = getTriangles( b );
+
+      for ( let i = 0; i < Av.length; i += 3 ) {
+        const a0 = Av[ i ];
+        const a1 = Av[ i + 1 ];
+        const a2 = Av[ i + 2 ];
+
+        for ( let j = 0; j < Bv.length; j += 3 ) {
+
+          const b0 = Bv[ j ];
+          const b1 = Bv[ j + 1 ];
+          const b2 = Bv[ j + 2 ];
+
+          const success = window.triTriIntersect( a0, a1, a2, b0, b1, b2 );
+          if ( success ) {
+            return true;
+          }
+        }
       }
     }
   }
@@ -52,10 +93,9 @@
 
     let result = [];
     // Get all triangles
-    for ( let i = 0; i < indices.length; i++ ) {
-      let index = i * 3;
+    for ( let i = 0; i < indices.length; ++i ) {
+      let index = indices[ i ] * 3;
       let vertex = new BABYLON.Vector3( vertices[ index ], vertices[ index + 1 ], vertices[ index + 2 ] );
-
       BABYLON.Vector3.TransformCoordinatesToRef( vertex, worldMatrix, vertex );
 
       result.push( vertex );

@@ -40,7 +40,7 @@
         const size = 2;
         let height = size * 0.5;
 
-        let type = localStorage.getItem("type");
+        let type = 0;//localStorage.getItem("type");
         if ( type ) {
           type = parseInt( type );
         }
@@ -79,7 +79,6 @@
             depth: size
           }, scene );
         }
-
 
         item.material = itemMaterial;
         item.material.diffuseColor = BABYLON.Color3.FromHexString( "#BADBAD" );
@@ -146,7 +145,7 @@
     var scene = createScene();
 
     window.initMouseEvents( scene, item, ground );
-    window.initCollision( collisions );
+    window.initCollision( collisions, scene );
 
     // Register a render loop to repeatedly render the scene
     engine.runRenderLoop(function () {

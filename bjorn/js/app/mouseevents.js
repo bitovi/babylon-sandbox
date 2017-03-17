@@ -10,6 +10,12 @@
  */
 window.initMouseEvents = function ( scene, mesh, ground ) {
 
+  var hl = new BABYLON.HighlightLayer("hl", scene);
+  var addedMeshes = [];
+  window.hl = hl;
+  console.log( hl );
+  //hl.addMesh(sphereMetal, BABYLON.Color3.White());
+
   let _isMouseDown = false;
 
   function moveMesh( a_mousePos ) {
@@ -30,14 +36,15 @@ window.initMouseEvents = function ( scene, mesh, ground ) {
    * @param {MouseEvent} e
    */
   function onmousemove ( e ) {
+    const pickResult = scene.pick( e.clientX, e.clientY, function( hitMesh ) {
+      return hitMesh !== ground;
+    } );
+    if ( pickResult.hit ) {
 
-    if ( _isMouseDown ) {
-      const mousePos = {
-        x: e.clientX,
-        y: e.clientY
-      };
-      // move mesh
-      moveMesh(  mousePos );
+      if ( !addedMeshes[ pickResult.pickedMesh.uniqueId ] ) {
+        addedMeshes[ pickResult.pickedMesh.uniqueId ] = pickResult.pickedMesh;
+        hl.addMesh( pickResult.pickedMesh, BABYLON.Color3.Blue() );
+      }
     }
   }
 

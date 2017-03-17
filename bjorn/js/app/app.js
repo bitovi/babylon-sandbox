@@ -35,7 +35,15 @@
         ground.material = new BABYLON.StandardMaterial("groundmat", scene);
         ground.material.specularColor = BABYLON.Color3.Black();
 
-        let itemMaterial = new BABYLON.StandardMaterial( "itemMaterial", scene );
+        // let itemMaterial = new BABYLON.StandardMaterial( "itemMaterial", scene );
+        let itemMaterial = new BABYLON.PBRMaterial( "itemMaterial", scene );
+        itemMaterial.directIntensity = 0.6;
+        itemMaterial.environmentIntensity = 0.7;
+        itemMaterial.cameraExposure = 0.6;
+        itemMaterial.cameraContrast = 1.6;
+        itemMaterial.microSurface = 0.96;
+        itemMaterial.albedoColor = new BABYLON.Color3(0.206, 0.94, 1);
+        itemMaterial.reflectivityColor = new BABYLON.Color3(0.05, 0.05, 0.05);
 
         const size = 2;
         let height = size * 0.5;

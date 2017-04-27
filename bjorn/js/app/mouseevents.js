@@ -11,6 +11,7 @@
 window.initMouseEvents = function ( scene, mesh, ground ) {
 
   let _isMouseDown = false;
+  let _isMouseLookDown = false;
 
   function moveMesh( a_mousePos ) {
     const x = a_mousePos.x;
@@ -32,12 +33,12 @@ window.initMouseEvents = function ( scene, mesh, ground ) {
   function onmousemove ( e ) {
 
     if ( _isMouseDown ) {
-      const mousePos = {
-        x: e.clientX,
-        y: e.clientY
-      };
-      // move mesh
-      moveMesh(  mousePos );
+      window.magnetMouseMove( e, scene );
+    }
+    if ( _isMouseLookDown ) {
+      window.showVisibleMagnetPoints( mesh );
+    } else {
+      window.magnetMouseOver( e, scene );
     }
   }
 
@@ -47,7 +48,12 @@ window.initMouseEvents = function ( scene, mesh, ground ) {
   function onmousedown ( e ) {
     if ( e.which === 1 ) {
       _isMouseDown = true;
+      window.magnetMouseDown( e, scene );
+    } else if ( e.which === 2 ) {
+      _isMouseLookDown = true;
     }
+
+
 
   }
 
@@ -57,6 +63,9 @@ window.initMouseEvents = function ( scene, mesh, ground ) {
   function onmouseup ( e ) {
     if ( e.which === 1 ) {
       _isMouseDown = false;
+      window.magnetMouseUp( e );
+    } else if ( e.which === 2 ) {
+      _isMouseLookDown = false;
     }
 
   }

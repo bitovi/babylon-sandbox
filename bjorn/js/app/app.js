@@ -15,6 +15,8 @@
         var scene = new BABYLON.Scene(engine);
         window.scene = scene;
 
+        scene.debugLayer.show();
+
         // This creates and positions a free camera (non-mesh)
         var camera = new BABYLON.FreeCamera("camera1", new BABYLON.Vector3(0, 5, -10), scene);
 
@@ -80,7 +82,6 @@
           }, scene );
         }
 
-
         item.material = itemMaterial;
         item.material.diffuseColor = BABYLON.Color3.FromHexString( "#BADBAD" );
         item.material.specularColor = BABYLON.Color3.Black();
@@ -88,6 +89,8 @@
 
         item.position.y = height;
         // item.rotation.y = Math.PI * 0.33;
+
+      item.rotationQuaternion = BABYLON.Quaternion.Identity();
 
         const collisionSize = 1.5;
         const collisionColor = "#1CE1CE";
@@ -135,6 +138,8 @@
           collisionMeshes[ i ].material = collisionMaterial;
           collisions.push( collisionMeshes[ i ]);
         }
+
+        generateMagnetPoints( item );
 
         return scene;
     };

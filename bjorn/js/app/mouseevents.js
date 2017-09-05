@@ -8,7 +8,7 @@
  * @param {BABYLON.Mesh} mesh
  * @param {BABYLON.Mesh} ground
  */
-window.initMouseEvents = function ( scene, mesh, ground ) {
+window.initMouseEvents = function ( scene, mesh, ground, collisionMeshes ) {
 
   let _isMouseDown = false;
   let _isMouseLookDown = false;
@@ -33,10 +33,9 @@ window.initMouseEvents = function ( scene, mesh, ground ) {
   function onmousemove ( e ) {
 
     if ( _isMouseDown ) {
-      window.magnetMouseMove( e, scene );
+      window.magnetMouseMove( e, scene, collisionMeshes );
     }
     if ( _isMouseLookDown ) {
-      window.showVisibleMagnetPoints( mesh );
     } else {
       window.magnetMouseOver( e, scene );
     }
@@ -52,9 +51,6 @@ window.initMouseEvents = function ( scene, mesh, ground ) {
     } else if ( e.which === 2 ) {
       _isMouseLookDown = true;
     }
-
-
-
   }
 
   /**
@@ -64,14 +60,21 @@ window.initMouseEvents = function ( scene, mesh, ground ) {
     if ( e.which === 1 ) {
       _isMouseDown = false;
       window.magnetMouseUp( e );
+      window.showVisibleMagnetPoints( mesh, scene.activeCamera.position );
     } else if ( e.which === 2 ) {
       _isMouseLookDown = false;
     }
-
   }
 
   window.addEventListener( "mousemove", onmousemove );
   window.addEventListener( "mousedown", onmousedown );
   window.addEventListener( "mouseup", onmouseup );
+
+  window.addEventListener( "keyup", function(e) {
+    const key = e.key.toLowerCase();
+    if ( key === "arrowright" || key === "arrowleft" || key === "arrowup" || key === "arrowdown" ) {
+      window.showVisibleMagnetPoints( mesh, scene.activeCamera.position );
+    }
+  });
 
 };

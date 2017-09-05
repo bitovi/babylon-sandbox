@@ -42,7 +42,8 @@
         const size = 2;
         let height = size * 0.5;
 
-        let type = localStorage.getItem("type");
+        // let type = localStorage.getItem("type");
+        let type = "0";
         if ( type ) {
           type = parseInt( type );
         }
@@ -87,10 +88,13 @@
         item.material.specularColor = BABYLON.Color3.Black();
         item.material.alpha = 0.8;
 
-        item.position.y = height;
+        item.position.copyFromFloats( 7, height, 1 );
         // item.rotation.y = Math.PI * 0.33;
 
-      item.rotationQuaternion = BABYLON.Quaternion.Identity();
+        // item.rotationQuaternion = BABYLON.Quaternion.Identity();
+        item.rotationQuaternion = BABYLON.Quaternion.RotationYawPitchRoll(0, Math.PI * 0.33, 0);
+
+        item.computeWorldMatrix(true);
 
         const collisionSize = 1.5;
         const collisionColor = "#1CE1CE";
@@ -113,7 +117,7 @@
         ];
 
         for ( let i = 0; i < collisionPositions.length; ++i ) {
-          let collisionBox = BABYLON.MeshBuilder.CreateBox( "collisionBox", collisionOptions, scene );
+          let collisionBox = BABYLON.MeshBuilder.CreateBox( "collisionBox" + i.toString(), collisionOptions, scene );
           collisionBox.material = collisionMaterial;
 
           let position = collisionPositions[ i ];
@@ -125,6 +129,8 @@
           if ( i == 0 ) {
             collisionBox.rotation.y = Math.PI * 0.33;
           }
+
+          collisionBox.rotationQuaternion = collisionBox.rotation.toQuaternion();
 
           collisions.push( collisionBox );
         }
@@ -140,6 +146,7 @@
         }
 
         generateMagnetPoints( item );
+        showVisibleMagnetPoints( item, scene.activeCamera.position );
 
         return scene;
     };
@@ -150,7 +157,7 @@
 
     var scene = createScene();
 
-    window.initMouseEvents( scene, item, ground );
+    window.initMouseEvents( scene, item, ground, collisions );
 
     // Register a render loop to repeatedly render the scene
     engine.runRenderLoop(function () {

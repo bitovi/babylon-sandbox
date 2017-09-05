@@ -12,14 +12,14 @@
   let _tmpViewDirection = new BABYLON.Vector3( 0, 0, 0 );
   let _tmpMatrix = new BABYLON.Matrix.Identity();
 
-  window.showVisibleMagnetPoints = function ( mesh ) {
+  window.showVisibleMagnetPoints = function ( mesh, targetPosition ) {
     let magnetPoints = mesh.__magnetPoints;
 
     if ( !magnetPoints ) {
       console.log( "no magnetpoints" );
     }
 
-    const mask = getFacesVisibleMask( mesh );
+    const mask = getFacesVisibleMask( mesh, targetPosition );
 
     for ( let i = 0; i < magnetPoints.length; ++i ) {
       let pointMesh = magnetPoints[ i ];
@@ -34,9 +34,18 @@
     }
   }
 
-  function getFacesVisibleMask( mesh ) {
+  window.hideMagnetPoints = function ( mesh ) {
+    let magnetPoints = mesh.__magnetPoints;
+    if ( magnetPoints ) {
+      for ( let i = 0; i < magnetPoints.length; ++i ) {
+        magnetPoints[ i ].isVisible = false;
+      }
+    }
+  }
+
+  function getFacesVisibleMask( mesh, targetPosition ) {
     let viewDirection = _tmpViewDirection;
-    mesh.position.subtractToRef( mesh.getScene().activeCamera.position, viewDirection );
+    mesh.position.subtractToRef( targetPosition, viewDirection );
     viewDirection.normalize();
 
     let rotationMatrix = _tmpMatrix;
@@ -46,9 +55,9 @@
       rotationMatrix = null;
     }
 
-    let xResult = checkFace( _positiveX, _negativeX, viewDirection, rotationMatrix );
-    let yResult = checkFace( _positiveY, _negativeY, viewDirection, rotationMatrix );
-    let zResult = checkFace( _positiveZ, _negativeZ, viewDirection, rotationMatrix );
+    let xResult = checkFace ( _positiveX, _negativeX, viewDirection, rotationMatrix );
+    let yResult = checkFace ( _positiveY, _negativeY, viewDirection, rotationMatrix );
+    let zResult = checkFace ( _positiveZ, _negativeZ, viewDirection, rotationMatrix );
 
     let mask = 0;
 
@@ -103,6 +112,5 @@
     }
 
     return 0;
-
   }
 }();

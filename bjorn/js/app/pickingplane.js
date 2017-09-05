@@ -21,14 +21,14 @@ var createPlane = function( position, normal, scene ) {
   planeMesh.isPickable = false;
   planeMesh.receiveShadows = false;
   planeMesh.checkCollisions = false;
-  planeMesh.isVisible = true;
+  planeMesh.isVisible = false;
   planeMesh.__pickingNormal = normal.clone();
   planeMesh.__isPickingPlane = true;
   planeMesh.visibility = 0.9;
 
   planeMesh.material = new BABYLON.StandardMaterial( "pickingmat", scene );
   planeMesh.material.backFaceCulling = false;
-  planeMesh.material.emissiveColor = new BABYLON.Color3( Math.random() * 255, Math.random() * 255, Math.random() * 255 );
+  planeMesh.material.emissiveColor = BABYLON.Color3.FromInts( Math.random() * 255, Math.random() * 255, Math.random() * 255 );
 
   // Put the planemesh at the top of scene.meshes instead of at the end
   let sceneMeshes = scene.meshes;

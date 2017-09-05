@@ -14,16 +14,39 @@
 
     let scene = mesh.getScene();
 
+    /**
+     *
+     * @type {BABYLON.BoundingBox}
+     */
+
+    mesh.computeWorldMatrix(true);
+    mesh._updateBoundingInfo();
+
     const bb = mesh.getBoundingInfo().boundingBox;
     const bbMinimum = bb.minimum;
     const bbMaximum = bb.maximum;
 
-    const sizeOffset = 0;
+    // const minimumWorld = bb.minimumWorld.clone();
+    // const maximumWorld = bb.maximumWorld.clone();
 
-    const minX = bbMinimum.x;
-    const minZ = bbMinimum.z;
-    const maxX = bbMaximum.x;
-    const maxZ = bbMaximum.z;
+    let minimumWorld = new BABYLON.Vector3( Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE );
+    let maximumWorld = new BABYLON.Vector3( -Number.MAX_VALUE, -Number.MAX_VALUE, -Number.MAX_VALUE );
+
+    let wm = mesh.getWorldMatrix().clone();
+
+    wm.invert();
+
+    for ( let i = 0; i < bb.vectorsWorld.length; ++i ) {
+      let point = BABYLON.Vector3.TransformCoordinates( bb.vectorsWorld[ i ], wm );
+
+      minimumWorld.MinimizeInPlace( point );
+      maximumWorld.MaximizeInPlace( point );
+    }
+
+    const minX = minimumWorld.x;
+    const minZ = minimumWorld.z;
+    const maxX = maximumWorld.x;
+    const maxZ = maximumWorld.z;
 
     const positiveY = 0x001000;
     const negativeY = 0x000100;
@@ -39,7 +62,7 @@
     for ( let i = 0; i < combinedPoints.length; ++i ) {
       let point = combinedPoints[ i ];
 
-      let meshInstance = getMagnetMeshInstance( scene );
+      let meshInstance = getMagnetMeshInstance( scene, mesh.id );
       meshInstance.__magnetMask = point.mask;
       meshInstance.__isMagnetPoint = true;
       meshInstance.position.copyFrom( point.point );
@@ -126,9 +149,9 @@
    * @param scene
    * @return {InstancedMesh}
    */
-  function getMagnetMeshInstance( scene ) {
+  function getMagnetMeshInstance( scene, meshId ) {
     if ( _magnetMesh ) {
-      return _magnetMesh.createInstance( "mp" + _instanceId++ );
+      return _magnetMesh.createInstance( "mp_" + meshId + "_" +_instanceId++ );
     }
 
     let magnetMesh = BABYLON.MeshBuilder.CreateBox( "magnetpoint", {
@@ -137,10 +160,11 @@
 
     magnetMesh.material = new BABYLON.StandardMaterial( "magnetmat", scene );
     magnetMesh.material.diffuseColor = BABYLON.Color3.Yellow();
+    magnetMesh.material.specularColor = BABYLON.Color3.Black();
 
     _magnetMesh = magnetMesh;
     _magnetMesh.isVisible = false;
 
-    return _magnetMesh.createInstance( "mp" + _instanceId++);
+    return _magnetMesh.createInstance( "mp_" + meshId + _instanceId++ );
   }
 }();
